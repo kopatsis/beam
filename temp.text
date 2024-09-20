@@ -1,12 +1,20 @@
 Entities:
-- User
-- Product Group
-- ^^^ Variant
+- User 
+- Product Group :R:
+- ^^^ Variant :R:
 - Order
 - ^^^ Line
 - List
 - ^^^ Line
-- Cart
-- ^^^ Line
-[]Collection
-[]Discount
+- Cart :R: (?)
+- ^^^ Line*
+- Discount
+- Collection :R:
+- ^^^ Line**
+- Event Log
+- Reviews
+
+* = Cart in redis contains all lines as one serial, BUT there is also a cart count object
+** = Stored as a list within the collection on redis for easy multi-querying of products
+
+
