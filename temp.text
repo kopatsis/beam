@@ -1,0 +1,12 @@
+Entities:
+- User
+- Product Group
+- ^^^ Variant
+- Order
+- ^^^ Line
+- List
+- ^^^ Line
+- Cart
+- ^^^ Line
+[]Collection
+[]Discount
