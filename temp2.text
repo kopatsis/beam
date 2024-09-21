@@ -1,6 +1,7 @@
 CUSTOMER:
 - PK: Int or UUID (str)
 - Firebase UID (str)
+- Stripe ID (str)
 - Default Name (str)
 - Email (str)
 - Email Subbed (bool)
@@ -36,31 +37,48 @@ COLLECTION - mysql:
 - Tags ([]str)
 - Sortby Default (str/ENUM)
 - *Redirect (str)
+- SEO Title (str)
+- SEO Description (str)
+- Filter Info (JSON) [] {
+  - Key (str)
+  - Values ([]str)
+ }
 
 COLLECTION Lines - mysql:
-- PK (arbitrary)
-- FK: Collection ID
-- FK: Product ID
+- PKFK: Collection ID
+- PKFK: Product ID
 - Product Date Added (date)
 - Product Title (str)
 - Product Sales (int)
 - Product Price (float)
 
-COLLECTION - redis: "COL: "+ PK (int): 
-- Handle (str)
+COLLECTION - redis: "COL::"+ Handle: 
+- PK (int)
 - Title (str)
 - Description (html)
 - Image URL (str)
 - Tags ([]str)
 - Sortby Default (str/ENUM)
-- [] -> {
+- Product IDs ([]str)
+- SEO Title (str)
+- SEO Description (str)
+- Filter Info: [] {
+  - Key (str)
+  - Values ([]str)
+ }
+OR: *Redirect (str) [not active]
+
+PRODUCTS - w/in COLLECTION - redis: "PWC::"+id:
  - Product ID
  - Product Title (str)
  - Product Date Added (date)
  - Product Sales (int)
  - Product Price (float)
+ - Product Inventory (int)
+ - Filter Info: [] {
+  - Key (str)
+  - Values ([]str)
  }
- OR: *Redirect (str) [not active]
 
 CART:
 - PK (int)
@@ -78,11 +96,11 @@ CART Lines:
 - FK: Variant ID
 - Image URL
 - Product Title (str)
-- *Variant1 Key (str)
-- *Variant1 Key (str)
+- Variant1 Key (str)
+- Variant1 Value (str)
 - *Variant2 Key (str)
-- *Variant2 Key (str)
-- *Variant3 Value (str)
+- *Variant2 Value (str)
+- *Variant3 Key (str)
 - *Variant3 Value (str)
 - Quantity (int)
 - Price (float)
@@ -103,11 +121,11 @@ LIST Lines:
 - FK: Variant ID
 - Image URL
 - Product Title (str)
-- *Variant1 Key (str)
-- *Variant1 Key (str)
+- Variant1 Key (str)
+- Variant1 Value (str)
 - *Variant2 Key (str)
-- *Variant2 Key (str)
-- *Variant3 Value (str)
+- *Variant2 Value (str)
+- *Variant3 Key (str)
 - *Variant3 Value (str)
 - Quantity (int)
 - Price (float)
@@ -148,17 +166,157 @@ Review:
 - PK (int)
 - FK: Customer ID
 - FK: Product ID
-- *Variant1 Key (str)
-- *Variant1 Key (str)
+- FK: Variant ID
+- Variant1 Key (str)
+- Variant1 Value (str)
 - *Variant2 Key (str)
-- *Variant2 Key (str)
-- *Variant3 Value (str)
+- *Variant2 Value (str)
+- *Variant3 Key (str)
 - *Variant3 Value (str)
 - Stars (int)
 - *Title (str)
 - *Description (str w/ \n)
 - Date added (date)
 - Date last edited (date)
+
+PRODUCT - mysql:
+- PK (int)
+- Handle (str)
+- Title (str)
+- Description (html)
+- Image URL (str)
+- Alt Image URLs ([]str)
+- Status (str/ENUM)
+- Tags ([]str)
+- Rating (float)
+- *Redirect (str)
+- Variant1 Key (str)
+- *Variant2 Key (str)
+- *Variant3 Key (str)
+- SEO Title (str)
+- SEO Description (str)
+- Filter Info (JSON) [] {
+  - Key (str)
+  - Values ([]str)
+ }
+
+COMPARABLE - mysql:
+- PKFK: Product ID 1
+- PKFK: Product ID 2
+
+VARIANT - mysql:
+- PK (int)
+- FK: Product ID
+- Printful ID (str)
+- Variant1 Key (str)
+- *Variant2 Key (str)
+- *Variant3 Key (str)
+- Price (float)
+- Quantity (int)
+- Variant Image URL (str)
+- Variant Barcode/UPC (str)
+
+PRODUCT - redis: "PRO::"+ Handle: 
+- PK (int)
+- Title (str)
+- Description (html)
+- Image URL (str)
+- Alt Image URLs ([]str)
+- Status (str/ENUM)
+- Tags ([]str)
+- Rating (float)
+- *Variant1 Key (str)
+- *Variant2 Key (str)
+- *Variant3 Key (str)
+- Comparables -> []{
+ - Product Handle (str)
+ - Product Title (str)
+ - Product Image URL (str)
+ - Product Price (float)
+ }
+- Collections -> []{
+ - Collection Handle (str)
+ - Collection Title (str)
+ - Collection Image URL (str)
+}
+- Variants -> [] {
+ - PK (int)
+ - Printful ID (str)
+ - Variant1 Key (str)
+ - *Variant2 Key (str)
+ - *Variant3 Key (str)
+ - Price (float)
+ - Quantity (int)
+ - Variant Image URL (str)
+ - Variant Barcode/UPC (str)
+}
+OR: *Redirect (str) [not active]
+
+ORDER - mongodb:
+- ID (str)
+- Printful ID (str)
+- Customer ID (str)
+- Draft Order ID (str)
+- Status (str/ENUM)
+- Email (str)
+- Date Created (date)
+- *Date Cancelled (date)
+- *Date Processed Printful (date)
+- *Date Shipped (date)
+- *Date Delivered (date)
+- *Date Return Initiated (date)
+- *Date Return Completed (date)
+- Stripe Payment Intent ID (str)
+- Subtotal (float)
+- Shipping (float)
+- Order Level Discount (float)
+- Tax (float)
+- Tip (float)
+- Total (float)
+- *Non-Stacking Discount Code (str)
+- *Stacking Discount Codes ([]str)
+- Billing CONTACT {} (Same as contact datatype, NOT ID)
+- Shipping CONTACT {} (Same as contact datatype, NOT ID)
+- Tags ([]str)
+- Delivery Note (str)
+- Shipping Identification (str)
+
+ORDER Lines - mongodb:
+ - Product ID (str)
+ - Variant ID (str)
+ - Quantity (int)
+ - Undiscounted Price (float)
+ - Line-level Discount (float)
+ - End Price (float)
+ - Line Total (float)
+
+DRAFT ORDER - mongodb:
+- ID (str)
+- Customer ID (str)
+- Status (str/ENUM)
+- Email (str)
+- Date Created (date)
+- *Date Abandoned (date)
+- Stripe Payment Intent ID (str)
+- Subtotal (float)
+- Shipping (float)
+- Order Level Discount (float)
+- Tax (float)
+- Tip (float)
+- Total (float)
+- *Non-Stacking Discount Code (str)
+- *Stacking Discount Codes ([]str)
+- Billing CONTACT {} (Same as contact datatype, NOT ID)
+- Shipping CONTACT {} (Same as contact datatype, NOT ID)
+
+DRAFT ORDER Lines - mongodb:
+ - Product ID (str)
+ - Variant ID (str)
+ - Quantity (int)
+ - Undiscounted Price (float)
+ - Line-level Discount (float)
+ - End Price (float)
+ - Line Total (float)
 
 SEARCHINFO - redis: "SEARCHINFO"
 - COLLECTIONS:
@@ -171,3 +329,4 @@ SEARCHINFO - redis: "SEARCHINFO"
  - Title (str)
  - Image URL (str)
  - Tags ([]str)
+

@@ -3,6 +3,7 @@ X Customer
 X ^^^ Contact
 - Product Group :R:
 - ^^^ Variant :R:
+- ^^^ Comparable*
 - Draft Order
 - ^^^ Line
 - Order :M:
@@ -18,6 +19,7 @@ X ^^^ Line*
 X Event Log :B:
 ? Session Log :B:
 X Review 
+- Notification
 
 
 * = stored as a list within the collection on redis for easy multi-querying of products
@@ -25,3 +27,10 @@ X Review
 :B: = flushed frequently from mysql to backblaze
 :M: = stored on mongodb exclusively, with movement to cold storage after a period of time
 
+
+{}
+Filter data for collections redis:
+[] Key: []Vals
+
+On each product: 
+[] Key: []Vals
