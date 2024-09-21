@@ -1,0 +1,173 @@
+CUSTOMER:
+- PK: Int or UUID (str)
+- Firebase UID (str)
+- Default Name (str)
+- Email (str)
+- Email Subbed (bool)
+- FK: Default Shipping Contact ID
+- FK: Default Billing Contact ID
+- Tags ([]str)
+- *Phone Number (str)
+- Status (str/ENUM)
+- Order Count (int)
+- Stripe ID (str)
+- Autodiscount PCT off (float)
+
+CONTACT:
+- PK (arbitrary)
+- FK: Customer ID
+- First Name (str)
+- *Last Name (str)
+- *Phone Number (str)
+- Street Address 1 (str)
+- *Street Address 2 (str)
+- City (str)
+- Province/State (str)
+- Zip Code (str)
+- Country (str)
+
+COLLECTION - mysql:
+- PK (int)
+- Handle (str)
+- Title (str)
+- Description (html)
+- Image URL (str)
+- Status (str/ENUM)
+- Tags ([]str)
+- Sortby Default (str/ENUM)
+- *Redirect (str)
+
+COLLECTION Lines - mysql:
+- PK (arbitrary)
+- FK: Collection ID
+- FK: Product ID
+- Product Date Added (date)
+- Product Title (str)
+- Product Sales (int)
+- Product Price (float)
+
+COLLECTION - redis: "COL: "+ PK (int): 
+- Handle (str)
+- Title (str)
+- Description (html)
+- Image URL (str)
+- Tags ([]str)
+- Sortby Default (str/ENUM)
+- [] -> {
+ - Product ID
+ - Product Title (str)
+ - Product Date Added (date)
+ - Product Sales (int)
+ - Product Price (float)
+ }
+ OR: *Redirect (str) [not active]
+
+CART:
+- PK (int)
+- FK: Customer ID 
+- Date Started (date)
+- Item Count (int)
+- Status (str/ENUM)
+- Ever Abandoned at checkout (bool)
+
+CART Lines:
+- PK (int)
+- FK: Customer ID 
+- FK: Cart ID
+- FK: Product ID
+- FK: Variant ID
+- Image URL
+- Product Title (str)
+- *Variant1 Key (str)
+- *Variant1 Key (str)
+- *Variant2 Key (str)
+- *Variant2 Key (str)
+- *Variant3 Value (str)
+- *Variant3 Value (str)
+- Quantity (int)
+- Price (float)
+
+LIST:
+- PK (int)
+- FK: Customer ID 
+- Title (str)
+- Date Started (date)
+- Item Count (int)
+- Ever Abandoned at checkout (bool)
+
+LIST Lines:
+- PK (int)
+- FK: Customer ID 
+- FK: Cart ID
+- FK: Product ID
+- FK: Variant ID
+- Image URL
+- Product Title (str)
+- *Variant1 Key (str)
+- *Variant1 Key (str)
+- *Variant2 Key (str)
+- *Variant2 Key (str)
+- *Variant3 Value (str)
+- *Variant3 Value (str)
+- Quantity (int)
+- Price (float)
+- Date Added (int)
+
+DISCOUNT:
+- PK (int)
+- Discount Code (str)
+- Is PCT Off (bool)
+- *PCT Off (float)
+- Is $ Off (bool)
+- *$ Off (float)
+- Has min subtotal (bool)
+- *Min subtotal (float)
+- Stacks (bool)
+
+DISCOUNT Users:
+- FKPK: Discount ID
+- FKPK: Customer ID
+
+EVENT Log:
+- PK (arbitrary)
+- FK Customer ID
+- Timestamp (date)
+- Event Classification (str/ENUM?)
+- Event Description (str)
+- *FK: Order ID
+- *FK: Product ID
+- *FK: List ID
+- *FK: Cart ID
+- *FK: Collection ID
+- *FK: Discount ID
+- *FK: Review ID ...
+- Special Note (str)
+- Tags ([]str)
+
+Review:
+- PK (int)
+- FK: Customer ID
+- FK: Product ID
+- *Variant1 Key (str)
+- *Variant1 Key (str)
+- *Variant2 Key (str)
+- *Variant2 Key (str)
+- *Variant3 Value (str)
+- *Variant3 Value (str)
+- Stars (int)
+- *Title (str)
+- *Description (str w/ \n)
+- Date added (date)
+- Date last edited (date)
+
+SEARCHINFO - redis: "SEARCHINFO"
+- COLLECTIONS:
+ - Handle (str)
+ - Title (str)
+ - Image URL (str)
+ - Tags ([]str)
+- PRODUCTS:
+ - Handle (str)
+ - Title (str)
+ - Image URL (str)
+ - Tags ([]str)
