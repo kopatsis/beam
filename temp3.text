@@ -1,0 +1,42 @@
+GENERAL CATEGORIES:
+
+PAGES:
+/ -- general basic website welcome page, more or less static
+
+/collections -- listing of all collections and categories, more or less a static page with links
+/collections/:handle -- one specific collection complete with rendering of <20? product basics
+/collections/:handle?[non page filter] -- one or more filters applied to collection, render
+/collections/:handle?[page filter] -- NOT a part of filter save if exists, sorts and filters then skips X content, if NONE then reverts to P1
+
+/products/:handle -- generic product with everything rendered 
+/products/:handle/:variantID -- generic product with everything rendered, selecting a specific variantID
+
+/cart -- renders whatever is in the account/device account's cart
+/checkout -- renders the information for the draft order incl tax calc
+
+/orders/:id -- a specific order including status and list of all
+/orders -- similar to collection, renders basics for orders in a list, with filtering and sorting options
+/orders?[non page filter] -- one or more filters, sorts applied but still the first page
+/orders?[page filter] -- NOT a part of filter save if exists, sorts and filters then skips X content, if NONE then reverts to P1
+
+/lists -- just renders extreme basics for each list, no filtering or sorting or anything
+/lists/:handle -- renders variant by variant basics with no filtering, sorting, paging. defaults to date descending but can be custom reordered
+
+/articles {tbd name} -- borderline static page of generic list of bloggish
+/articles/:handle {tbd name} -- a specific page, yes it is absolutely static
+
+/auth -- the login/create account switching page, landing point
+/refer -- referral for email link auth
+/account -- user basics, including list of default (maybe all) addresses and ability to add new ones/modify any information
+
+
+OTHER TYPES:
+- ACTIONS: non-page changing actions, particularly updating something with htmx such as filter, change w/in cart, variant change, address/shipping change ...
+- WEBHOOKS: from printful typically but maybe other 
+- BACKGROUND: runs scheduled in background for updating things that may not be triggered by webhooks
+
+NOT INCLUDED:
+- COLLECTION/PRODUCT ENTRY - basic excel-based service, but extensively updates the denormalized redis info and backup mysql
+
+LATER:
+- MARKETPLACES: bundled code from each marketplace including order handling and potentially listing handling

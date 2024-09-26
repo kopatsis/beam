@@ -1,13 +1,13 @@
 Entities:
 X Customer
 X ^^^ Contact
-- Product Group :R:
-- ^^^ Variant :R:
-- ^^^ Comparable*
-- Draft Order
-- ^^^ Line
-- Order :M:
-- ^^^ Line :M:
+X Product Group :R:
+X ^^^ Variant :R:
+X ^^^ Comparable*
+X Draft Order
+X ^^^ Line
+X Order :M:
+X ^^^ Line :M:
 X List
 X ^^^ Line
 X Cart

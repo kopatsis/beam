@@ -141,6 +141,7 @@ DISCOUNT:
 - Has min subtotal (bool)
 - *Min subtotal (float)
 - Stacks (bool)
+- Applies to all (bool)
 
 DISCOUNT Users:
 - FKPK: Discount ID
@@ -318,6 +319,29 @@ DRAFT ORDER Lines - mongodb:
  - End Price (float)
  - Line Total (float)
 
+NOTIFICATION - mysql -> cold:
+- PK (arbitrary)
+- FK Customer ID
+- Timestamp created (date)
+- Timestamp completed (date)
+- Timestamp removed (date)
+- Event Classification (str/ENUM?)
+- Event Description (str)
+- *FK: Order ID
+- *FK: Product ID
+- *FK: List ID
+- *FK: Cart ID
+- *FK: Collection ID
+- *FK: Discount ID
+- *FK: Review ID ...
+- Special Note (str)
+- Tags ([]str)
+- Status (str/ENUM, created, completed, removed)
+- Specific Email (str)
+- Specific Phone (str)
+- Email (bool)
+- Phone (bool)
+
 SEARCHINFO - redis: "SEARCHINFO"
 - COLLECTIONS:
  - Handle (str)
@@ -330,3 +354,6 @@ SEARCHINFO - redis: "SEARCHINFO"
  - Image URL (str)
  - Tags ([]str)
 
+FilterSave - redis:
+* in extremely rare situation that filter query is > 2048 chars, is structured as https://mainurl.com/collections/this-collection-handle?fid=[uid]
+fid : full string filter
