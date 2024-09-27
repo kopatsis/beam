@@ -11,8 +11,10 @@ CUSTOMER:
 - *Phone Number (str)
 - Status (str/ENUM)
 - Order Count (int)
-- Stripe ID (str)
 - Autodiscount PCT off (float)
+
+GUEST CUSTOMER:
+- UUID (str)
 
 CONTACT:
 - PK (arbitrary)
@@ -281,6 +283,7 @@ ORDER - mongodb:
 - Tags ([]str)
 - Delivery Note (str)
 - Shipping Identification (str)
+- Guest (bool)
 
 ORDER Lines - mongodb:
  - Product ID (str)
@@ -309,6 +312,7 @@ DRAFT ORDER - mongodb:
 - *Stacking Discount Codes ([]str)
 - Billing CONTACT {} (Same as contact datatype, NOT ID)
 - Shipping CONTACT {} (Same as contact datatype, NOT ID)
+- Guest (bool)
 
 DRAFT ORDER Lines - mongodb:
  - Product ID (str)
