@@ -1,6 +1,7 @@
 GENERAL CATEGORIES:
 
 PAGES:
+
 / -- general basic website welcome page, more or less static
 
 /collections -- listing of all collections and categories, more or less a static page with links
@@ -30,13 +31,53 @@ PAGES:
 /account -- user basics, including list of default (maybe all) addresses and ability to add new ones/modify any information
 
 
+ACTIONS:
+/account 
+ - post (ideally htmx) add/change/default address [TBDD]
+ - post (ideally htmx) change in name
+
+/collections/:handle
+ - post (htmx) change filtering (non page)
+ - post (htmx) change page with or without filtering
+ ? add product X to cart
+
+/products/:handle
+ - add X to cart
+ - add to X list
+
+/cart 
+ - (ideally htmx) change product X quantity 
+ - (ideally htmx) delete product X
+
+/checkout
+ - update billing address
+ - update shipping address
+ - update shipping method
+ - post (real post ?) actual create order
+
+/orders 
+ - post (htmx) change filtering (non page)
+ - post (htmx) change page with or without filtering
+ - post create the order (no traditional in case there's an error)
+
+/lists/:handle
+ - delete from list
+ - undelete from list
+
+ /auth
+  - create an account (alpine)
+  - login to an account (alpine)
+  - email verification (websocket)
+  - attach an existing cart to an account
+
+
 OTHER TYPES:
-- ACTIONS: non-page changing actions, particularly updating something with htmx such as filter, change w/in cart, variant change, address/shipping change ...
-- WEBHOOKS: from printful typically but maybe other 
+- WEBHOOKS:
+ - Orders
 - BACKGROUND: runs scheduled in background for updating things that may not be triggered by webhooks
 
 NOT INCLUDED:
-- COLLECTION/PRODUCT ENTRY - basic excel-based service, but extensively updates the denormalized redis info and backup mysql
+- COLLECTION/PRODUCT ENTRY - basic excel-based service, but extensively updates the denormalized redis (incl search, entities, products in collections...) info and backup mysql
 
 LATER:
 - MARKETPLACES: bundled code from each marketplace including order handling and potentially listing handling

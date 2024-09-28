@@ -284,6 +284,7 @@ ORDER - mongodb:
 - Delivery Note (str)
 - Shipping Identification (str)
 - Guest (bool)
+- Guest ID (UUID) [Only if no customer id as guest]
 
 ORDER Lines - mongodb:
  - Product ID (str)
@@ -313,6 +314,7 @@ DRAFT ORDER - mongodb:
 - Billing CONTACT {} (Same as contact datatype, NOT ID)
 - Shipping CONTACT {} (Same as contact datatype, NOT ID)
 - Guest (bool)
+- Guest ID (UUID) [Only if no customer id as guest]
 
 DRAFT ORDER Lines - mongodb:
  - Product ID (str)
