@@ -56,7 +56,7 @@ ACTIONS:
  - post (real post ?) actual create order
 
 /orders 
- - post (htmx) change filtering (non page)
+ - post (htmx) change filtering (non page) * incl guest order bool
  - post (htmx) change page with or without filtering
  - post create the order (no traditional in case there's an error)
 
@@ -75,6 +75,7 @@ OTHER TYPES:
 - WEBHOOKS:
  - Orders
 - BACKGROUND: runs scheduled in background for updating things that may not be triggered by webhooks
+^ example, on account creation checks for guest orders w/ same email, marks them with id while still keeping guest id
 
 NOT INCLUDED:
 - COLLECTION/PRODUCT ENTRY - basic excel-based service, but extensively updates the denormalized redis (incl search, entities, products in collections...) info and backup mysql
