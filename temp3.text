@@ -30,6 +30,7 @@ PAGES:
 /refer -- referral for email link auth
 /account -- user basics, including list of default (maybe all) addresses and ability to add new ones/modify any information
 
+[]reviews???
 
 ACTIONS:
 /account 
@@ -82,3 +83,36 @@ NOT INCLUDED:
 
 LATER:
 - MARKETPLACES: bundled code from each marketplace including order handling and potentially listing handling
+
+
+PRINTFUL:
+- Shipping:
+ - POST (https://developers.printful.com/docs/#tag/Shipping-Rate-API/operation/calculateShippingRates) ~ Get ship rate by variant id x quantity at least
+- Orders:
+ - POST (https://developers.printful.com/docs/#tag/Orders-API/operation/createOrder) ~ Create an order 
+ - 
+- Webhooks:
+ - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/packageShipped) ~ Shipped, to email customer || Etsy update
+ - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/packageReturned) ~ Returned, to email ME -> ?
+ - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/orderCreated) ~ Created, to email customer !marketplace
+ - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/orderUpdated) ~ Updated, to email ME -> ?
+ - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/orderFailed) ~ Failed, to email ME -> ?
+ - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/orderCanceled) ~ Canceled, to email ME -> ?
+ - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/orderPutHold) ~ Hold?, to email ME -> ?
+ - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/orderPutHoldApproval) ~ Hold?, to email ME -> ?
+ - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/orderPutHoldApproval) ~ Hold?, to email ME -> ?
+
+
+ETSY:
+- Inventory:
+ - PUT (https://developers.etsy.com/documentation/reference/#operation/updateListingInventory) ~ Update inventory for a specific listing ID
+- Orders:
+ - GET (https://developers.etsy.com/documentation/reference/#operation/getShopReceipts) ~ Get shop receipts (including transactions) within a certain period
+ - POST (https://developers.etsy.com/documentation/reference/#operation/createReceiptShipment) ~ Create a shipment (use this as it works with all shipping steps)
+- Listings (Involved on the ENTRY side):
+ - POST (https://developers.etsy.com/documentation/reference/#operation/createDraftListing) ~ Create the actual general level listing
+ - PATCH (https://developers.etsy.com/documentation/reference/#operation/updateListing) ~ Primarily state active, could also be to edit parts
+ - PUT (https://developers.etsy.com/documentation/reference/#operation/updateListingInventory) ~ Add variants on a listing, including inventory counts
+ - POST (https://developers.etsy.com/documentation/reference/#operation/getListingImages) ~ Add images to the listing itself
+ - POST (https://developers.etsy.com/documentation/reference/#operation/updateVariationImages) ~ Associate a listing image with ONE variant field (ie color)
+
