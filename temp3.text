@@ -89,8 +89,8 @@ PRINTFUL:
 - Shipping:
  - POST (https://developers.printful.com/docs/#tag/Shipping-Rate-API/operation/calculateShippingRates) ~ Get ship rate by variant id x quantity at least
 - Orders:
- - POST (https://developers.printful.com/docs/#tag/Orders-API/operation/createOrder) ~ Create an order 
- - 
+ - POST (https://developers.printful.com/docs/#tag/Orders-API/operation/createOrder) ~ Create an order
+ ? POST (https://developers.printful.com/docs/#tag/Orders-API/operation/estimateOrderCosts) ~ Possibly as emergency to ensure profit
 - Webhooks:
  - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/packageShipped) ~ Shipped, to email customer || Etsy update
  - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/packageReturned) ~ Returned, to email ME -> ?
@@ -101,7 +101,10 @@ PRINTFUL:
  - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/orderPutHold) ~ Hold?, to email ME -> ?
  - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/orderPutHoldApproval) ~ Hold?, to email ME -> ?
  - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/orderPutHoldApproval) ~ Hold?, to email ME -> ?
-
+- Products:
+ - GET (https://developers.printful.com/docs/#tag/Products-API/operation/getSyncProducts) ~ Get products for add to my system
+ - PUT (https://developers.printful.com/docs/#tag/Products-API/operation/updateSyncProduct) ~ After get, any modifications to product group
+ - PUT (https://developers.printful.com/docs/#tag/Products-API/operation/updateSyncVariant) ~ After get, any modifications to variants
 
 ETSY:
 - Inventory:
@@ -115,4 +118,11 @@ ETSY:
  - PUT (https://developers.etsy.com/documentation/reference/#operation/updateListingInventory) ~ Add variants on a listing, including inventory counts
  - POST (https://developers.etsy.com/documentation/reference/#operation/getListingImages) ~ Add images to the listing itself
  - POST (https://developers.etsy.com/documentation/reference/#operation/updateVariationImages) ~ Associate a listing image with ONE variant field (ie color)
+
+
+ GOOGLE:
+ - Specialty:
+  - google.golang.org/api/content/v2.1 ~ create then insert the product
+
+  
 
