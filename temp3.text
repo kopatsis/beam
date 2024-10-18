@@ -125,4 +125,18 @@ ETSY:
   - google.golang.org/api/content/v2.1 ~ create then insert the product
 
   
+WALMART:
+- Inventory:
+ - POST (https://developer.walmart.com/api/us/mp/inventory#operation/updateBulkInventory) ~ Update by SKU (it looks like) using a feed
+- Orders:
+ - GET (https://developer.walmart.com/api/us/mp/orders#operation/getAllOrders) ~ Get orders via polling within a certain period
+ - POST (https://developer.walmart.com/api/us/mp/orders#operation/acknowledgeOrders) ~ Must acknlowedge order to show it'll be fulfilled
+ - POST (https://developer.walmart.com/api/us/mp/orders#operation/shippingUpdates) ~ Updates shipping info, should be covered after that
+- Listings (Involved on the ENTRY side):
+ - POST (https://developer.walmart.com/api/us/mp/items#operation/getSpec) ~ Specifications for an item class or multiple classes pre creation
+ - POST (https://developer.walmart.com/api/us/mp/items#operation/itemBulkUploads) ~ Create the actual items
+ - POST (https://developer.walmart.com/api/us/mp/price#operation/priceAndPromotionBulkUploads) ~ Update prices including a promotion (ideal)
+ ? POST (https://developer.walmart.com/api/us/mp/price#operation/priceBulkUploads) ~ May need to use this to update prices
+- Feed (Walmart specific):
+ - GET (https://developer.walmart.com/api/us/mp/feeds#operation/getAllFeedStatuses) ~ Opt check multiple feed statuses from above requests, may be manual
 
