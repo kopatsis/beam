@@ -106,6 +106,7 @@ PRINTFUL:
  - PUT (https://developers.printful.com/docs/#tag/Products-API/operation/updateSyncProduct) ~ After get, any modifications to product group
  - PUT (https://developers.printful.com/docs/#tag/Products-API/operation/updateSyncVariant) ~ After get, any modifications to variants
 
+
 ETSY:
 - Inventory:
  - PUT (https://developers.etsy.com/documentation/reference/#operation/updateListingInventory) ~ Update inventory for a specific listing ID
@@ -140,3 +141,27 @@ WALMART:
 - Feed (Walmart specific):
  - GET (https://developer.walmart.com/api/us/mp/feeds#operation/getAllFeedStatuses) ~ Opt check multiple feed statuses from above requests, may be manual
 
+
+EBAY:
+- Inventory:
+  - PUT (https://developer.ebay.com/api-docs/sell/inventory/resources/offer/methods/updateOffer) ~ Can update inventory (and pricing) this way
+- Orders:
+ - GET (https://developer.ebay.com/api-docs/sell/fulfillment/resources/order/methods/getOrders) ~ Get orders via polling within a certain period
+ - POST (https://developer.ebay.com/api-docs/sell/fulfillment/resources/order/shipping_fulfillment/methods/createShippingFulfillment) ~ fulfill shipping incl tracking
+- Listings (Involved on the ENTRY side):
+ - POST (https://developer.ebay.com/api-docs/sell/inventory/resources/inventory_item/methods/bulkCreateOrReplaceInventoryItem) ~ Creates the variant first
+ - PUT (https://developer.ebay.com/api-docs/sell/inventory/resources/inventory_item_group/methods/createOrReplaceInventoryItemGroup) ~ Creates the group AFTER
+ - POST (https://developer.ebay.com/api-docs/sell/inventory/resources/offer/methods/bulkCreateOffer) ~ The actual inventory and price for a variant
+ - POST (https://developer.ebay.com/api-docs/sell/inventory/resources/offer/methods/bulkPublishOffer) ~ Must publish the offer as well
+
+
+ AMAZON:
+ - Inventory:
+  - PATCH (https://developer-docs.amazon.com/sp-api/docs/listings-items-api-v2021-08-01-reference#patchlistingsitem) ~ Seems to be how price and inventory adjusted
+- Orders:
+ - GET (https://developer-docs.amazon.com/sp-api/docs/orders-api-v0-reference#getorders) ~ Gets just the order and general info, not items
+ - GET (https://developer-docs.amazon.com/sp-api/docs/orders-api-v0-reference#getorderitems) ~ Gets the actual items from the order
+ - POST (https://developer-docs.amazon.com/sp-api/docs/orders-api-v0-reference#updateshipmentstatus) ~ Update the actual shipment information
+ - POST (https://developer-docs.amazon.com/sp-api/docs/orders-api-v0-reference#confirmshipment) ~ To confirm the order has actually been shipped
+- Listings (Involved on the ENTRY side):
+ - PUT (https://developer-docs.amazon.com/sp-api/docs/listings-items-api-v2021-08-01-reference#putlistingsitem) ~ Apparently used for the entire listing and vars
