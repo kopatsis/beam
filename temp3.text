@@ -30,7 +30,6 @@ PAGES:
 /refer -- referral for email link auth
 /account -- user basics, including list of default (maybe all) addresses and ability to add new ones/modify any information
 
-[]reviews???
 
 ACTIONS:
 /account 
@@ -45,6 +44,10 @@ ACTIONS:
 /products/:handle
  - add X to cart
  - add to X list
+ - create a rating 
+ - edit a rating 
+ - delete a rating
+ - load ratings (w/ nextid= behavior, no sorting for now)
 
 /cart 
  - (ideally htmx) change product X quantity 
@@ -65,11 +68,11 @@ ACTIONS:
  - delete from list
  - undelete from list
 
- /auth
-  - create an account (alpine)
-  - login to an account (alpine)
-  - email verification (websocket)
-  - attach an existing cart to an account
+/auth
+ - create an account (alpine)
+ - login to an account (alpine)
+ - email verification (websocket)
+ - attach an existing cart to an account
 
 
 OTHER TYPES:

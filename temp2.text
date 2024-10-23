@@ -77,6 +77,7 @@ PRODUCTS - w/in COLLECTION - redis: "PWC::"+id:
  - Product Sales (int)
  - Product Price (float)
  - Product Inventory (int)
+ - Product Avg Rate (float)
  - Filter Info: [] {
   - Key (str)
   - Values ([]str)
@@ -184,9 +185,11 @@ Review:
 
 PRODUCT - mysql:
 - PK (int)
+- Printful id (str/int)
 - Handle (str)
 - Title (str)
 - Description (html)
+- Bullets ([]str)
 - Image URL (str)
 - Alt Image URLs ([]str)
 - Status (str/ENUM)
@@ -221,8 +224,10 @@ VARIANT - mysql:
 
 PRODUCT - redis: "PRO::"+ Handle: 
 - PK (int)
+- Printful id (str/int)
 - Title (str)
 - Description (html)
+- Bullets ([]str)
 - Image URL (str)
 - Alt Image URLs ([]str)
 - Status (str/ENUM)
@@ -285,6 +290,13 @@ ORDER - mongodb:
 - Shipping Identification (str)
 - Guest (bool)
 - Guest ID (UUID) [Only if no customer id as guest]
+- External (bool)
+- External Platform (str)
+- External ID (str)
+- Shipping Carrier (str)
+- Shipping Service (str)
+- Shipping Tracking Number (str)
+- Shipping Tracking URL (str)
 
 ORDER Lines - mongodb:
  - Product ID (str)
