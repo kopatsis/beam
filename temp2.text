@@ -214,6 +214,7 @@ VARIANT - mysql:
 - PK (int)
 - FK: Product ID
 - Printful ID (str)
+- SKU (str)
 - Variant1 Key (str)
 - *Variant2 Key (str)
 - *Variant3 Key (str)
@@ -250,6 +251,7 @@ PRODUCT - redis: "PRO::"+ Handle:
 - Variants -> [] {
  - PK (int)
  - Printful ID (str)
+ - SKU (str)
  - Variant1 Key (str)
  - *Variant2 Key (str)
  - *Variant3 Key (str)

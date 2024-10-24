@@ -184,6 +184,7 @@ VARIANT - mysql:
 - PK (int)
 - FK: Product ID
 - Printful ID (str)
+- SKU (str)
 - Variant1 Key (str)
 - *Variant2 Key (str)
 - *Variant3 Key (str)
@@ -220,6 +221,7 @@ PRODUCT - redis: "PRO::"+ Handle:
 - Variants -> [] {
  - PK (int)
  - Printful ID (str)
+ - SKU (str)
  - Variant1 Key (str)
  - *Variant2 Key (str)
  - *Variant3 Key (str)
@@ -243,9 +245,94 @@ SEARCHINFO - redis: "SEARCHINFO"
  - Tags ([]str)
 
 
-Create from XL:
+COLLECTION - mysql:
+- PK (int)
+- Handle (str)
+- Title (str)
+- Description (html)
+- Image URL (str)
+- Status (str/ENUM)
+- Tags ([]str)
+- Sortby Default (str/ENUM)
+- *Redirect (str)
+- SEO Title (str)
+- SEO Description (str)
+- Filter Info (JSON) [] {
+  - Key (str)
+  - Values ([]str)
+ }
+
+COLLECTION Lines - mysql:
+- PKFK: Collection ID
+- PKFK: Product ID
+- Product Date Added (date)
+- Product Title (str)
+- Product Sales (int)
+- Product Price (float)
+
+COLLECTION - redis: "COL::"+ Handle: 
+- PK (int)
+- Title (str)
+- Description (html)
+- Image URL (str)
+- Tags ([]str)
+- Sortby Default (str/ENUM)
+- Product IDs ([]str)
+- SEO Title (str)
+- SEO Description (str)
+- Filter Info: [] {
+  - Key (str)
+  - Values ([]str)
+ }
+OR: *Redirect (str) [not active]
+
+PRODUCTS - w/in COLLECTION - redis: "PWC::"+id:
+ - Product ID
+ - Product Title (str)
+ - Product Date Added (date)
+ - Product Sales (int)
+ - Product Price (float)
+ - Product Inventory (int)
+ - Product Avg Rate (float)
+ - Filter Info: [] {
+  - Key (str)
+  - Values ([]str)
+ }
+
+CREATE FROM XL:
+
+Products:
+- Shop name...
 - All product info MINUS PK, Redirect, Rating; PLUS standard price, collections
 - All variant info MINUS PK, FK ID
+- [Product level] comprables IDs []
 
-ADTL...
-Sheet for collections, comprables
+Collections:
+- All except PK, filter info, any product info
+- Product id str[]
+
+Actions for Products:
+ - GET product group from Printful
+ - Verify product and each variant exists on printful
+ - Create mysql product struct
+ - Create redis product struct
+ - Create [] of mysql variants
+ - Create [] of redis variants, append to redis product
+ - Create comparables for mysql
+ - Create [] of comprables for redis, append to redis product
+ - Save/update all of above
+ - GET SEARCHINFO
+ - Update searchinfo products
+ - PUT/PATCH Prinftul: Products = name, external id; Variants = name, external id, sku;
+
+Actions for Collections:
+ - Create mysql collection
+ - Create redis collection
+ - GET mysql products
+ - Create collection lines for mysql
+ - Create products within collection redis, ensure [] of ids in redis collection
+ - Save/update all of above
+ - GET SEARCHINFO
+ - Update searchinfo collections
+ - GET redis products
+ - UPDATE redis products to have [] of mini collection infos
