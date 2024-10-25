@@ -9,6 +9,9 @@ PAGES:
 /collections/:handle?[non page filter] -- one or more filters applied to collection, render
 /collections/:handle?[page filter] -- NOT a part of filter save if exists, sorts and filters then skips X content, if NONE then reverts to P1
 
+/search?[search] -- query for a search 
+/search?[search]&[page filter] -- search but paginated
+
 /products/:handle -- generic product with everything rendered 
 /products/:handle/:variantID -- generic product with everything rendered, selecting a specific variantID
 
