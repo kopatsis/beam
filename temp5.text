@@ -1,0 +1,18 @@
+
+- Bundles / Products not 1:1 with printful
+- Collections vs just filtering
+- Filtering with tags or []JSON
+- Searches within a collection? has filtering? SHOWS collections?
+- Not bothering with redis?
+- Two step (Fetch -> Entry) ?
+
+
+CONCEPT:
+ - Grab ALL products from Prinftul and show on Printful sheet
+ - Highlight all where doesn't show up at any time on my products/variants sheet
+ - Add my products and variants using bundle style (most will be 1:1)
+ - NO collections, just filter-based tags being Collection___Collection Name
+ - Same with product type (Product Type__Shirt)
+ - Searching results on main page, which can be further divided by collection, etc
+ - ANY time there is a change, including first load, to a "collection", gets ALL products and re-creates the filter
+ - Will NOT narrow down filters, just have clicked

@@ -4,16 +4,14 @@ PAGES:
 
 / -- general basic website welcome page, more or less static
 
-/collections -- listing of all collections and categories, more or less a static page with links
-/collections/:handle -- one specific collection complete with rendering of <20? product basics
-/collections/:handle?[non page filter] -- one or more filters applied to collection, render
-/collections/:handle?[page filter] -- NOT a part of filter save if exists, sorts and filters then skips X content, if NONE then reverts to P1
+/products -- just all products with no filters applied
+/products?[search fitler] -- all products that match certain searching (not filtered at first, done on backend)
+/products?[regular filter] -- one or more filters applied to all products, show the filters as seleted both on filter and at the top
+/products?[page filter] -- paginated including all other filters
+/products?[sort filter] -- defaults to page 1, sorting via sort options
 
-/search?[search] -- query for a search 
-/search?[search]&[page filter] -- search but paginated
-
-/products/:handle -- generic product with everything rendered 
-/products/:handle/:variantID -- generic product with everything rendered, selecting a specific variantID
+/product/:handle -- generic product with everything rendered 
+/product/:handle/:variantID -- generic product with everything rendered, selecting a specific variantID
 
 /cart -- renders whatever is in the account/device account's cart
 /checkout -- renders the information for the draft order incl tax calc
@@ -39,10 +37,13 @@ ACTIONS:
  - post (ideally htmx) add/change/default address [TBDD]
  - post (ideally htmx) change in name
 
-/collections/:handle
+/products
  - post (htmx) change filtering (non page)
  - post (htmx) change page with or without filtering
- ? add product X to cart
+ - post (htmx) change sorting (back to page 1)
+
+[search]
+ - goes to /products?q=query+encoded
 
 /products/:handle
  - add X to cart

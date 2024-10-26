@@ -14,8 +14,6 @@ X Cart
 X ^^^ Line
 X Discount
 X ^^^ Users
-X Collection :R:
-X ^^^ Line*
 X Event Log :B:
 ? Session Log :B:
 X Review 
@@ -26,11 +24,3 @@ X Review
 :R: = also as a cache on redis, sql just used as backup
 :B: = flushed frequently from mysql to backblaze
 :M: = stored on mongodb exclusively, with movement to cold storage after a period of time
-
-
-{}
-Filter data for collections redis:
-[] Key: []Vals
-
-On each product: 
-[] Key: []Vals

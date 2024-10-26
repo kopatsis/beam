@@ -29,47 +29,6 @@ CONTACT:
 - Zip Code (str)
 - Country (str)
 
-COLLECTION - mysql:
-- PK (int)
-- Handle (str)
-- Title (str)
-- Description (html)
-- Image URL (str)
-- Status (str/ENUM)
-- Tags ([]str)
-- Sortby Default (str/ENUM)
-- *Redirect (str)
-- SEO Title (str)
-- SEO Description (str)
-- Filter Info (JSON) [] {
-  - Key (str)
-  - Values ([]str)
- }
-
-COLLECTION Lines - mysql:
-- PKFK: Collection ID
-- PKFK: Product ID
-- Product Date Added (date)
-- Product Title (str)
-- Product Sales (int)
-- Product Price (float)
-
-COLLECTION - redis: "COL::"+ Handle: 
-- PK (int)
-- Title (str)
-- Description (html)
-- Image URL (str)
-- Tags ([]str)
-- Sortby Default (str/ENUM)
-- Product IDs ([]str)
-- SEO Title (str)
-- SEO Description (str)
-- Filter Info: [] {
-  - Key (str)
-  - Values ([]str)
- }
-OR: *Redirect (str) [not active]
-
 PRODUCTS - w/in COLLECTION - redis: "PWC::"+id:
  - Product ID
  - Product Title (str)
@@ -78,10 +37,7 @@ PRODUCTS - w/in COLLECTION - redis: "PWC::"+id:
  - Product Price (float)
  - Product Inventory (int)
  - Product Avg Rate (float)
- - Filter Info: [] {
-  - Key (str)
-  - Values ([]str)
- }
+ - Tags ([]string)
 
 CART:
 - PK (int)
@@ -201,10 +157,6 @@ PRODUCT - mysql:
 - *Variant3 Key (str)
 - SEO Title (str)
 - SEO Description (str)
-- Filter Info (JSON) [] {
-  - Key (str)
-  - Values ([]str)
- }
 
 COMPARABLE - mysql:
 - PKFK: Product ID 1
@@ -243,11 +195,6 @@ PRODUCT - redis: "PRO::"+ Handle:
  - Product Image URL (str)
  - Product Price (float)
  }
-- Collections -> []{
- - Collection Handle (str)
- - Collection Title (str)
- - Collection Image URL (str)
-}
 - Variants -> [] {
  - PK (int)
  - Printful ID (str)
@@ -363,16 +310,15 @@ NOTIFICATION - mysql -> cold:
 - Phone (bool)
 
 SEARCHINFO - redis: "SEARCHINFO"
-- COLLECTIONS:
- - Handle (str)
- - Title (str)
- - Image URL (str)
- - Tags ([]str)
 - PRODUCTS:
  - Handle (str)
  - Title (str)
  - Image URL (str)
  - Tags ([]str)
+
+ ALLFILTERS - redis: "ALLFILTERS"
+ - [] of {Key: []Values}
+
 
 FilterSave - redis:
 * in extremely rare situation that filter query is > 2048 chars, is structured as https://mainurl.com/collections/this-collection-handle?fid=[uid]

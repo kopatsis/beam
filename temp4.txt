@@ -153,6 +153,16 @@ Variant example:
     "availability_status": "active"
 },
 
+PRODUCTS - w/in COLLECTION - redis: "PWC::"+id:
+ - Product ID
+ - Product Title (str)
+ - Product Date Added (date)
+ - Product Sales (int)
+ - Product Price (float)
+ - Product Inventory (int)
+ - Product Avg Rate (float)
+ - Tags ([]string)
+
 PRODUCT - mysql:
 - PK (int)
 - Printful id (str/int)
@@ -171,10 +181,6 @@ PRODUCT - mysql:
 - *Variant3 Key (str)
 - SEO Title (str)
 - SEO Description (str)
-- Filter Info (JSON) [] {
-  - Key (str)
-  - Values ([]str)
- }
 
 COMPARABLE - mysql:
 - PKFK: Product ID 1
@@ -213,11 +219,6 @@ PRODUCT - redis: "PRO::"+ Handle:
  - Product Image URL (str)
  - Product Price (float)
  }
-- Collections -> []{
- - Collection Handle (str)
- - Collection Title (str)
- - Collection Image URL (str)
-}
 - Variants -> [] {
  - PK (int)
  - Printful ID (str)
@@ -233,87 +234,20 @@ PRODUCT - redis: "PRO::"+ Handle:
 OR: *Redirect (str) [not active]
 
 SEARCHINFO - redis: "SEARCHINFO"
-- COLLECTIONS:
- - Handle (str)
- - Title (str)
- - Image URL (str)
- - Tags ([]str)
 - PRODUCTS:
  - Handle (str)
  - Title (str)
  - Image URL (str)
  - Tags ([]str)
 
+ALLFILTERS - redis: "ALLFILTERS"
+ - [] of {Key: []Values}
 
-COLLECTION - mysql:
-- PK (int)
-- Handle (str)
-- Title (str)
-- Description (html)
-- Image URL (str)
-- Status (str/ENUM)
-- Tags ([]str)
-- Sortby Default (str/ENUM)
-- *Redirect (str)
-- SEO Title (str)
-- SEO Description (str)
-- Filter Info (JSON) [] {
-  - Key (str)
-  - Values ([]str)
- }
 
-COLLECTION Lines - mysql:
-- PKFK: Collection ID
-- PKFK: Product ID
-- Product Date Added (date)
-- Product Title (str)
-- Product Sales (int)
-- Product Price (float)
-
-COLLECTION - redis: "COL::"+ Handle: 
-- PK (int)
-- Title (str)
-- Description (html)
-- Image URL (str)
-- Tags ([]str)
-- Sortby Default (str/ENUM)
-- Product IDs ([]str)
-- SEO Title (str)
-- SEO Description (str)
-- Filter Info: [] {
-  - Key (str)
-  - Values ([]str)
- }
-OR: *Redirect (str) [not active]
-
-PRODUCTS - w/in COLLECTION - redis: "PWC::"+id:
- - Product ID
- - Product Title (str)
- - Product Date Added (date)
- - Product Sales (int)
- - Product Price (float)
- - Product Inventory (int)
- - Product Avg Rate (float)
- - Filter Info: [] {
-  - Key (str)
-  - Values ([]str)
- }
 
 CREATE FROM XL:
 
-Products:
-- Shop name...
-- All product info MINUS Redirect, Rating; PLUS standard price
-- All variant info
-- [Product level] comprables IDs []
-
-Collections:
-- All except PK, filter info, any product info
-- Product id str[]
-
-Actions for Products:
- - GET product group from Printful
- - Verify product and each variant exists on printful
+Actions for Products (AFTER grab from printful):
  - Create mysql product struct
  - Create redis product struct
  - Create [] of mysql variants
@@ -321,38 +255,19 @@ Actions for Products:
  - Create comparables for mysql
  - Create [] of comprables for redis, append to redis product
  - Save/update all of above
+ - GET everything to verify
  - GET SEARCHINFO
  - Update searchinfo products
  - PUT/PATCH Prinftul: Products = name, external id; Variants = name, external id, retail_price, sku;
  - Save IDs for products and variants to Excel
- - Create variants sheet in Excel or update them
- - Save comparables (?) to Excel from updated
-
- PRODUCT Commands:
- - New: create the variants right from Printful
- - Merge: confirm the variants match Printful, update the information
- - Delete: remove it from everything
-
-Actions for Collections:
- - Create mysql collection
- - Create redis collection
- - GET mysql products
- - Create collection lines for mysql
- - Create products within collection redis, ensure [] of ids in redis collection
- - Save/update all of above
- - GET SEARCHINFO
- - Update searchinfo collections
- - GET redis products
- - UPDATE redis products to have [] of mini collection infos
- - Aggregrate all products in collection to create JSON filter 
- - Save IDs for collections to Excel
-
+ - Save comparables (?) to Excel from updated for all
+ - Update ALLFILTERS 
 
  PRODUCTS columns:
     - Store (str)
     - Command (ENUM/str)
     - PK (int)
-    - Printful id (str/int)
+    - Printful ID ({id: ct})
     - Handle (str)
     - Title (str)
     - Description (html)
@@ -366,17 +281,13 @@ Actions for Collections:
     - *Variant3 Key (str)
     - SEO Title (str)
     - SEO Description (str)
-    - Filter Info (JSON) [] {
-        - Key (str)
-        - Values ([]str)
-    }
     - Standard price (float)
     - Comprables IDs (str[])
 
 VARIANTS columns:
     - FK: Product ID
     - PK (int)
-    - Printful ID (str)
+    - Printful ID ({id: ct})
     - SKU (str)
     - Variant1 Key (str)
     - *Variant2 Key (str)
@@ -386,17 +297,15 @@ VARIANTS columns:
     - Variant Image URL (str)
     - Variant Barcode/UPC (str)
 
-COLLECTIONS columns:
-    - Store (str)
-    - Command (ENUM/str)
-    - PK (int)
-    - Handle (str)
-    - Title (str)
-    - Description (html)
-    - Image URL (str)
-    - Status (str/ENUM)
-    - Tags ([]str)
-    - Sortby Default (str/ENUM)
-    - SEO Title (str)
-    - SEO Description (str)
-    - Product IDs (str[])
+FROMPRINTFUL columns:
+    - Product ID
+    - External ID
+    - Name
+    - Variant ID
+    - External Variant ID
+    - SKU
+    - Price
+    - Combined Name
+    - *Var1 Name
+    - *Var2 Name
+    - *Var3 Name
