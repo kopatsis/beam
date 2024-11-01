@@ -29,8 +29,10 @@ CONTACT:
 - Zip Code (str)
 - Country (str)
 
-PRODUCTS - w/in COLLECTION - redis: "PWC::"+id:
+PRODUCTS - w/in COLLECTION - redis (and searchinfo): "::PWC::" :
+[] of ALL -> 
  - Product ID
+ - Product Handle
  - Product Title (str)
  - Product Date Added (date)
  - Product Sales (int)
@@ -38,6 +40,9 @@ PRODUCTS - w/in COLLECTION - redis: "PWC::"+id:
  - Product Inventory (int)
  - Product Avg Rate (float)
  - Tags ([]string)
+ - *Variant1 Key (str)
+ - *Variant2 Key (str)
+ - *Variant3 Key (str)
 
 CART:
 - PK (int)
@@ -309,14 +314,7 @@ NOTIFICATION - mysql -> cold:
 - Email (bool)
 - Phone (bool)
 
-SEARCHINFO - redis: "SEARCHINFO"
-- PRODUCTS:
- - Handle (str)
- - Title (str)
- - Image URL (str)
- - Tags ([]str)
-
- ALLFILTERS - redis: "ALLFILTERS"
+ALLFILTERS - redis: "ALLFILTERS"
  - [] of {Key: []Values}
 
 

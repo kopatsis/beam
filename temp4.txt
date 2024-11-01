@@ -261,7 +261,8 @@ Actions for Products (AFTER grab from printful):
  - PUT/PATCH Prinftul: Products = name, external id; Variants = name, external id, retail_price, sku;
  - Save IDs for products and variants to Excel
  - Save comparables (?) to Excel from updated for all
- - Update ALLFILTERS 
+ - Update ALLFILTERS
+ 
 
  PRODUCTS columns:
     - Store (str)
