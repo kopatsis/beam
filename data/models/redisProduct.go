@@ -67,3 +67,12 @@ type AllFilter struct {
 	Order []string            `json:"o"`
 	Map   map[string][]string `json:"m"`
 }
+
+type TagMap struct {
+	Convert map[string]string `json:"c"`
+}
+
+type StoreNames struct {
+	ToDomain   map[string]string `json:"t"`
+	FromDomain map[string]string `json:"f"`
+}
