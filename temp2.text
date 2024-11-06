@@ -1,5 +1,5 @@
 CUSTOMER:
-- PK: Int or UUID (str)
+- PK (int)
 - Firebase UID (str)
 - Stripe ID (str)
 - Default Name (str)
@@ -12,13 +12,13 @@ CUSTOMER:
 - Status (str/ENUM)
 - Order Count (int)
 - Autodiscount PCT off (float)
+- Notes (str)
 
 GUEST CUSTOMER:
 - UUID (str)
 
 CONTACT:
-- PK (arbitrary)
-- FK: Customer ID
+- PK (int)
 - First Name (str)
 - *Last Name (str)
 - *Phone Number (str)
@@ -75,12 +75,10 @@ LIST:
 - Title (str)
 - Date Started (date)
 - Item Count (int)
-- Ever Abandoned at checkout (bool)
 
 LIST Lines:
 - PK (int)
-- FK: Customer ID 
-- FK: Cart ID
+- FK: Line ID
 - FK: Product ID
 - FK: Variant ID
 - Image URL
@@ -101,9 +99,9 @@ DISCOUNT:
 - Is PCT Off (bool)
 - *PCT Off (float)
 - Is $ Off (bool)
-- *$ Off (float)
+- *$ Off (int)
 - Has min subtotal (bool)
-- *Min subtotal (float)
+- *Min subtotal (int)
 - Stacks (bool)
 - Applies to all (bool)
 
@@ -217,24 +215,24 @@ OR: *Redirect (str) [not active]
 ORDER - mongodb:
 - ID (str)
 - Printful ID (str)
-- Customer ID (str)
+- Customer ID (int)
 - Draft Order ID (str)
-- Status (str/ENUM)
+- Status (str)
 - Email (str)
 - Date Created (date)
-- *Date Cancelled (date)
-- *Date Processed Printful (date)
-- *Date Shipped (date)
-- *Date Delivered (date)
-- *Date Return Initiated (date)
-- *Date Return Completed (date)
+- Date Cancelled (date)
+- Date Processed Printful (date)
+- Date Shipped (date)
+- Date Delivered (date)
+- Date Return Initiated (date)
+- Date Return Completed (date)
 - Stripe Payment Intent ID (str)
-- Subtotal (float)
-- Shipping (float)
-- Order Level Discount (float)
-- Tax (float)
-- Tip (float)
-- Total (float)
+- Subtotal (int)
+- Shipping (int)
+- Order Level Discount (int)
+- Tax (int)
+- Tip (int)
+- Total (int)
 - *Non-Stacking Discount Code (str)
 - *Stacking Discount Codes ([]str)
 - Billing CONTACT {} (Same as contact datatype, NOT ID)
@@ -243,7 +241,7 @@ ORDER - mongodb:
 - Delivery Note (str)
 - Shipping Identification (str)
 - Guest (bool)
-- Guest ID (UUID) [Only if no customer id as guest]
+- Guest ID (UUID, str)
 - External (bool)
 - External Platform (str)
 - External ID (str)
@@ -256,10 +254,10 @@ ORDER Lines - mongodb:
  - Product ID (str)
  - Variant ID (str)
  - Quantity (int)
- - Undiscounted Price (float)
- - Line-level Discount (float)
- - End Price (float)
- - Line Total (float)
+ - Undiscounted Price (int)
+ - Line-level Discount (int)
+ - End Price (int)
+ - Line Total (int)
 
 DRAFT ORDER - mongodb:
 - ID (str)

@@ -1,9 +1,9 @@
 package services
 
 import (
-	"errors"
 	"beam/data/models"
 	"beam/data/repositories"
+	"errors"
 )
 
 type ProductService interface {
@@ -22,7 +22,7 @@ func NewProductService(productRepo repositories.ProductRepository) ProductServic
 }
 
 func (s *productService) AddProduct(product models.Product) error {
-	if product.Name == "" {
+	if product.Handle == "" {
 		return errors.New("product name cannot be empty")
 	}
 	return s.productRepo.Create(product)
@@ -33,7 +33,7 @@ func (s *productService) GetProductByID(id uint) (*models.Product, error) {
 }
 
 func (s *productService) UpdateProduct(product models.Product) error {
-	existingProduct, err := s.productRepo.FindByID(product.ID)
+	existingProduct, err := s.productRepo.FindByID(uint(product.PK))
 	if err != nil || existingProduct == nil {
 		return errors.New("product not found")
 	}
