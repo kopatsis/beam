@@ -12,9 +12,11 @@ func main() {
 
 	config.EnvVariables()
 
-	mysql, redis := config.NewMySQLConnection(), config.NewRedisClient()
+	pgDB, redis := config.PostgresConnect(), config.NewRedisClient()
+	mongoClient, mongoDB := config.MongoConnect()
+	defer config.MongoDisconnect(mongoClient)
 
-	fullService := data.NewMainService(mysql, redis)
+	fullService := data.NewMainService(pgDB, redis, mongoDB)
 	mutexes := config.LoadAllData()
 
 	rtr := routing.New(fullService, mutexes)

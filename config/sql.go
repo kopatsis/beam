@@ -1,34 +1,34 @@
 package config
 
 import (
+	"beam/data/models"
 	"fmt"
 	"log"
 	"os"
-	"beam/data/models"
 
-	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-func NewMySQLConnection() *gorm.DB {
+func PostgresConnect() *gorm.DB {
 	dbUser := os.Getenv("DB_USER")
-	dbPass := os.Getenv("DB_PASS")
-	dbHost := os.Getenv("DB_HOST")
+	dbPassword := os.Getenv("DB_PASSWORD")
 	dbName := os.Getenv("DB_NAME")
 
-	if dbUser == "" || dbPass == "" || dbHost == "" || dbName == "" {
-		log.Fatalf("missing a variable in .env to set up")
+	dsn := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable",
+		dbUser, dbPassword, dbName)
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
 	}
 
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:3306)/%s?charset=utf8mb4&parseTime=True&loc=Local", dbUser, dbPass, dbHost, dbName)
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	err = db.AutoMigrate(&models.Cart{}, &models.CartLine{}, &models.Comparable{}, &models.Contact{}, &models.Customer{}, &models.Discount{}, &models.DiscountUser{}, &models.List{}, &models.ListLine{}, &models.Product{}, &models.Variant{})
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("failed to migrate database: %v", err)
 	}
 
-	err = db.AutoMigrate(&models.User{}, &models.Product{})
-	if err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
-	}
+	log.Println("Database migration completed successfully")
+
 	return db
 }

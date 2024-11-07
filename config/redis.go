@@ -2,8 +2,10 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -12,19 +14,24 @@ func NewRedisClient() *redis.Client {
 	redisAddr := os.Getenv("REDIS_ADDR")
 	redisPassword := os.Getenv("REDIS_PASSWORD")
 
-	if redisAddr == "" || redisPassword == "" {
-		log.Fatalf("missing a variable in .env to set up Redis")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
 	}
 
-	client := redis.NewClient(&redis.Options{
+	rdb := redis.NewClient(&redis.Options{
 		Addr:     redisAddr,
 		Password: redisPassword,
 		DB:       0,
 	})
 
-	_, err := client.Ping(context.Background()).Result()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := rdb.Ping(ctx).Result()
 	if err != nil {
-		log.Fatalf("Failed to connect to Redis: %v", err)
+		log.Fatalf("Could not connect to Redis: %v", err)
 	}
-	return client
+
+	fmt.Println("Connected to Redis successfully")
+	return rdb
 }
