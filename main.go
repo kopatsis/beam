@@ -1,11 +1,11 @@
 package main
 
 import (
-	"log"
-	"net/http"
 	"beam/config"
 	"beam/data"
 	"beam/routing"
+	"log"
+	"net/http"
 )
 
 func main() {
@@ -15,8 +15,9 @@ func main() {
 	mysql, redis := config.NewMySQLConnection(), config.NewRedisClient()
 
 	fullService := data.NewMainService(mysql, redis)
+	mutexes := config.LoadAllData()
 
-	rtr := routing.New(fullService)
+	rtr := routing.New(fullService, mutexes)
 
 	port := config.GetPort()
 

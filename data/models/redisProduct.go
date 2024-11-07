@@ -61,18 +61,29 @@ type ProductInfo struct {
 	Var3Key   string    `json:"vk3,omitempty"` // Optional
 }
 
-// ALLFILTER []map[string][]string{}
-
-type AllFilter struct {
-	Order []string            `json:"o"`
-	Map   map[string][]string `json:"m"`
-}
-
 type TagMap struct {
-	Convert map[string]string `json:"c"`
+	ToURL   map[string]string `json:"k"`
+	FromURL map[string]string `json:"v"`
 }
 
 type StoreNames struct {
 	ToDomain   map[string]string `json:"t"`
 	FromDomain map[string]string `json:"f"`
+}
+
+type AllFilters struct {
+	Items []FilterBlock `json:"i"`
+}
+
+type FilterBlock struct {
+	Key    string   `json:"k"`
+	Values []string `json:"i"`
+}
+
+type TotalFilters struct {
+	All map[string]AllFilters `json:"a"`
+}
+
+type TotalTags struct {
+	All map[string]TagMap `json:"a"`
 }

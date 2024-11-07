@@ -1,0 +1,70 @@
+{
+    "a": {
+        "entry": {
+            "i": [
+                {
+                    "k": "Product Type",
+                    "i": [
+                        "Fitness Gear",
+                        "Shirts",
+                        "Shorts",
+                        "Yoga Mats"
+                    ]
+                },
+                {
+                    "k": "Collection",
+                    "i": [
+                        "Trending"
+                    ]
+                },
+                {
+                    "k": "Color",
+                    "i": [
+                        "Ash",
+                        "Black",
+                        "Citron",
+                        "Heather Dust",
+                        "Heather Mint",
+                        "Heather Prism Ice Blue",
+                        "Silver",
+                        "Soft Cream",
+                        "White",
+                        "Yellow"
+                    ]
+                },
+                {
+                    "k": "Color Group",
+                    "i": [
+                        "Black",
+                        "Blue",
+                        "Cream",
+                        "Green",
+                        "Grey",
+                        "Orange",
+                        "White"
+                    ]
+                },
+                {
+                    "k": "Material",
+                    "i": [
+                        "Rubber"
+                    ]
+                },
+                {
+                    "k": "Size",
+                    "i": [
+                        "2XL",
+                        "3XL",
+                        "4XL",
+                        "5XL",
+                        "L",
+                        "M",
+                        "S",
+                        "XL",
+                        "XS"
+                    ]
+                }
+            ]
+        }
+    }
+}
