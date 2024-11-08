@@ -35,7 +35,7 @@ PAGES:
 ACTIONS:
 /account 
  - post (ideally htmx) add/change/default address [TBDD]
- - post (ideally htmx) change in name
+ - post (ideally htmx) change in name/basic info
 
 /products
  - post (htmx) change filtering (non page)
@@ -43,15 +43,18 @@ ACTIONS:
  - post (htmx) change sorting (back to page 1)
 
 [search]
+ - mini search, first few products + show all button (link to /products?q=query+encoded)
  - goes to /products?q=query+encoded
 
 /products/:handle
  - add X to cart
  - add to X list
- - create a rating 
- - edit a rating 
- - delete a rating
- - load ratings (w/ nextid= behavior, no sorting for now)
+ - choose a variant
+
+ ? create a rating 
+ ? edit a rating 
+ ? delete a rating
+ ? load ratings (w/ nextid= behavior, no sorting for now)
 
 /cart 
  - (ideally htmx) change product X quantity 
@@ -85,13 +88,6 @@ OTHER TYPES:
 - BACKGROUND: runs scheduled in background for updating things that may not be triggered by webhooks
 ^ example, on account creation checks for guest orders w/ same email, marks them with id while still keeping guest id
 
-NOT INCLUDED:
-- COLLECTION/PRODUCT ENTRY - basic excel-based service, but extensively updates the denormalized redis (incl search, entities, products in collections...) info and backup mysql
-
-LATER:
-- MARKETPLACES: bundled code from each marketplace including order handling and potentially listing handling
-
-
 PRINTFUL:
 - Shipping:
  - POST (https://developers.printful.com/docs/#tag/Shipping-Rate-API/operation/calculateShippingRates) ~ Get ship rate by variant id x quantity at least
@@ -114,6 +110,11 @@ PRINTFUL:
  - PUT (https://developers.printful.com/docs/#tag/Products-API/operation/updateSyncVariant) ~ After get, any modifications to variants
 
 
+
+
+LATER:
+- MARKETPLACES: bundled code from each marketplace including order handling and potentially listing handling
+
 ETSY:
 - Inventory:
  - PUT (https://developers.etsy.com/documentation/reference/#operation/updateListingInventory) ~ Update inventory for a specific listing ID
@@ -132,7 +133,6 @@ ETSY:
  - Specialty:
   - google.golang.org/api/content/v2.1 ~ create then insert the product
 
-  
 WALMART:
 - Inventory:
  - POST (https://developer.walmart.com/api/us/mp/inventory#operation/updateBulkInventory) ~ Update by SKU (it looks like) using a feed
