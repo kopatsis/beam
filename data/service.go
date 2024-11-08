@@ -1,7 +1,7 @@
 package data
 
 import (
-	"beam/data/repositories"
+	// "beam/data/repositories"
 	"beam/data/services"
 
 	"github.com/go-redis/redis/v8"
@@ -14,9 +14,9 @@ type MainService struct {
 	Product services.ProductService
 }
 
-func NewMainService(db *gorm.DB, redis *redis.Client, mongoDB *mongo.Database) *MainService {
+func NewMainService(pgDBs map[string]*gorm.DB, redis *redis.Client, mongoDBs map[string]*mongo.Database) *MainService {
 	return &MainService{
-		User:    services.NewUserService(repositories.NewUserRepository(db, redis)),
-		Product: services.NewProductService(repositories.NewProductRepository(db, redis)),
+		// User:    services.NewUserService(repositories.NewUserRepository(db, redis)),
+		// Product: services.NewProductService(repositories.NewProductRepository(db, redis)),
 	}
 }

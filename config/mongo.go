@@ -16,31 +16,30 @@ func MongoDisconnect(client *mongo.Client) {
 	}
 }
 
-func MongoConnect() (*mongo.Client, *mongo.Database) {
+func MongoConnect(mutex *AllMutexes) (*mongo.Client, map[string]*mongo.Database) {
 
 	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
 	connectStr := os.Getenv("MONGOSTRING")
 	clientOptions := options.Client().ApplyURI(connectStr).SetServerAPIOptions(serverAPI)
 
-	// Connect to MongoDB
 	client, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
 		log.Fatalf("failed to establish mongo client: %v", err)
 	}
 
-	// Check the connection
 	err = client.Ping(context.Background(), nil)
 	if err != nil {
 		log.Fatalf("failed to connect to mongo database: %v", err)
 	}
 
-	db := os.Getenv("MONGO_DBNAME")
-	if db == "" {
-		db = "test"
+	ret := map[string]*mongo.Database{}
+
+	mutex.Store.Mu.RLock()
+
+	for dbName := range mutex.Store.Store.ToDomain {
+		database := client.Database(dbName)
+		ret[dbName] = database
 	}
 
-	// Specify the database and collection
-	database := client.Database(db)
-
-	return client, database
+	return client, ret
 }

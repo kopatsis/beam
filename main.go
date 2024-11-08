@@ -11,13 +11,13 @@ import (
 func main() {
 
 	config.EnvVariables()
+	mutexes := config.LoadAllData()
 
-	pgDB, redis := config.PostgresConnect(), config.NewRedisClient()
-	mongoClient, mongoDB := config.MongoConnect()
+	pgDBs, redis := config.PostgresConnect(mutexes), config.NewRedisClient()
+	mongoClient, mongoDBs := config.MongoConnect(mutexes)
 	defer config.MongoDisconnect(mongoClient)
 
-	fullService := data.NewMainService(pgDB, redis, mongoDB)
-	mutexes := config.LoadAllData()
+	fullService := data.NewMainService(pgDBs, redis, mongoDBs)
 
 	rtr := routing.New(fullService, mutexes)
 

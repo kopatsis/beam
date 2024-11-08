@@ -10,25 +10,32 @@ import (
 	"gorm.io/gorm"
 )
 
-func PostgresConnect() *gorm.DB {
+func PostgresConnect(mutex *AllMutexes) map[string]*gorm.DB {
 	dbUser := os.Getenv("DB_USER")
 	dbPassword := os.Getenv("DB_PASSWORD")
-	dbName := os.Getenv("DB_NAME")
 
-	dsn := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable",
-		dbUser, dbPassword, dbName)
+	ret := map[string]*gorm.DB{}
+	mutex.Store.Mu.RLock()
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
+	for dbName := range mutex.Store.Store.ToDomain {
+		dsn := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable",
+			dbUser, dbPassword, dbName)
+
+		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		if err != nil {
+			log.Fatalf("failed to connect to database: %v", err)
+		}
+
+		err = db.AutoMigrate(&models.Cart{}, &models.CartLine{}, &models.Comparable{}, &models.Contact{}, &models.Customer{}, &models.Discount{}, &models.DiscountUser{}, &models.List{}, &models.ListLine{}, &models.Product{}, &models.Variant{})
+		if err != nil {
+			log.Fatalf("failed to migrate database: %v", err)
+		}
+
+		ret[dbName] = db
 	}
 
-	err = db.AutoMigrate(&models.Cart{}, &models.CartLine{}, &models.Comparable{}, &models.Contact{}, &models.Customer{}, &models.Discount{}, &models.DiscountUser{}, &models.List{}, &models.ListLine{}, &models.Product{}, &models.Variant{})
-	if err != nil {
-		log.Fatalf("failed to migrate database: %v", err)
-	}
-
+	mutex.Store.Mu.RUnlock()
 	log.Println("Database migration completed successfully")
 
-	return db
+	return ret
 }
