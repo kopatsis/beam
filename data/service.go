@@ -3,6 +3,7 @@ package data
 import (
 	// "beam/data/repositories"
 	"beam/config"
+	"beam/data/repositories"
 	"beam/data/services"
 
 	"github.com/go-redis/redis/v8"
@@ -11,8 +12,10 @@ import (
 )
 
 type MainService struct {
-	User    services.UserService
-	Product services.ProductService
+	Cart     services.CartService
+	List     services.ListService
+	Customer services.CustomerService
+	Product  services.ProductService
 }
 
 type AllServices struct {
@@ -26,14 +29,14 @@ func NewMainService(pgDBs map[string]*gorm.DB, redis *redis.Client, mongoDBs map
 	mutex.Store.Mu.RLock()
 
 	for name := range mutex.Store.Store.ToDomain {
-		ret.Map[name] = &MainService{}
+		ret.Map[name] = &MainService{
+			Cart:     services.NewCartService(repositories.NewCartRepository(pgDBs[name])),
+			List:     services.NewListService(repositories.NewListRepository(pgDBs[name])),
+			Customer: services.NewCustomerService(repositories.NewCustomerRepository(pgDBs[name])),
+			Product:  services.NewProductService(repositories.NewProductRepository(pgDBs[name], redis)),
+		}
 	}
 
 	mutex.Store.Mu.RUnlock()
 	return &ret
-
-	// return &MainService{
-	// 	User:    services.NewUserService(repositories.NewUserRepository(db, redis)),
-	// 	Product: services.NewProductService(repositories.NewProductRepository(db, redis)),
-	// }
 }
