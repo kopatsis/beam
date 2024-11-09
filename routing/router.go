@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func New(fullService *data.MainService, mutexes *config.AllMutexes) *gin.Engine {
+func New(fullService *data.AllServices, mutexes *config.AllMutexes) *gin.Engine {
 	router := gin.Default()
 	return router
 }

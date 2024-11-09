@@ -41,5 +41,7 @@ func MongoConnect(mutex *AllMutexes) (*mongo.Client, map[string]*mongo.Database)
 		ret[dbName] = database
 	}
 
+	mutex.Store.Mu.RUnlock()
+
 	return client, ret
 }
