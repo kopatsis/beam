@@ -11,7 +11,7 @@ PAGES:
 / -- general basic website welcome page, more or less static
 
 /products -- just all products with no filters applied
-/products?[search fitler] -- all products that match certain searching (not filtered at first, done on backend)
+/products?[search filter] -- all products that match certain searching (not filtered at first, done on backend)
 /products?[regular filter] -- one or more filters applied to all products, show the filters as seleted both on filter and at the top
 /products?[page filter] -- paginated including all other filters
 /products?[sort filter] -- defaults to page 1, sorting via sort options

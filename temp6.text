@@ -1,0 +1,64 @@
+*** Add VarXValues as []string
+*** Custom sorting Sizing NOT AlPHABETICAL
+
+products order:
+
+Get ALL filters, separate into: 
+- query = ? OR sort = ?
+- page = ?
+- [All others]: Convert to Actual__Tag Format
+
+Get ALL products in searchinfo from redis:
+ type ProductInfo struct {
+	ID        int       `json:"id"`
+	Handle    string    `json:"h"`
+	Title     string    `json:"t"`
+	DateAdded time.Time `json:"da"`
+	Sales     int       `json:"s"`
+	Price     int       `json:"p"`
+	Inventory int       `json:"i"`
+	AvgRate   float64   `json:"ar"`
+	Tags      []string  `json:"tg"`
+	Var1Key   string    `json:"vk1"`
+	Var2Key   string    `json:"vk2,omitempty"` // Optional
+	Var3Key   string    `json:"vk3,omitempty"` // Optional
+}
+
+Filter:
+1: if query, then sort search (handle, title, tags, var keys, var vals) && assign value based on matching
+2: if actual filter, then:
+ - 
+ - Aggregate by filter keys, create []string for all values appliedd:
+ - Iterate through each key -> each value for key
+ - If must pass at least ONE in inner loop and ALL in outer loop
+3: Create end products
+IF NONE: skip 4-6
+
+4: if sort (will not be query), then do simple sortby using fields [date a/d, price a/d, sales a/d, avg rate a/d, title a/d]
+5: if paging & not 1:
+ - find subsection of up to <=20 
+ - if exists, gather and check if there are more (<20 or not at end)
+ - else do \/ like no paging
+ 6: for no paging, get first <=20 and check if there are more (<20 or not at end)
+
+
+ To be figured out for page update:
+ - <=20 product components to be rendered
+ - end URL (in order of query/sort -> tags -> page)
+ - previous/next page and/or how many more pages available
+ - Wording of filtration:
+```<big>All Products</big>
+<med>In Collection: Trending, New, or Winter</med>
+<small>(and) Product Type: Shirt</small>
+<small>(and) Size: XS, S, or M</small> // Custom sorted, all others alpha
+<small>(and) Color: Red or Blue</small>```
+ - all filters: what is selected and in what order AND the link for each one: [current URL]&nw__tg (no paging), if already selected then same (w/o page, without that link)
+ - ^ except for each section clear (must filter out all tags of that section) and full clear (no tags at all)
+ - other "links" to render:
+  1. dropdown (when not in search) links to all same tags, no page, new sort
+  2. search (when in search to clear)
+  3. reset all filters also when none match
+
+
+
+
