@@ -47,18 +47,21 @@ type VariantRedis struct {
 }
 
 type ProductInfo struct {
-	ID        int       `json:"id"`
-	Handle    string    `json:"h"`
-	Title     string    `json:"t"`
-	DateAdded time.Time `json:"da"`
-	Sales     int       `json:"s"`
-	Price     int       `json:"p"`
-	Inventory int       `json:"i"`
-	AvgRate   float64   `json:"ar"`
-	Tags      []string  `json:"tg"`
-	Var1Key   string    `json:"vk1"`
-	Var2Key   string    `json:"vk2,omitempty"` // Optional
-	Var3Key   string    `json:"vk3,omitempty"` // Optional
+	ID         int       `json:"id"`
+	Handle     string    `json:"h"`
+	Title      string    `json:"t"`
+	DateAdded  time.Time `json:"da"`
+	Sales      int       `json:"s"`
+	Price      int       `json:"p"`
+	Inventory  int       `json:"i"`
+	AvgRate    float64   `json:"ar"`
+	Tags       []string  `json:"tg"`
+	Var1Key    string    `json:"vk1"`
+	Var2Key    string    `json:"vk2,omitempty"` // Optional
+	Var3Key    string    `json:"vk3,omitempty"` // Optional
+	Var1Values []string  `json:"vv1"`
+	Var2Values []string  `json:"vv2"`
+	Var3Values []string  `json:"vv3"`
 }
 
 type TagMap struct {

@@ -1,7 +1,8 @@
 *** Add VarXValues as []string
 *** Custom sorting Sizing NOT AlPHABETICAL
 
-products order:
+///////////////////////////////////////////////////////
+/products order:
 
 Get ALL filters, separate into: 
 - query = ? OR sort = ?
@@ -27,7 +28,7 @@ Get ALL products in searchinfo from redis:
 Filter:
 1: if query, then sort search (handle, title, tags, var keys, var vals) && assign value based on matching
 2: if actual filter, then:
- - 
+ - have 2x arrays of len ^ products: 1 of bool for outer, 1 for inner: each inner do : true for prods @that index passing, @end of each outer, if 0 for inner, 0 for outer too
  - Aggregate by filter keys, create []string for all values appliedd:
  - Iterate through each key -> each value for key
  - If must pass at least ONE in inner loop and ALL in outer loop
@@ -48,6 +49,7 @@ IF NONE: skip 4-6
  - previous/next page and/or how many more pages available
  - Wording of filtration:
 ```<big>All Products</big>
+<med>Matching Search: "Ugly Ass Sweater"<med>
 <med>In Collection: Trending, New, or Winter</med>
 <small>(and) Product Type: Shirt</small>
 <small>(and) Size: XS, S, or M</small> // Custom sorted, all others alpha
@@ -58,7 +60,88 @@ IF NONE: skip 4-6
   1. dropdown (when not in search) links to all same tags, no page, new sort
   2. search (when in search to clear)
   3. reset all filters also when none match
+For GET rather than PATCH:
+- send render of FULL page
+///////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////
+/product - multiple
+
+:handle
+1. GET by handle
+IF variants are JUST &*, then DO NOT render with variants
+ELSE IF :variantID specified, use that variant (or \/ if DNE/out of stock)
+ELSE variant ID chosen is the first in each, unless out of stock, then goes as ordered: Val1-1; Val2-1; Val3-1; -> Val1-1; Val2-1; Val3-2+; -> Val1-1; Val2-2+; Val3-1; -> Val1-1; Val2-2+; Val3-2+; -> ...
+
+In addition to rendering rest of page: 
+- RENDER variants w/ chosen values colored, else plain; PRICE of that variant
+- RENDER link for add to cart button (htmx just adds to cart, else GOES to cart with it added??) w/ variant ID
+- RENDER inventory && max for qty selector to be based on amount for that variant
+- Also RENDER link to add to list (for now just shopping list)
+/\ ALL that's rendered for patch/selecting other variant, which resets qty selector to 1
 
 
+Add to cart:
+- probably NOT htmx (alpine): -/+ just modifies on page
+- add to cart grabs # on page, uses in patch request w/ exact variant id -> modifies cart button on page
 
+Selecting another variant: 
+- RENDER: each button (at all variant levels): creates a link for htmx patch/get: 
+- @lowest level: direct, to variant id of the same first 0-2 higher level variants
+- @other levels: if combo of New Var 1; Old Var2+ exists, use that variant ID. ELSE, use variant ID of FIRST for those where it's missing
+///////////////////////////////////////////////////////
 
+///////////////////////////////////////////////////////
+SEARCH mini: patch only:
+- takes in query str, uses filter & rank, renders:
+ - First 3? 6? + items w/ img, handle, title, base price...
+ - Link to full search page
+///////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////
+/orders - 
+
+filters:
+ - date range (incl start -> or -> end) [=YYYY-MM-DD]
+ - status
+sorting: (default date desc)
+ - date desc
+ - date asc 
+ - total desc 
+ - total asc
+page: default 1
+
+ordering: 
+ - do mongo query using above (no pagination, ONLY do certain fields ie no lines)
+ - filter which one for this page (incl change to pg 1 only)
+ - figure if needs next/prev && page counts
+
+render with basics and link to page
+
+/order/:id - 
+Just show full thing incl status and tracking
++ Options (NO cancel)
+///////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////
+Cart:
+
+render it, -/+ buttons and x re-place whole order, and include a timeout of 0.5s per request
+^ grab qty for all (not just affected) to push for patch, then replace full inner html
+checkout is literal link to checkout page, which creates a draft order if DNE
+///////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////
+LIST: for now JUST render ONE list with each item, not in order, only opts are to delete
+///////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////
+ORDER/checkout page:
+
+Auto-update based on: 
+ - Change in addresses
+ - Added billing info if not already there
+
+Else, submit grabs info from page to double check
+
+///////////////////////////////////////////////////////
