@@ -6,9 +6,10 @@ import (
 	"slices"
 )
 
-func FilterByTags(tags map[string][]string, products []models.ProductInfo, mutex *config.AllMutexes, name string) []models.ProductInfo {
+func FilterByTags(tags map[string][]string, products []models.ProductInfo, mutex *config.AllMutexes, name string) ([]models.ProductInfo, map[string][]string) {
 
 	realTags := [][]string{}
+	endURL := map[string][]string{}
 
 	mutex.Tags.Mu.RLock()
 
@@ -18,12 +19,14 @@ func FilterByTags(tags map[string][]string, products []models.ProductInfo, mutex
 			continue
 		}
 		row := []string{}
+		endURL[tag] = []string{}
 		for _, val := range vals {
 			realVal, ok := mutex.Tags.Tags.All[name].FromURL[val]
 			if !ok {
 				continue
 			}
 			row = append(row, realTag+"__"+realVal)
+			endURL[tag] = append(endURL[tag], val)
 		}
 		realTags = append(realTags, row)
 	}
@@ -62,5 +65,5 @@ func FilterByTags(tags map[string][]string, products []models.ProductInfo, mutex
 		}
 	}
 
-	return filteredProducts
+	return filteredProducts, endURL
 }

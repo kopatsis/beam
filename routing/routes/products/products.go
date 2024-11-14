@@ -39,8 +39,9 @@ func ServeProducts(fullService *data.AllServices, name string) gin.HandlerFunc {
 			fmt.Print(err.Error())
 		}
 
+		endURL := map[string][]string{}
 		if len(otherParams) > 0 {
-			products = FilterByTags(otherParams, products, fullService.Mutex, name)
+			products, endURL = FilterByTags(otherParams, products, fullService.Mutex, name)
 		}
 
 		if query != "" {
@@ -52,11 +53,9 @@ func ServeProducts(fullService *data.AllServices, name string) gin.HandlerFunc {
 			products = SortProducts(sort, products)
 		}
 
-		if page != "" {
-			products = PageProducts(page, products)
-		}
-
-		fmt.Println(products)
+		var left, pg, right int
+		products, left, pg, right = PageProducts(page, products)
+		fmt.Print(left, pg, right, endURL, products)
 
 	}
 }
