@@ -35,17 +35,28 @@ func ServeProducts(fullService *data.AllServices, name string) gin.HandlerFunc {
 		}
 
 		products, err := fullService.Map[name].Product.GetAllProductInfo(name)
-
-		if query != "" {
-			products, err = FuzzySearch(query, products)
+		if err != nil {
+			fmt.Print(err.Error())
 		}
 
 		if len(otherParams) > 0 {
-			products, err = FilterByTags(otherParams, products)
+			products = FilterByTags(otherParams, products, fullService.Mutex, name)
 		}
 
-		fmt.Println(query, page, sort)
-		fmt.Print(products, err)
+		if query != "" {
+			products, err = FuzzySearch(query, products)
+			if err != nil {
+				fmt.Print(err.Error())
+			}
+		} else {
+			products = SortProducts(sort, products)
+		}
+
+		if page != "" {
+			products = PageProducts(page, products)
+		}
+
+		fmt.Println(products)
 
 	}
 }
