@@ -1,12 +1,9 @@
-*** Add VarXValues as []string
-*** Custom sorting Sizing NOT AlPHABETICAL
-
 ///////////////////////////////////////////////////////
 /products order:
 
 Get ALL filters, separate into: 
-- query = ? OR sort = ?
-- page = ?
+- qy = ? OR st = ?
+- pg = ?
 - [All others]: Convert to Actual__Tag Format
 
 Get ALL products in searchinfo from redis:

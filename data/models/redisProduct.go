@@ -62,6 +62,7 @@ type ProductInfo struct {
 	Var1Values []string  `json:"vv1"`
 	Var2Values []string  `json:"vv2"`
 	Var3Values []string  `json:"vv3"`
+	SKUs       []string  `json:"ss"`
 }
 
 type TagMap struct {

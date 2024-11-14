@@ -22,15 +22,17 @@ type MainService struct {
 	Event        services.EventService
 	Notification services.NotificationService
 	Session      services.SessionService
+	Mutex        *config.AllMutexes
 }
 
 type AllServices struct {
-	Map map[string]*MainService
+	Map   map[string]*MainService
+	Mutex *config.AllMutexes
 }
 
 func NewMainService(pgDBs map[string]*gorm.DB, redis *redis.Client, mongoDBs map[string]*mongo.Database, mutex *config.AllMutexes) *AllServices {
 
-	ret := AllServices{Map: map[string]*MainService{}}
+	ret := AllServices{Map: map[string]*MainService{}, Mutex: mutex}
 
 	mutex.Store.Mu.RLock()
 

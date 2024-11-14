@@ -19,7 +19,7 @@ func main() {
 
 	fullService := data.NewMainService(pgDBs, redis, mongoDBs, mutexes)
 
-	rtr := routing.New(fullService, mutexes)
+	rtr := routing.New(fullService)
 
 	port := config.GetPort()
 
