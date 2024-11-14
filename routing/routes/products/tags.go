@@ -6,10 +6,11 @@ import (
 	"slices"
 )
 
-func FilterByTags(tags map[string][]string, products []models.ProductInfo, mutex *config.AllMutexes, name string) ([]models.ProductInfo, map[string][]string) {
+func FilterByTags(tags map[string][]string, products []models.ProductInfo, mutex *config.AllMutexes, name string) ([]models.ProductInfo, map[string][]string, models.AllFilters) {
 
 	realTags := [][]string{}
 	endURL := map[string][]string{}
+	forFilter := models.AllFilters{}
 
 	mutex.Tags.Mu.RLock()
 
@@ -20,6 +21,7 @@ func FilterByTags(tags map[string][]string, products []models.ProductInfo, mutex
 		}
 		row := []string{}
 		endURL[tag] = []string{}
+		forFilter.Items = append(forFilter.Items, models.FilterBlock{Key: realTag, Values: []string{}})
 		for _, val := range vals {
 			realVal, ok := mutex.Tags.Tags.All[name].FromURL[val]
 			if !ok {
@@ -27,6 +29,7 @@ func FilterByTags(tags map[string][]string, products []models.ProductInfo, mutex
 			}
 			row = append(row, realTag+"__"+realVal)
 			endURL[tag] = append(endURL[tag], val)
+			forFilter.Items[len(forFilter.Items)-1].Values = append(forFilter.Items[len(forFilter.Items)-1].Values, realVal)
 		}
 		realTags = append(realTags, row)
 	}
@@ -65,5 +68,5 @@ func FilterByTags(tags map[string][]string, products []models.ProductInfo, mutex
 		}
 	}
 
-	return filteredProducts, endURL
+	return filteredProducts, endURL, forFilter
 }

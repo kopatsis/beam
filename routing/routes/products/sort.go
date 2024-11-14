@@ -5,7 +5,7 @@ import (
 	"sort"
 )
 
-func SortProducts(st string, products []models.ProductInfo) []models.ProductInfo {
+func SortProducts(st string, products []models.ProductInfo) (string, []models.ProductInfo) {
 	switch st {
 	case "dd":
 		sort.SliceStable(products, func(i, j int) bool {
@@ -48,10 +48,11 @@ func SortProducts(st string, products []models.ProductInfo) []models.ProductInfo
 			return products[i].AvgRate < products[j].AvgRate
 		})
 	default:
+		st = ""
 		sort.SliceStable(products, func(i, j int) bool {
 			return products[i].DateAdded.After(products[j].DateAdded)
 		})
 	}
 
-	return products
+	return st, products
 }

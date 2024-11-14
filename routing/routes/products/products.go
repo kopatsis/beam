@@ -2,6 +2,7 @@ package products
 
 import (
 	"beam/data"
+	"beam/data/models"
 	"fmt"
 
 	"github.com/gin-gonic/gin"
@@ -40,22 +41,27 @@ func ServeProducts(fullService *data.AllServices, name string) gin.HandlerFunc {
 		}
 
 		endURL := map[string][]string{}
+		forFilter := models.AllFilters{}
 		if len(otherParams) > 0 {
-			products, endURL = FilterByTags(otherParams, products, fullService.Mutex, name)
+			products, endURL, forFilter = FilterByTags(otherParams, products, fullService.Mutex, name)
 		}
 
+		realsort := ""
 		if query != "" {
 			products, err = FuzzySearch(query, products)
 			if err != nil {
 				fmt.Print(err.Error())
 			}
 		} else {
-			products = SortProducts(sort, products)
+			realsort, products = SortProducts(sort, products)
 		}
 
 		var left, pg, right int
 		products, left, pg, right = PageProducts(page, products)
-		fmt.Print(left, pg, right, endURL, products)
+		fmt.Print(left, right, products, forFilter)
+
+		baseURL := CreateBasisURL(query, realsort, pg, endURL)
+		fmt.Print(baseURL)
 
 	}
 }
