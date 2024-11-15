@@ -75,9 +75,9 @@ func (s *productService) GetAllProductInfo(fromURL url.Values, Mutex *config.All
 	}
 
 	endParams := map[string][]string{}
-	forFilter := models.AllFilters{}
+	forTop := models.AllFilters{}
 	if len(otherParams) > 0 {
-		products, endParams, forFilter = product.FilterByTags(otherParams, products, Mutex, name)
+		products, endParams, forTop = product.FilterByTags(otherParams, products, Mutex, name)
 	}
 
 	realsort := ""
@@ -92,7 +92,7 @@ func (s *productService) GetAllProductInfo(fromURL url.Values, Mutex *config.All
 
 	var left, pg, right int
 	products, left, pg, right = product.PageProducts(page, products)
-	fmt.Print(left, right, products, forFilter)
+	fmt.Print(left, right, products, forTop)
 
 	baseURL := product.CreateBasisURL(query, realsort, pg, endParams)
 
