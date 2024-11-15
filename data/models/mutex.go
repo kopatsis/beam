@@ -26,18 +26,3 @@ type TotalFilters struct {
 type TotalTags struct {
 	All map[string]TagMap `json:"a"`
 }
-
-type SideBar struct {
-	Groups []SideBarGroup
-}
-
-type SideBarGroup struct {
-	Key  string
-	Rows []SideBarRow
-}
-
-type SideBarRow struct {
-	Name     string
-	Link     string
-	Selected bool
-}

@@ -1,8 +1,12 @@
 package services
 
 import (
+	"beam/config"
 	"beam/data/models"
 	"beam/data/repositories"
+	"beam/data/services/product"
+	"fmt"
+	"net/url"
 )
 
 type ProductService interface {
@@ -10,7 +14,7 @@ type ProductService interface {
 	GetProductByID(id int) (*models.Product, error)
 	UpdateProduct(product models.Product) error
 	DeleteProduct(id int) error
-	GetAllProductInfo(name string) ([]models.ProductInfo, error)
+	GetAllProductInfo(fromURL url.Values, Mutex *config.AllMutexes, name string) (models.CollectionRender, error)
 }
 
 type productService struct {
@@ -37,6 +41,66 @@ func (s *productService) DeleteProduct(id int) error {
 	return s.productRepo.Delete(id)
 }
 
-func (s *productService) GetAllProductInfo(name string) ([]models.ProductInfo, error) {
-	return s.productRepo.GetAllProductInfo(name)
+func (s *productService) GetAllProductInfo(fromURL url.Values, Mutex *config.AllMutexes, name string) (models.CollectionRender, error) {
+	ret := models.CollectionRender{}
+
+	var query, page, sort string
+	otherParams := map[string][]string{}
+
+	for key, values := range fromURL {
+		switch key {
+		case "qy":
+			if len(values) > 0 {
+				query = values[0]
+			}
+		case "pg":
+			if len(values) > 0 {
+				page = values[0]
+			}
+		case "st":
+			if len(values) > 0 {
+				sort = values[0]
+			}
+		default:
+			otherParams[key] = values
+		}
+	}
+	if len(query) > 128 {
+		query = query[0:127]
+	}
+
+	products, err := s.productRepo.GetAllProductInfo(name)
+	if err != nil {
+		return ret, err
+	}
+
+	endParams := map[string][]string{}
+	forFilter := models.AllFilters{}
+	if len(otherParams) > 0 {
+		products, endParams, forFilter = product.FilterByTags(otherParams, products, Mutex, name)
+	}
+
+	realsort := ""
+	if query != "" {
+		products, err = product.FuzzySearch(query, products)
+		if err != nil {
+			return ret, err
+		}
+	} else {
+		realsort, products = product.SortProducts(sort, products)
+	}
+
+	var left, pg, right int
+	products, left, pg, right = product.PageProducts(page, products)
+	fmt.Print(left, right, products, forFilter)
+
+	baseURL := product.CreateBasisURL(query, realsort, pg, endParams)
+
+	filterBar, err := product.CreateFilterBar(Mutex, baseURL, name, endParams)
+	if err != nil {
+		return ret, err
+	}
+	fmt.Print(filterBar)
+
+	return ret, nil
 }
