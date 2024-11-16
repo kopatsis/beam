@@ -41,3 +41,26 @@ type Paging struct {
 	LeftURL   url.Values
 	RightURL  url.Values
 }
+
+// For each variant block in a row
+type VariantBlock struct {
+	Name      string
+	VariantID int
+	Selected  bool
+	Stocked   bool
+}
+
+type AllVariants struct {
+	First  []VariantBlock
+	Second []VariantBlock
+	Third  []VariantBlock
+}
+
+type ProductRender struct {
+	Price     string
+	VariantID int
+	Inventory int
+	VarImage  string
+	FullName  string
+	Blocks    AllVariants
+}

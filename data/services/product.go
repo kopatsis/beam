@@ -15,6 +15,7 @@ type ProductService interface {
 	UpdateProduct(product models.Product) error
 	DeleteProduct(id int) error
 	GetAllProductInfo(fromURL url.Values, Mutex *config.AllMutexes, name string) (models.CollectionRender, error)
+	GetProduct(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRender, error)
 }
 
 type productService struct {
@@ -109,4 +110,16 @@ func (s *productService) GetAllProductInfo(fromURL url.Values, Mutex *config.All
 		Paging:   product.PageRender(pg, left, right, baseURL),
 	}, nil
 
+}
+
+func (s *productService) GetProduct(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRender, error) {
+	ret := models.ProductRender{}
+
+	product, redir, err := s.productRepo.GetFullProduct(name, handle)
+	if err != nil {
+		return ret, err
+	}
+	fmt.Print(product, redir)
+
+	return ret, nil
 }

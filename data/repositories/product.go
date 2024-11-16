@@ -4,6 +4,8 @@ import (
 	"beam/data/models"
 	"context"
 	"encoding/json"
+	"errors"
+	"strings"
 
 	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
@@ -15,6 +17,7 @@ type ProductRepository interface {
 	Update(product models.Product) error
 	Delete(id int) error
 	GetAllProductInfo(name string) ([]models.ProductInfo, error)
+	GetFullProduct(name, handle string) (models.ProductRedis, string, error)
 }
 
 type productRepo struct {
@@ -59,4 +62,29 @@ func (r *productRepo) GetAllProductInfo(name string) ([]models.ProductInfo, erro
 		return nil, err
 	}
 	return productInfo, nil
+}
+
+func (r *productRepo) GetFullProduct(name, handle string) (models.ProductRedis, string, error) {
+	key := name + "::PRO::" + handle
+	var product models.ProductRedis
+
+	data, err := r.rdb.Get(context.Background(), key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return product, "", errors.New("not in system at all")
+		}
+		return product, "", err
+	}
+
+	if strings.HasPrefix(data, "RDR::") {
+		redirectHandle := strings.TrimPrefix(data, "RDR::")
+		return product, redirectHandle, nil
+	}
+
+	err = json.Unmarshal([]byte(data), &product)
+	if err != nil {
+		return product, "", err
+	}
+
+	return product, "", nil
 }

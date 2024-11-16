@@ -1,8 +1,8 @@
 {
     "t": {
-        "1": "entry"
+        "entry": "example.com"
     },
     "f": {
-        "entry": "1"
+        "example.com": "entry"
     }
 }
