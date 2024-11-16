@@ -100,7 +100,13 @@ func (s *productService) GetAllProductInfo(fromURL url.Values, Mutex *config.All
 	if err != nil {
 		return ret, err
 	}
-	fmt.Print(filterBar)
 
-	return ret, nil
+	return models.CollectionRender{
+		Products: products,
+		URL:      baseURL,
+		SideBar:  filterBar,
+		TopWords: product.CreateTopWords(forTop, query),
+		Paging:   product.PageRender(pg, left, right, baseURL),
+	}, nil
+
 }

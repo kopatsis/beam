@@ -4,13 +4,11 @@ import "net/url"
 
 // Full collection equivalent info
 type CollectionRender struct {
-	Products  []ProductInfo
-	URL       url.Values
-	SideBar   SideBar
-	TopWords  TopWords
-	Page      int
-	PageLeft  int
-	PageRight int
+	Products []ProductInfo
+	URL      url.Values
+	SideBar  SideBar
+	TopWords TopWords
+	Paging   Paging
 }
 
 // For sidebar filtering
@@ -34,4 +32,12 @@ type TopWords struct {
 	Query      string
 	Collection string
 	Lines      []string
+}
+
+type Paging struct {
+	Page      int
+	PageLeft  int
+	PageRight int
+	LeftURL   url.Values
+	RightURL  url.Values
 }
