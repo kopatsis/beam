@@ -7,6 +7,7 @@ import (
 	"beam/data/services/product"
 	"fmt"
 	"net/url"
+	"strconv"
 )
 
 type ProductService interface {
@@ -15,7 +16,8 @@ type ProductService interface {
 	UpdateProduct(product models.Product) error
 	DeleteProduct(id int) error
 	GetAllProductInfo(fromURL url.Values, Mutex *config.AllMutexes, name string) (models.CollectionRender, error)
-	GetProduct(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRender, error)
+	GetProductAndProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRedis, models.ProductRender, string, error)
+	GetProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRender, string, error)
 }
 
 type productService struct {
@@ -112,14 +114,61 @@ func (s *productService) GetAllProductInfo(fromURL url.Values, Mutex *config.All
 
 }
 
-func (s *productService) GetProduct(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRender, error) {
-	ret := models.ProductRender{}
+func (s *productService) GetProductAndProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRedis, models.ProductRender, string, error) {
 
-	product, redir, err := s.productRepo.GetFullProduct(name, handle)
+	rprod, redir, err := s.productRepo.GetFullProduct(name, handle)
 	if err != nil {
-		return ret, err
+		return models.ProductRedis{}, models.ProductRender{}, redir, err
+	} else if redir != "" {
+		return models.ProductRedis{}, models.ProductRender{}, redir, err
 	}
-	fmt.Print(product, redir)
+	fmt.Print(rprod, redir)
 
-	return ret, nil
+	actualID := 0
+	convertedID, err := strconv.Atoi(id)
+	if err == nil {
+		for _, v := range rprod.Variants {
+			if v.PK == convertedID {
+				actualID = v.PK
+			}
+		}
+	}
+
+	if len(rprod.Variants) == 1 && rprod.Var1Key == "&" {
+		return rprod, models.ProductRender{
+			FullName:  rprod.Title,
+			VariantID: rprod.Variants[0].PK,
+			Inventory: rprod.Variants[0].Quantity,
+			Price:     fmt.Sprintf("%.2f", float64(rprod.Variants[0].Price)/100),
+			VarImage:  rprod.Variants[0].VariantImageURL,
+		}, "", nil
+	}
+
+	if actualID == 0 {
+		for _, v := range rprod.Variants {
+			if v.Quantity > 0 {
+				actualID = v.PK
+			}
+		}
+		if actualID == 0 {
+			actualID = rprod.Variants[0].PK
+		}
+	}
+
+	ret := models.ProductRender{
+		FullName:    product.NameVariant(rprod, actualID),
+		VariantID:   rprod.Variants[0].PK,
+		Inventory:   rprod.Variants[0].Quantity,
+		Price:       fmt.Sprintf("%.2f", float64(rprod.Variants[0].Price)/100),
+		VarImage:    rprod.Variants[0].VariantImageURL,
+		HasVariants: true,
+		Blocks:      product.VariantSelectorRenders(rprod, actualID),
+	}
+
+	return rprod, ret, "", nil
+}
+
+func (s *productService) GetProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRender, string, error) {
+	_, rend, redir, err := s.GetProductAndProductRender(Mutex, name, handle, id)
+	return rend, redir, err
 }

@@ -51,16 +51,20 @@ type VariantBlock struct {
 }
 
 type AllVariants struct {
-	First  []VariantBlock
-	Second []VariantBlock
-	Third  []VariantBlock
+	First     []VariantBlock
+	FirstKey  string
+	Second    []VariantBlock
+	SecondKey string
+	Third     []VariantBlock
+	ThirdKey  string
 }
 
 type ProductRender struct {
-	Price     string
-	VariantID int
-	Inventory int
-	VarImage  string
-	FullName  string
-	Blocks    AllVariants
+	Price       string
+	VariantID   int
+	Inventory   int
+	VarImage    string
+	FullName    string
+	HasVariants bool
+	Blocks      AllVariants
 }
