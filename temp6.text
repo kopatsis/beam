@@ -42,7 +42,7 @@ IF NONE: skip 4-6
 
  To be figured out for page update:
  - <=20 product components to be rendered
- - end URL (in order of query/sort -> tags -> page)
+ - end URL (in order of quecdry/sort -> tags -> page)
  - previous/next page and/or how many more pages available
  - Wording of filtration:
 ```<big>All Products</big>

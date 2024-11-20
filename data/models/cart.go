@@ -5,8 +5,9 @@ import (
 )
 
 type Cart struct {
-	ID                      int `gorm:"primaryKey"`
-	CustomerID              int `gorm:"index"`
+	ID                      int    `gorm:"primaryKey"`
+	CustomerID              int    `gorm:"index"`
+	GuestID                 string `gorm:"index"`
 	DateStarted             time.Time
 	ItemCount               int
 	Status                  string
