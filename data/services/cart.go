@@ -3,6 +3,7 @@ package services
 import (
 	"beam/data/models"
 	"beam/data/repositories"
+	"beam/data/services/carthelp"
 	"errors"
 	"strconv"
 )
@@ -13,6 +14,8 @@ type CartService interface {
 	UpdateCart(cart models.Cart) error
 	DeleteCart(id int) error
 	AddToCart(id, handle, name string, quant int, prodServ *productService, custID int, guestID string) (*models.Cart, error)
+	GetCart(name string, custID int, guestID string) (*models.CartRender, error)
+	AdjustQuantity(id, handle, name string, quant int, prodServ *productService, custID int, guestID string) (*models.CartRender, error)
 }
 
 type cartService struct {
@@ -63,7 +66,10 @@ func (s *cartService) AddToCart(id, handle, name string, quant int, prodServ *pr
 		return nil, errors.New("no matching variant by id to provided handle")
 	}
 
-	cart, lines, exists, err := models.Cart{}, []models.CartLine{}, false, nil
+	var cart models.Cart
+	var lines []models.CartLine
+	var exists bool
+
 	if custID > 0 {
 		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByCustomerID(custID)
 	} else if guestID != "" {
@@ -93,6 +99,7 @@ func (s *cartService) AddToCart(id, handle, name string, quant int, prodServ *pr
 
 	if line.ID == 0 {
 		line = models.CartLine{
+			ProductHandle: p.Handle,
 			ProductID:     p.PK,
 			VariantID:     vid,
 			ImageURL:      p.ImageURL,
@@ -111,12 +118,9 @@ func (s *cartService) AddToCart(id, handle, name string, quant int, prodServ *pr
 		}
 	}
 
-	cart.ItemCount += quant
 	line.Quantity += quant
 
-	if exists {
-		cart, err = s.cartRepo.SaveCart(cart)
-	} else {
+	if !exists {
 		cart, err = s.cartRepo.CreateCart(cart)
 	}
 	if err != nil {
@@ -135,4 +139,148 @@ func (s *cartService) AddToCart(id, handle, name string, quant int, prodServ *pr
 	}
 
 	return &cart, nil
+}
+
+func (s *cartService) GetCart(name string, custID int, guestID string) (*models.CartRender, error) {
+	ret := models.CartRender{}
+
+	var err error
+	var cart models.Cart
+	var lines []models.CartLine
+	var exists bool
+
+	if custID > 0 {
+		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByCustomerID(custID)
+	} else if guestID != "" {
+		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByGuestID(guestID)
+	} else {
+		return nil, errors.New("no user id of either type provided")
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists {
+		ret.Empty = true
+		return &ret, nil
+	}
+
+	count := 0
+	for _, l := range lines {
+		ret.CartLines = append(ret.CartLines, models.CartLineRender{ActualLine: l})
+		count += l.Quantity
+	}
+
+	ret.SumQuantity = count
+	ret.Cart = cart
+
+	return &ret, nil
+}
+
+func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, prodServ *productService, custID int, guestID string) (*models.CartRender, error) {
+	ret := models.CartRender{}
+
+	cid, err := strconv.Atoi(cartID)
+	if err != nil {
+		return nil, err
+	}
+
+	lid, err := strconv.Atoi(lineID)
+	if err != nil {
+		return nil, err
+	}
+
+	var cart models.Cart
+	var lines []models.CartLine
+	var exists bool
+
+	if custID > 0 {
+		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByIDAndCustomerID(cid, custID)
+	} else if guestID != "" {
+		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByIDAndGuestID(cid, guestID)
+	} else {
+		return nil, errors.New("no user id of either type provided")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists {
+		ret.Empty = true
+		ret.CartError = "Cart has been checked out already or no longer exists"
+		return &ret, nil
+	}
+
+	ret.Cart = cart
+
+	index := -1
+	for i, l := range lines {
+		ret.CartLines = append(ret.CartLines, models.CartLineRender{
+			ActualLine: l,
+		})
+		if l.ID == lid {
+			index = i
+		}
+	}
+
+	if index == -1 {
+		ret.LineError = "That line was deleted. Cart refreshed to latest data."
+		ret.SumQuantity = carthelp.UpdateCartQuant(ret)
+		return &ret, nil
+	}
+
+	prod, redir, err := prodServ.productRepo.GetFullProduct(name, lines[index].ProductHandle)
+	if err != nil {
+		return nil, err
+	}
+
+	if redir != "" {
+		err := s.cartRepo.DeleteCartLine(lines[index])
+		if err != nil {
+			return nil, err
+		}
+		ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
+		ret.SumQuantity = carthelp.UpdateCartQuant(ret)
+		ret.LineError = "That line was deleted. Cart refreshed to latest data."
+	}
+
+	varIndex := -1
+	for i, v := range prod.Variants {
+		if v.PK == lines[index].VariantID {
+			varIndex = i
+		}
+	}
+
+	if varIndex == -1 {
+		err := s.cartRepo.DeleteCartLine(lines[index])
+		if err != nil {
+			return nil, err
+		}
+		ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
+		ret.SumQuantity = carthelp.UpdateCartQuant(ret)
+		ret.LineError = "That line was deleted. Cart refreshed to latest data."
+	}
+
+	newQuant := quant
+	tooHigh := false
+	if prod.Variants[varIndex].Quantity < newQuant {
+		tooHigh = true
+		newQuant = prod.Variants[varIndex].Quantity
+	}
+
+	oldQuant := ret.CartLines[index].ActualLine.Quantity
+	ret.CartLines[index].ActualLine.Quantity = newQuant
+	ret.CartLines[index].QuantityMaxed = tooHigh
+
+	_, err = s.cartRepo.SaveCartLine(ret.CartLines[index].ActualLine)
+	if err != nil {
+		ret.CartLines[index].ActualLine.Quantity = oldQuant
+		ret.SumQuantity = carthelp.UpdateCartQuant(ret)
+		ret.CartError = "Unable to update cart :/ Please refresh and try again"
+		return &ret, nil
+	}
+
+	ret.SumQuantity = carthelp.UpdateCartQuant(ret)
+	return &ret, nil
 }

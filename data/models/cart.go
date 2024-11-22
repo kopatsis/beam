@@ -5,13 +5,12 @@ import (
 )
 
 type Cart struct {
-	ID                      int    `gorm:"primaryKey"`
-	CustomerID              int    `gorm:"index"`
-	GuestID                 string `gorm:"index"`
-	DateStarted             time.Time
-	ItemCount               int
-	Status                  string
-	EverAbandonedAtCheckout bool
+	ID             int    `gorm:"primaryKey"`
+	CustomerID     int    `gorm:"index"`
+	GuestID        string `gorm:"index"`
+	DateStarted    time.Time
+	Status         string
+	EverCheckedOut bool
 }
 
 type CartLine struct {
@@ -19,6 +18,7 @@ type CartLine struct {
 	CartID        int `gorm:"index"`
 	ProductID     int `gorm:"index"`
 	VariantID     int `gorm:"index"`
+	ProductHandle string
 	ImageURL      string
 	ProductTitle  string
 	Variant1Key   string

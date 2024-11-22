@@ -11,6 +11,9 @@ type CartRepository interface {
 	Read(id int) (*models.Cart, error)
 	Update(cart models.Cart) error
 	Delete(id int) error
+	DeleteCartLine(line models.CartLine) error
+	GetCartWithLinesByIDAndCustomerID(cartID, customerID int) (models.Cart, []models.CartLine, bool, error)
+	GetCartWithLinesByIDAndGuestID(cartID int, guestID string) (models.Cart, []models.CartLine, bool, error)
 	GetCartWithLinesByCustomerID(customerID int) (models.Cart, []models.CartLine, bool, error)
 	GetCartWithLinesByGuestID(guestID string) (models.Cart, []models.CartLine, bool, error)
 	CreateCart(cart models.Cart) (models.Cart, error)
@@ -45,6 +48,10 @@ func (r *cartRepo) Delete(id int) error {
 	return r.db.Delete(&models.Cart{}, id).Error
 }
 
+func (r *cartRepo) DeleteCartLine(line models.CartLine) error {
+	return r.db.Delete(&line).Error
+}
+
 func (r *cartRepo) GetCartWithLinesByCustomerID(customerID int) (models.Cart, []models.CartLine, bool, error) {
 	var cart models.Cart
 	var cartLines []models.CartLine
@@ -76,6 +83,46 @@ func (r *cartRepo) GetCartWithLinesByGuestID(guestID string) (models.Cart, []mod
 	if err != nil {
 		return models.Cart{}, nil, false, err
 	}
+	return cart, cartLines, false, nil
+}
+
+func (r *cartRepo) GetCartWithLinesByIDAndCustomerID(cartID, customerID int) (models.Cart, []models.CartLine, bool, error) {
+	var cart models.Cart
+	var cartLines []models.CartLine
+
+	err := r.db.Preload("CartLines").Where("id = ? AND customer_id = ? AND status = ?", cartID, customerID, "Active").First(&cart).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return cart, cartLines, true, nil
+		}
+		return models.Cart{}, nil, false, err
+	}
+
+	err = r.db.Where("cart_id = ?", cart.ID).Find(&cartLines).Error
+	if err != nil {
+		return models.Cart{}, nil, false, err
+	}
+
+	return cart, cartLines, false, nil
+}
+
+func (r *cartRepo) GetCartWithLinesByIDAndGuestID(cartID int, guestID string) (models.Cart, []models.CartLine, bool, error) {
+	var cart models.Cart
+	var cartLines []models.CartLine
+
+	err := r.db.Preload("CartLines").Where("id = ? AND guest_id = ? AND status = ?", cartID, guestID, "Active").First(&cart).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return cart, cartLines, true, nil
+		}
+		return models.Cart{}, nil, false, err
+	}
+
+	err = r.db.Where("cart_id = ?", cart.ID).Find(&cartLines).Error
+	if err != nil {
+		return models.Cart{}, nil, false, err
+	}
+
 	return cart, cartLines, false, nil
 }
 

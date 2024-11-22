@@ -68,3 +68,18 @@ type ProductRender struct {
 	HasVariants bool
 	Blocks      AllVariants
 }
+
+//Cart
+type CartRender struct {
+	CartError   string
+	LineError   string
+	Empty       bool
+	SumQuantity int
+	Cart        Cart
+	CartLines   []CartLineRender
+}
+
+type CartLineRender struct {
+	ActualLine    CartLine
+	QuantityMaxed bool
+}
