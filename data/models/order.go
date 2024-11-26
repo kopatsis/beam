@@ -29,7 +29,7 @@ type Order struct {
 	Total                   int                `bson:"total" json:"total"`
 	NonStackingDiscountCode string             `bson:"non_stacking_discount_code" json:"non_stacking_discount_code"`
 	StackingDiscountCodes   []string           `bson:"stacking_discount_codes" json:"stacking_discount_codes"`
-	BillingContact          OrderContact       `bson:"billing_contact" json:"billing_contact"`
+	BillingZip              string             `bson:"billing_contact" json:"billing_contact"`
 	ShippingContact         OrderContact       `bson:"shipping_contact" json:"shipping_contact"`
 	Lines                   []OrderLine        `bson:"lines" json:"lines"`
 	Tags                    []string           `bson:"tags" json:"tags"`
@@ -63,7 +63,7 @@ type DraftOrder struct {
 	Total                   int                `bson:"total" json:"total"`
 	NonStackingDiscountCode string             `bson:"non_stacking_discount_code" json:"non_stacking_discount_code"`
 	StackingDiscountCodes   []string           `bson:"stacking_discount_codes" json:"stacking_discount_codes"`
-	BillingContact          OrderContact       `bson:"billing_contact" json:"billing_contact"`
+	BillingZip              string             `bson:"billing_contact" json:"billing_contact"`
 	ShippingContact         OrderContact       `bson:"shipping_contact" json:"shipping_contact"`
 	Lines                   []OrderLine        `bson:"lines" json:"lines"`
 	Tags                    []string           `bson:"tags" json:"tags"`
@@ -90,6 +90,7 @@ type OrderLine struct {
 	EndPrice          int    `bson:"end_price" json:"end_price"`
 	LineTotal         int    `bson:"line_total" json:"line_total"`
 }
+
 type OrderContact struct {
 	FirstName      string `bson:"first_name" json:"first_name"`
 	LastName       string `bson:"last_name" json:"last_name"`

@@ -12,7 +12,6 @@ type Customer struct {
 	Email                    string `gorm:"unique"`
 	EmailSubbed              bool
 	DefaultShippingContactID int            `gorm:"index"`
-	DefaultBillingContactID  int            `gorm:"index"`
 	Tags                     pq.StringArray `gorm:"type:text[]"`
 	PhoneNumber              *string
 	Status                   string
