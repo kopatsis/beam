@@ -13,6 +13,8 @@ type Order struct {
 	DraftOrderID            string             `bson:"draft_order_id" json:"draft_order_id"`
 	Status                  string             `bson:"status" json:"status"`
 	Email                   string             `bson:"email" json:"email"`
+	FirstName               string             `bson:"fname" json:"fname"`
+	LastName                string             `bson:"lname" json:"lname"`
 	DateCreated             time.Time          `bson:"date_created" json:"date_created"`
 	DateCancelled           *time.Time         `bson:"date_cancelled,omitempty" json:"date_cancelled,omitempty"`
 	DateProcessedPrintful   *time.Time         `bson:"date_processed_printful,omitempty" json:"date_processed_printful,omitempty"`
@@ -52,6 +54,8 @@ type DraftOrder struct {
 	CustomerID              int                `bson:"customer_id" json:"customer_id"`
 	Status                  string             `bson:"status" json:"status"`
 	Email                   string             `bson:"email" json:"email"`
+	FirstName               string             `bson:"fname" json:"fname"`
+	LastName                string             `bson:"lname" json:"lname"`
 	DateCreated             time.Time          `bson:"date_created" json:"date_created"`
 	DateAbandoned           *time.Time         `bson:"date_abandoned,omitempty" json:"date_abandoned,omitempty"`
 	StripePaymentIntentID   string             `bson:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
