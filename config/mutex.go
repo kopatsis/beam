@@ -29,11 +29,17 @@ type TaxMutex struct {
 	CATax map[string]float64
 }
 
+type ExternalIDMutex struct {
+	Mu    sync.RWMutex
+	IDMap map[string]string
+}
+
 type AllMutexes struct {
-	Store   StoreNamesWithMutex
-	Filters TotalFiltersWithMutex
-	Tags    TotalTagsWithMutex
-	Tax     TaxMutex
+	Store    StoreNamesWithMutex
+	Filters  TotalFiltersWithMutex
+	Tags     TotalTagsWithMutex
+	Tax      TaxMutex
+	External ExternalIDMutex
 }
 
 func unmarshalJSONFile(filePath string, v interface{}) error {
@@ -53,11 +59,13 @@ func LoadAllData() *AllMutexes {
 	filtersFile := "static/ref/allfilters.json"
 	tagsFile := "static/ref/alltags.json"
 	taxFile := "static/ref/tax.json"
+	exFile := "static/ref/allexternal.json"
 
 	var storeNames models.StoreNames
 	var totalFilters models.TotalFilters
 	var totalTags models.TotalTags
 	var tax map[string]float64
+	var ex map[string]string
 
 	if err := unmarshalJSONFile(storeNamesFile, &storeNames); err != nil {
 		log.Fatalf("Unable to load the store mutex vars: %v", err)
@@ -71,11 +79,15 @@ func LoadAllData() *AllMutexes {
 	if err := unmarshalJSONFile(taxFile, &tax); err != nil {
 		log.Fatalf("Unable to load the tags mutex vars: %v", err)
 	}
+	if err := unmarshalJSONFile(exFile, &ex); err != nil {
+		log.Fatalf("Unable to load the tags mutex vars: %v", err)
+	}
 
 	return &AllMutexes{
-		Store:   StoreNamesWithMutex{Store: storeNames},
-		Filters: TotalFiltersWithMutex{Filters: totalFilters},
-		Tags:    TotalTagsWithMutex{Tags: totalTags},
-		Tax:     TaxMutex{CATax: tax},
+		Store:    StoreNamesWithMutex{Store: storeNames},
+		Filters:  TotalFiltersWithMutex{Filters: totalFilters},
+		Tags:     TotalTagsWithMutex{Tags: totalTags},
+		Tax:      TaxMutex{CATax: tax},
+		External: ExternalIDMutex{IDMap: ex},
 	}
 }
