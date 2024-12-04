@@ -34,12 +34,18 @@ type ExternalIDMutex struct {
 	IDMap map[string]string
 }
 
+type APIKeyMutex struct {
+	Mu     sync.RWMutex
+	KeyMap map[string]string
+}
+
 type AllMutexes struct {
 	Store    StoreNamesWithMutex
 	Filters  TotalFiltersWithMutex
 	Tags     TotalTagsWithMutex
 	Tax      TaxMutex
 	External ExternalIDMutex
+	Api      APIKeyMutex
 }
 
 func unmarshalJSONFile(filePath string, v interface{}) error {
@@ -83,11 +89,24 @@ func LoadAllData() *AllMutexes {
 		log.Fatalf("Unable to load the tags mutex vars: %v", err)
 	}
 
+	keyMap := map[string]string{}
+
+	for key := range storeNames.ToDomain {
+		envKey := key + "_PF_API_KEY"
+		apiKey := os.Getenv(envKey)
+		if apiKey != "" {
+			keyMap[key] = apiKey
+		} else {
+			log.Fatalf("No key for: %s\n", key)
+		}
+	}
+
 	return &AllMutexes{
 		Store:    StoreNamesWithMutex{Store: storeNames},
 		Filters:  TotalFiltersWithMutex{Filters: totalFilters},
 		Tags:     TotalTagsWithMutex{Tags: totalTags},
 		Tax:      TaxMutex{CATax: tax},
 		External: ExternalIDMutex{IDMap: ex},
+		Api:      APIKeyMutex{KeyMap: keyMap},
 	}
 }
