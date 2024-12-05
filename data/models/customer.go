@@ -25,6 +25,7 @@ type Contact struct {
 	CustomerID     int `gorm:"index"`
 	FirstName      string
 	LastName       *string
+	Company        *string
 	PhoneNumber    *string
 	StreetAddress1 string
 	StreetAddress2 *string

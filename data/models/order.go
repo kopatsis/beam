@@ -104,6 +104,7 @@ type OrderLine struct {
 type OrderContact struct {
 	FirstName      string `bson:"first_name" json:"first_name"`
 	LastName       string `bson:"last_name" json:"last_name"`
+	CompanyName    string `bson:"comp_name" json:"comp_name"`
 	PhoneNumber    string `bson:"phone_number" json:"phone_number"`
 	StreetAddress1 string `bson:"street_address_1" json:"street_address_1"`
 	StreetAddress2 string `bson:"street_address_2" json:"street_address_2"`
