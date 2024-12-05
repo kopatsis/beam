@@ -38,21 +38,23 @@ func getLimiter(storeName string) *rate.Limiter {
 
 func applyRateLimit(storeName string, tools *config.Tools) error {
 	limiter := getLimiter(storeName)
+	ctx, cancel := context.WithTimeout(context.Background(), 9*time.Second)
+	defer cancel()
+
 	startTime := time.Now()
 
-	err := limiter.Wait(context.Background())
+	err := limiter.Wait(ctx)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("rate limit exceeded for %s, timeout after 10 seconds", storeName)
+		}
 		return fmt.Errorf("failed to wait for rate limit: %w", err)
 	}
 
 	waitDuration := time.Since(startTime)
 
-	if waitDuration > 10*time.Second {
-		return fmt.Errorf("rate limit exceeded for %s, wait time too long: %v", storeName, waitDuration)
-	}
-
 	if waitDuration > 6*time.Second {
-		emails.AlertEmailRateDanger(storeName, waitDuration, tools)
+		go emails.AlertEmailRateDanger(storeName, waitDuration, tools)
 	}
 
 	if waitDuration > 3*time.Second {
