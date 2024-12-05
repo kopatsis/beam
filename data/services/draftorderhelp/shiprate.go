@@ -31,5 +31,10 @@ func UpdateShippingRates(draft *models.DraftOrder, newContact models.OrderContac
 }
 
 func getApiShipRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name string) []models.ShippingRate {
+
+	mutexes.Api.Mu.RLock()
+	apiKey := mutexes.Api.KeyMap[name]
+	mutexes.Api.Mu.RUnlock()
+
 	return []models.ShippingRate{}
 }
