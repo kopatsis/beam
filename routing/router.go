@@ -1,13 +1,13 @@
 package routing
 
 import (
+	"beam/config"
 	"beam/data"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
-func New(fullService *data.AllServices, client *http.Client) *gin.Engine {
+func New(fullService *data.AllServices, tools *config.Tools) *gin.Engine {
 	router := gin.Default()
 	return router
 }
