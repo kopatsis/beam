@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -19,13 +20,15 @@ import (
 
 var (
 	storeLimiters = make(map[string]*rate.Limiter)
-	mu            sync.Mutex
+	ipLimiters    = make(map[string]*rate.Limiter)
+	stMu          sync.Mutex
+	ipMu          sync.Mutex
 )
 
-func getLimiter(storeName string) *rate.Limiter {
+func getStoreLimiter(storeName string) *rate.Limiter {
 
-	mu.Lock()
-	defer mu.Unlock()
+	stMu.Lock()
+	defer stMu.Unlock()
 
 	limiter, exists := storeLimiters[storeName]
 	if !exists {
@@ -36,8 +39,21 @@ func getLimiter(storeName string) *rate.Limiter {
 	return limiter
 }
 
-func applyRateLimit(storeName string, tools *config.Tools) error {
-	limiter := getLimiter(storeName)
+func getIPLimiter(ip string) *rate.Limiter {
+	ipMu.Lock()
+	defer ipMu.Unlock()
+
+	limiter, exists := ipLimiters[ip]
+	if !exists {
+		limiter = rate.NewLimiter(rate.Every(time.Duration(int64(config.SHIPINTERVAL)/int64(config.IPREQS))), config.IPREQS)
+		ipLimiters[ip] = limiter
+	}
+
+	return limiter
+}
+
+func applyStoreRateLimit(storeName string, tools *config.Tools) error {
+	limiter := getStoreLimiter(storeName)
 	ctx, cancel := context.WithTimeout(context.Background(), 9*time.Second)
 	defer cancel()
 
@@ -46,6 +62,8 @@ func applyRateLimit(storeName string, tools *config.Tools) error {
 	err := limiter.Wait(ctx)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
+			log.Printf("Warning: Store %s wait time exceeded 3 seconds: %v", storeName, 9*time.Second)
+			go emails.AlertEmailRateDanger(storeName, 9*time.Second, tools, true)
 			return fmt.Errorf("rate limit exceeded for %s, timeout after 10 seconds", storeName)
 		}
 		return fmt.Errorf("failed to wait for rate limit: %w", err)
@@ -54,7 +72,7 @@ func applyRateLimit(storeName string, tools *config.Tools) error {
 	waitDuration := time.Since(startTime)
 
 	if waitDuration > 6*time.Second {
-		go emails.AlertEmailRateDanger(storeName, waitDuration, tools)
+		go emails.AlertEmailRateDanger(storeName, waitDuration, tools, false)
 	}
 
 	if waitDuration > 3*time.Second {
@@ -64,7 +82,62 @@ func applyRateLimit(storeName string, tools *config.Tools) error {
 	return nil
 }
 
-func UpdateShippingRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name string, tools *config.Tools) error {
+func applyIpRateLimit(ip string, tools *config.Tools) error {
+	limiter := getIPLimiter(ip)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	startTime := time.Now()
+
+	err := limiter.Wait(ctx)
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			log.Printf("Warning: IP %s wait time exceeded 3 seconds: %v", ip, 10*time.Second)
+			go emails.AlertIPRateDanger(ip, 9*time.Second, tools, true)
+			return fmt.Errorf("rate limit exceeded for %s, timeout after 10 seconds", ip)
+		}
+		return fmt.Errorf("failed to wait for rate limit: %w", err)
+	}
+
+	waitDuration := time.Since(startTime)
+
+	if waitDuration > 6*time.Second {
+		go emails.AlertEmailRateDanger(ip, waitDuration, tools, false)
+	}
+
+	if waitDuration > 3*time.Second {
+		log.Printf("Warning: IP %s wait time exceeded 3 seconds: %v", ip, waitDuration)
+	}
+
+	return nil
+}
+
+func applyRateLimitsConcurrently(storeName, ip string, tools *config.Tools) error {
+	var storeErr, ipErr error
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		storeErr = applyStoreRateLimit(storeName, tools)
+	}()
+
+	go func() {
+		defer wg.Done()
+		ipErr = applyIpRateLimit(ip, tools)
+	}()
+
+	wg.Wait()
+
+	if ipErr != nil {
+		return errors.New("did not complete based on ip limiting")
+	} else if storeErr != nil {
+		return errors.New("did not complete based on store limiting")
+	}
+	return nil
+}
+
+func UpdateShippingRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name, ip string, tools *config.Tools) error {
 	address := newContact.StreetAddress1 + ", " + newContact.City + ", " + newContact.ProvinceState + ", " + newContact.ZipCode + ", " + newContact.Country
 	now := time.Now()
 
@@ -76,7 +149,7 @@ func UpdateShippingRates(draft *models.DraftOrder, newContact models.OrderContac
 		}
 	}
 
-	newRates, err := getApiShipRates(draft, newContact, mutexes, name, tools)
+	newRates, err := getApiShipRates(draft, newContact, mutexes, name, ip, tools)
 	if err != nil {
 		return err
 	}
@@ -94,10 +167,10 @@ func UpdateShippingRates(draft *models.DraftOrder, newContact models.OrderContac
 	return nil
 }
 
-func getApiShipRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name string, tools *config.Tools) ([]models.ShippingRate, error) {
+func getApiShipRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name, ip string, tools *config.Tools) ([]models.ShippingRate, error) {
 
-	if err := applyRateLimit(name, tools); err != nil {
-		return []models.ShippingRate{}, nil
+	if err := applyRateLimitsConcurrently(name, ip, tools); err != nil {
+		return []models.ShippingRate{}, err
 	}
 
 	mutexes.Api.Mu.RLock()
