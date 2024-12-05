@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/sendgrid/sendgrid-go"
+	"github.com/stripe/stripe-go/v81"
 )
 
 type Tools struct {
@@ -21,6 +22,9 @@ func NewTools() *Tools {
 	if err := t.initializeSendGrid(); err != nil {
 		log.Fatalf("Error initializing SendGrid: %v", err)
 	}
+	if err := t.initializeStripe(); err != nil {
+		log.Fatalf("Error initializing Stripe: %v", err)
+	}
 	return t
 }
 
@@ -30,5 +34,14 @@ func (t *Tools) initializeSendGrid() error {
 		return fmt.Errorf("SENDGRID_API_KEY is not set")
 	}
 	t.SendGrid = sendgrid.NewSendClient(apiKey)
+	return nil
+}
+
+func (t *Tools) initializeStripe() error {
+	stripeKey := os.Getenv("STRIPE_SECRET_KEY")
+	if stripeKey == "" {
+		return fmt.Errorf("STRIPE_SECRET_KEY is not set")
+	}
+	stripe.Key = stripeKey
 	return nil
 }

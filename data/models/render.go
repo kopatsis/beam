@@ -83,3 +83,12 @@ type CartLineRender struct {
 	ActualLine    CartLine
 	QuantityMaxed bool
 }
+
+//Payment
+type PaymentMethodStripe struct {
+	ID       string
+	CardType string
+	Last4    string
+	ExpMonth int64
+	ExpYear  int64
+}
