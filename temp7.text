@@ -29,6 +29,7 @@ F1 -- Modify address/contact:
 - Checks if partial string of address in ShipRate map and within last hour
   - If so, updates current to that and updates actual rate to first one
   - Else, fetches it -> saves in map incl timestamp, updates current and actual
+ // 
 - Check user's status and order total to see if qualified for "free" shipping
   - If so, modify pricing for cheapest to be $0, all others min $0.99 else rate minus cheapest
 - If a change in shipping amount, update shipping -> total
