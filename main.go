@@ -18,8 +18,9 @@ func main() {
 	defer config.MongoDisconnect(mongoClient)
 
 	fullService := data.NewMainService(pgDBs, redis, mongoDBs, mutexes)
+	client := &http.Client{}
 
-	rtr := routing.New(fullService)
+	rtr := routing.New(fullService, client)
 
 	port := config.GetPort()
 
