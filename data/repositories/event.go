@@ -3,17 +3,19 @@ package repositories
 import (
 	"beam/data/models"
 	"context"
+	"sync"
+	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+var (
+	eventQueue chan models.Event
+	once       sync.Once
+)
+
 type EventRepository interface {
-	Create(event models.Event) error
-	Read(id string) (*models.Event, error)
-	Update(event models.Event) error
-	Delete(id string) error
+	SaveEvent(customerID int, guestID, eventClassification, eventDescription, specialNote, otherID string) error
 }
 
 type eventRepo struct {
@@ -25,35 +27,50 @@ func NewEventRepository(mdb *mongo.Database) EventRepository {
 	return &eventRepo{coll: collection}
 }
 
-func (r *eventRepo) Create(event models.Event) error {
-	_, err := r.coll.InsertOne(context.Background(), event)
-	return err
-}
-
-func (r *eventRepo) Read(id string) (*models.Event, error) {
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return nil, err
+func (repo *eventRepo) SaveEvent(customerID int, guestID, eventClassification, eventDescription, specialNote, otherID string) error {
+	event := models.Event{
+		CustomerID:          customerID,
+		GuestID:             guestID,
+		Timestamp:           time.Now(),
+		EventClassification: eventClassification,
+		EventDescription:    eventDescription,
+		SpecialNote:         specialNote,
 	}
-	var event models.Event
-	err = r.coll.FindOne(context.Background(), bson.M{"_id": objID}).Decode(&event)
-	return &event, err
-}
 
-func (r *eventRepo) Update(event models.Event) error {
-	_, err := r.coll.UpdateOne(
-		context.Background(),
-		bson.M{"_id": event.ID},
-		bson.M{"$set": event},
-	)
-	return err
-}
-
-func (r *eventRepo) Delete(id string) error {
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return err
+	switch eventClassification {
+	case "Order":
+		event.OrderID = &otherID
+	case "Product":
+		event.ProductID = &otherID
+	case "List":
+		event.ListID = &otherID
+	case "Cart":
+		event.CartID = &otherID
+	case "Collection":
+		event.CollectionID = &otherID
+	case "Discount":
+		event.DiscountID = &otherID
 	}
-	_, err = r.coll.DeleteOne(context.Background(), bson.M{"_id": objID})
-	return err
+
+	once.Do(func() {
+		eventQueue = make(chan models.Event, 100)
+		for i := 0; i < 5; i++ {
+			go func() {
+				for task := range eventQueue {
+					_, err := repo.coll.InsertOne(context.Background(), task)
+					if err != nil {
+					}
+				}
+			}()
+		}
+	})
+
+	go func() {
+		select {
+		case eventQueue <- event:
+		default:
+		}
+	}()
+
+	return nil
 }

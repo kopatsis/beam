@@ -1,6 +1,10 @@
 package models
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type Notification struct {
 	ID                  primitive.ObjectID `bson:"_id,omitempty" json:"id"`
@@ -29,7 +33,8 @@ type Notification struct {
 type Event struct {
 	ID                  primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	CustomerID          int                `bson:"customer_id" json:"customer_id"`
-	Timestamp           string             `bson:"timestamp" json:"timestamp"`
+	GuestID             string             `bson:"guest_id" json:"guest_id"`
+	Timestamp           time.Time          `bson:"timestamp" json:"timestamp"`
 	EventClassification string             `bson:"event_classification" json:"event_classification"`
 	EventDescription    string             `bson:"event_description" json:"event_description"`
 	OrderID             *string            `bson:"order_id,omitempty" json:"order_id,omitempty"`

@@ -1,15 +1,11 @@
 package services
 
 import (
-	"beam/data/models"
 	"beam/data/repositories"
 )
 
 type EventService interface {
-	AddEvent(event models.Event) error
-	GetEventByID(id string) (*models.Event, error)
-	UpdateEvent(event models.Event) error
-	DeleteEvent(id string) error
+	SaveEvent(customerID int, guestID, eventClassification, eventDescription, specialNote, otherID string) error
 }
 
 type eventService struct {
@@ -20,18 +16,6 @@ func NewEventService(eventRepo repositories.EventRepository) EventService {
 	return &eventService{eventRepo: eventRepo}
 }
 
-func (s *eventService) AddEvent(event models.Event) error {
-	return s.eventRepo.Create(event)
-}
-
-func (s *eventService) GetEventByID(id string) (*models.Event, error) {
-	return s.eventRepo.Read(id)
-}
-
-func (s *eventService) UpdateEvent(event models.Event) error {
-	return s.eventRepo.Update(event)
-}
-
-func (s *eventService) DeleteEvent(id string) error {
-	return s.eventRepo.Delete(id)
+func (s *eventService) SaveEvent(customerID int, guestID, eventClassification, eventDescription, specialNote, otherID string) error {
+	return s.eventRepo.SaveEvent(customerID, guestID, eventClassification, eventDescription, specialNote, otherID)
 }
