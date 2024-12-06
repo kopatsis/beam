@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/stripe/stripe-go/v81"
+	"github.com/stripe/stripe-go/v81/paymentintent"
 	"github.com/stripe/stripe-go/v81/paymentmethod"
 )
 
@@ -64,4 +65,16 @@ func GetAllPaymentMethods(stripeID string) ([]models.PaymentMethodStripe, error)
 	}
 
 	return paymentMethods, nil
+}
+
+func updateStripePaymentIntent(paymentIntentID string, total int) error {
+	params := &stripe.PaymentIntentParams{
+		Amount: stripe.Int64(int64(total)),
+	}
+	_, err := paymentintent.Update(paymentIntentID, params)
+	if err != nil {
+		return fmt.Errorf("failed to update payment intent: %v", err)
+	}
+
+	return nil
 }

@@ -137,9 +137,8 @@ func applyRateLimitsConcurrently(storeName, ip string, tools *config.Tools) erro
 	return nil
 }
 
-func UpdateShippingRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name, ip string, tools *config.Tools) error {
+func UpdateShippingRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name, ip string, freeship bool, tools *config.Tools) error {
 	address := newContact.StreetAddress1 + ", " + newContact.City + ", " + newContact.ProvinceState + ", " + newContact.ZipCode + ", " + newContact.Country
-	now := time.Now()
 
 	if rates, exists := draft.AllShippingRates[address]; exists && len(rates) > 1 {
 		if time.Since(rates[0].Timestamp) < time.Hour {
@@ -153,18 +152,63 @@ func UpdateShippingRates(draft *models.DraftOrder, newContact models.OrderContac
 	if err != nil {
 		return err
 	}
-
-	for i := range newRates {
-		newRates[i].Timestamp = now
-	}
-
 	draft.AllShippingRates[address] = newRates
-	if len(newRates) > 0 {
-		draft.CurrentShipping = newRates
-		draft.ActualRate = newRates[0]
+	draft.CurrentShipping = newRates
+
+	if err := UpdateActualShippingRate(draft, newRates[0].ID, freeship); err != nil {
+		return err
 	}
 
 	return nil
+}
+
+func UpdateActualShippingRate(order *models.DraftOrder, shipID string, freeship bool) error {
+	var selectedRate *models.ShippingRate
+
+	for _, rate := range order.CurrentShipping {
+		if rate.ID == shipID {
+			selectedRate = &rate
+			break
+		}
+	}
+
+	if selectedRate == nil {
+		return errors.New("shipping rate not found")
+	}
+
+	if time.Since(selectedRate.Timestamp) > time.Hour {
+		return errors.New("shipping rate has expired")
+	}
+
+	order.ActualRate = *selectedRate
+
+	if !freeship {
+		rateInt, err := convertRateToCents(selectedRate.Rate)
+		if err != nil {
+			return err
+		}
+
+		if rateInt != order.Shipping {
+			order.Shipping = rateInt
+			order.Total += (rateInt - order.Shipping)
+
+			err = updateStripePaymentIntent(order.StripePaymentIntentID, order.Total)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func convertRateToCents(rate string) (int, error) {
+	var rateInt int
+	_, err := fmt.Sscanf(rate, "%f", &rateInt)
+	if err != nil {
+		return 0, fmt.Errorf("invalid rate format: %v", err)
+	}
+	return rateInt, nil
 }
 
 func getApiShipRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name, ip string, tools *config.Tools) ([]models.ShippingRate, error) {
@@ -214,7 +258,17 @@ func getApiShipRates(draft *models.DraftOrder, newContact models.OrderContact, m
 		return nil, err
 	}
 
-	return apiResponse.Result, nil
+	now := time.Now()
+	newRates := apiResponse.Result
+	for i := range newRates {
+		newRates[i].Timestamp = now
+	}
+
+	if len(newRates) == 0 {
+		return nil, errors.New("no rates available")
+	}
+
+	return newRates, nil
 }
 
 func createItemsArray(orderLines []models.OrderLine, mutexes *config.AllMutexes, name string) []map[string]any {
