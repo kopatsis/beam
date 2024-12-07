@@ -109,7 +109,7 @@ PRINTFUL:
  - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/orderCanceled) ~ Canceled, to email ME -> ?
  - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/orderPutHold) ~ Hold?, to email ME -> ?
  - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/orderPutHoldApproval) ~ Hold?, to email ME -> ?
- - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/orderPutHoldApproval) ~ Hold?, to email ME -> ?
+ - EVENT (https://developers.printful.com/docs/#tag/Webhook-API/operation/orderRemoveHold) ~ Remove?, to email ME -> ?
 - Products:
  - GET (https://developers.printful.com/docs/#tag/Products-API/operation/getSyncProducts) ~ Get products for add to my system
  - PUT (https://developers.printful.com/docs/#tag/Products-API/operation/updateSyncProduct) ~ After get, any modifications to product group
