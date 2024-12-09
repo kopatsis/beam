@@ -5,15 +5,19 @@ import "time"
 type Discount struct {
 	ID                int    `gorm:"primaryKey"`
 	DiscountCode      string `gorm:"unique"`
+	Status            string
 	Created           time.Time
 	IsPercentageOff   bool
 	PercentageOff     float64
 	IsDollarsOff      bool
 	DollarsOff        int
+	OneTime           bool
+	Uses              int
 	HasMinSubtotal    bool
 	MinSubtotal       int
 	Stacks            bool
 	AppliesToAllUsers bool
+	SingleCustomerID  int
 }
 
 type DiscountUser struct {
