@@ -80,6 +80,8 @@ func CreateDraftOrder(customer models.Customer, cart models.Cart, cartLines []mo
 		OrderLevelDiscount: 0,
 		Tax:                0,
 		Tip:                0,
+		PreGiftCardTotal:   subtotal,
+		GiftCardSum:        0,
 		Total:              subtotal,
 		ShippingContact:    *shippingContact,
 		Lines:              orderLines,

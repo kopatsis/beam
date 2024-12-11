@@ -7,6 +7,7 @@ import (
 	"beam/data/repositories"
 	"beam/data/services/discount"
 	"errors"
+	"time"
 )
 
 type DiscountService interface {
@@ -46,6 +47,12 @@ func (s *discountService) CreateGiftCard(cents int, message string, store string
 		message = message[:255]
 	}
 
+	if cents < 100 {
+		return 0, "", errors.New("not a large enough amount for gift card")
+	} else if cents >= 100000000 {
+		return 0, "", errors.New("too large amount for gift card")
+	}
+
 	var err error
 	idSt, exists, iter := "", false, 0
 	for !exists && iter < 10 {
@@ -69,4 +76,29 @@ func (s *discountService) CreateGiftCard(cents int, message string, store string
 	}
 
 	return idDB, idSt, nil
+}
+
+func (s *discountService) RetrieveGiftCard(code string, store string) (*models.GiftCard, error) {
+	if !discount.CheckID(code) {
+		return nil, errors.New("invalid gift card code")
+	}
+
+	gc, err := s.discountRepo.GetGiftCard(code)
+	if err != nil {
+		return nil, err
+	}
+
+	if gc.Status == "Draft" {
+		return nil, errors.New("not yet paid for")
+	}
+
+	if gc.Status == "Spent" || gc.LeftoverCents == 0 {
+		return nil, errors.New("giftcard spent")
+	}
+
+	if gc.Expired.Before(time.Now()) {
+		return nil, errors.New("expired")
+	}
+
+	return gc, nil
 }

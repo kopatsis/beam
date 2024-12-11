@@ -15,6 +15,7 @@ type DiscountRepository interface {
 	Delete(id int) error
 	CreateGiftCard(idCode string, cents int, message string) (int, error)
 	IDCodeExists(idCode string) (bool, error)
+	GetGiftCard(idCode string) (*models.GiftCard, error)
 }
 
 type discountRepo struct {
@@ -63,4 +64,15 @@ func (r *discountRepo) IDCodeExists(idCode string) (bool, error) {
 	var exists bool
 	err := r.db.Raw("SELECT EXISTS(SELECT 1 FROM gift_cards WHERE uuid_code = ?)", idCode).Scan(&exists).Error
 	return exists, err
+}
+
+func (r *discountRepo) GetGiftCard(idCode string) (*models.GiftCard, error) {
+	var giftCard models.GiftCard
+
+	err := r.db.Where("id_code = ?", idCode).First(&giftCard).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &giftCard, nil
 }

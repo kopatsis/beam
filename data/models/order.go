@@ -28,6 +28,8 @@ type Order struct {
 	OrderLevelDiscount      int                `bson:"order_level_discount" json:"order_level_discount"`
 	Tax                     int                `bson:"tax" json:"tax"`
 	Tip                     int                `bson:"tip" json:"tip"`
+	PreGiftCardTotal        int                `bson:"pgc_total" json:"pgc_total"`
+	GiftCardSum             int                `bson:"gc_sum" json:"gc_sum"`
 	Total                   int                `bson:"total" json:"total"`
 	NonStackingDiscountCode string             `bson:"non_stacking_discount_code" json:"non_stacking_discount_code"`
 	StackingDiscountCodes   []string           `bson:"stacking_discount_codes" json:"stacking_discount_codes"`
@@ -65,12 +67,14 @@ type DraftOrder struct {
 	OrderLevelDiscount      int                       `bson:"order_level_discount" json:"order_level_discount"`
 	Tax                     int                       `bson:"tax" json:"tax"`
 	Tip                     int                       `bson:"tip" json:"tip"`
+	PreGiftCardTotal        int                       `bson:"pgc_total" json:"pgc_total"`
+	GiftCardSum             int                       `bson:"gc_sum" json:"gc_sum"`
 	Total                   int                       `bson:"total" json:"total"`
 	NonStackingDiscountCode string                    `bson:"non_stacking_discount_code" json:"non_stacking_discount_code"`
 	StackingDiscountCodes   []string                  `bson:"stacking_discount_codes" json:"stacking_discount_codes"`
 	ShippingContact         OrderContact              `bson:"shipping_contact" json:"shipping_contact"`
 	Lines                   []OrderLine               `bson:"lines" json:"lines"`
-	GiftCards               []GiftCard                `bson:"gift_cards" json:"gift_cards"`
+	GiftCards               []OrderGiftCard           `bson:"gift_cards" json:"gift_cards"`
 	Tags                    []string                  `bson:"tags" json:"tags"`
 	DeliveryNote            string                    `bson:"delivery_note" json:"delivery_note"`
 	Guest                   bool                      `bson:"guest" json:"guest"`
@@ -78,6 +82,14 @@ type DraftOrder struct {
 	ActualRate              ShippingRate              `bson:"ship_actual" json:"ship_actual"`
 	CurrentShipping         []ShippingRate            `bson:"ship_current" json:"ship_current"`
 	AllShippingRates        map[string][]ShippingRate `bson:"ship_all" json:"ship_all"`
+}
+
+type OrderGiftCard struct {
+	GiftCardID      int    `bson:"gc_id" json:"gc_id"`
+	Code            string `bson:"gc_code" json:"gc_code"`
+	AmountAvailable int    `bson:"available" json:"available"`
+	Charged         int    `bson:"charged" json:"charged"`
+	Message         string `bson:"message" json:"message"`
 }
 
 type OrderLine struct {
