@@ -70,6 +70,7 @@ type DraftOrder struct {
 	StackingDiscountCodes   []string                  `bson:"stacking_discount_codes" json:"stacking_discount_codes"`
 	ShippingContact         OrderContact              `bson:"shipping_contact" json:"shipping_contact"`
 	Lines                   []OrderLine               `bson:"lines" json:"lines"`
+	GiftCards               []GiftCard                `bson:"gift_cards" json:"gift_cards"`
 	Tags                    []string                  `bson:"tags" json:"tags"`
 	DeliveryNote            string                    `bson:"delivery_note" json:"delivery_note"`
 	Guest                   bool                      `bson:"guest" json:"guest"`

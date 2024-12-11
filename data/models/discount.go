@@ -32,7 +32,7 @@ type GiftCard struct {
 	Activated     time.Time
 	Spent         time.Time
 	Expired       time.Time
-	Status        string // Draft, Active, Spent, Expired
+	Status        string // Draft, Active, Staged, Spent, Expired
 	OriginalCents int
 	LeftoverCents int
 	ShortMessage  string
