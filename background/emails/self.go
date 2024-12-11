@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
@@ -51,6 +52,28 @@ func AlertIPRateDanger(ip string, wait time.Duration, tools *config.Tools, compl
 	}
 
 	message := fmt.Sprintf("The wait time for the Ship Rate API from IP is very high.\n\nIP: %s\nWait Time: %v\n\nPlease investigate.", ip, wait)
+
+	from := mail.NewEmail("Admin", fromEmail)
+	to := mail.NewEmail("Admin", toEmail)
+	content := mail.NewContent("text/plain", message)
+	mailMessage := mail.NewV3MailInit(from, subject, to, content)
+
+	_, err := tools.SendGrid.Send(mailMessage)
+	if err != nil {
+		log.Printf("Error sending email: %v", err)
+	}
+}
+
+func AlertGiftCardID(id string, iter int, store string, tools *config.Tools) {
+	fromEmail := os.Getenv("ADMIN_EMAIL")
+	if fromEmail == "" {
+		log.Fatal("ADMIN_EMAIL is not set")
+	}
+
+	toEmail := fromEmail
+	subject := "Alert: Managed to Have Duplicate Gift Card ID on attempt " + strconv.Itoa(iter)
+
+	message := fmt.Sprintf("Managed to Have Duplicate Gift Card ID\n\nID: %s\nIteration: %d\n\nStore: %s.", id, iter, store)
 
 	from := mail.NewEmail("Admin", fromEmail)
 	to := mail.NewEmail("Admin", toEmail)
