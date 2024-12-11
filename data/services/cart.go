@@ -1,10 +1,12 @@
 package services
 
 import (
+	"beam/config"
 	"beam/data/models"
 	"beam/data/repositories"
 	"beam/data/services/carthelp"
 	"errors"
+	"os"
 	"strconv"
 )
 
@@ -16,6 +18,8 @@ type CartService interface {
 	AddToCart(id, handle, name string, quant int, prodServ *productService, custID int, guestID string) (*models.Cart, error)
 	GetCart(name string, custID int, guestID string) (*models.CartRender, error)
 	AdjustQuantity(id, handle, name string, quant int, prodServ *productService, custID int, guestID string) (*models.CartRender, error)
+	AddGiftCard(message, store string, cents int, discService *discountService, tools *config.Tools, custID int, guestID string) (*models.Cart, error)
+	DeleteGiftCard(cartID, lineID string, custID int, guestID string) (*models.CartRender, error)
 }
 
 type cartService struct {
@@ -280,6 +284,129 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 		ret.CartError = "Unable to update cart :/ Please refresh and try again"
 		return &ret, nil
 	}
+
+	ret.SumQuantity = carthelp.UpdateCartQuant(ret)
+	return &ret, nil
+}
+
+func (s *cartService) AddGiftCard(message, store string, cents int, discService *discountService, tools *config.Tools, custID int, guestID string) (*models.Cart, error) {
+	var err error
+	var cart models.Cart
+	var exists bool
+
+	if custID > 0 {
+		cart, _, exists, err = s.cartRepo.GetCartWithLinesByCustomerID(custID)
+	} else if guestID != "" {
+		cart, _, exists, err = s.cartRepo.GetCartWithLinesByGuestID(guestID)
+	} else {
+		return nil, errors.New("error retrieving cart unrelated to cart not existing")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists {
+		cart.Status = "Active"
+		if custID > 0 {
+			cart.CustomerID = custID
+		} else {
+			cart.GuestID = guestID
+		}
+	}
+
+	var line models.CartLine
+
+	idDB, _, err := discService.CreateGiftCard(cents, message, store, tools)
+
+	gcHandle, gcImg := os.Getenv("GC_HANDLE"), os.Getenv("GC_IMG")
+	if line.ID == 0 {
+		line = models.CartLine{
+			IsGiftCard:    true,
+			ProductHandle: gcHandle,
+			ProductID:     -1,
+			VariantID:     idDB,
+			ImageURL:      gcImg,
+			ProductTitle:  "GIFT CARD",
+			Variant1Key:   "Message",
+			Variant1Value: message,
+			Price:         cents,
+			Quantity:      1,
+		}
+	}
+
+	if !exists {
+		cart, err = s.cartRepo.CreateCart(cart)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	line.CartID = cart.ID
+
+	line, err = s.cartRepo.AddCartLine(line)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cart, nil
+}
+
+func (s *cartService) DeleteGiftCard(cartID, lineID string, custID int, guestID string) (*models.CartRender, error) {
+	ret := models.CartRender{}
+
+	cid, err := strconv.Atoi(cartID)
+	if err != nil {
+		return nil, err
+	}
+
+	lid, err := strconv.Atoi(lineID)
+	if err != nil {
+		return nil, err
+	}
+
+	var cart models.Cart
+	var lines []models.CartLine
+	var exists bool
+
+	if custID > 0 {
+		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByIDAndCustomerID(cid, custID)
+	} else if guestID != "" {
+		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByIDAndGuestID(cid, guestID)
+	} else {
+		return nil, errors.New("no user id of either type provided")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists {
+		ret.Empty = true
+		ret.CartError = "Cart has been checked out already or no longer exists"
+		return &ret, nil
+	}
+
+	ret.Cart = cart
+
+	index := -1
+	for i, l := range lines {
+		ret.CartLines = append(ret.CartLines, models.CartLineRender{
+			ActualLine: l,
+		})
+		if l.ID == lid {
+			index = i
+		}
+	}
+
+	if index == -1 {
+		ret.LineError = "That line was deleted. Cart refreshed to latest data."
+		ret.SumQuantity = carthelp.UpdateCartQuant(ret)
+		return &ret, nil
+	}
+
+	if err := s.cartRepo.DeleteCartLine(lines[index]); err != nil {
+		return nil, err
+	}
+	ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
 
 	ret.SumQuantity = carthelp.UpdateCartQuant(ret)
 	return &ret, nil

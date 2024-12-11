@@ -18,6 +18,7 @@ type CartLine struct {
 	CartID        int `gorm:"index"`
 	ProductID     int `gorm:"index"`
 	VariantID     int `gorm:"index"`
+	IsGiftCard    bool
 	ProductHandle string
 	ImageURL      string
 	ProductTitle  string
