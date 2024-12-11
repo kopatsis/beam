@@ -27,9 +27,12 @@ type DiscountUser struct {
 
 type GiftCard struct {
 	ID            int    `gorm:"primaryKey"`
-	UUIDCode      string `gorm:"unique;index"`
+	IDCode        string `gorm:"unique;index"`
 	Created       time.Time
-	Status        string
+	Activated     time.Time
+	Spent         time.Time
+	Expired       time.Time
+	Status        string // Draft, Active, Spent, Expired
 	OriginalCents int
 	LeftoverCents int
 	ShortMessage  string
