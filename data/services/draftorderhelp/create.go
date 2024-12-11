@@ -2,6 +2,7 @@ package draftorderhelp
 
 import (
 	"beam/data/models"
+	"os"
 	"strconv"
 	"time"
 )
@@ -26,24 +27,42 @@ func CreateDraftOrder(customer models.Customer, cart models.Cart, cartLines []mo
 	orderLines := []models.OrderLine{}
 	subtotal := 0
 	for _, line := range cartLines {
-		product := products[line.ProductID]
-		orderLine := models.OrderLine{
-			ImageURL:          product.ImageURL,
-			ProductTitle:      product.Title,
-			Handle:            product.Handle,
-			PrintfulID:        product.PrintfulID,
-			Variant1Key:       line.Variant1Key,
-			Variant1Value:     line.Variant1Value,
-			Variant2Key:       *line.Variant2Key,
-			Variant2Value:     *line.Variant2Value,
-			Variant3Key:       *line.Variant3Key,
-			Variant3Value:     *line.Variant3Value,
-			ProductID:         strconv.Itoa(line.ProductID),
-			VariantID:         strconv.Itoa(line.VariantID),
-			Quantity:          line.Quantity,
-			UndiscountedPrice: line.Price,
-			EndPrice:          line.Price,
-			LineTotal:         line.Quantity * line.Price,
+		var orderLine models.OrderLine
+
+		if line.IsGiftCard {
+			orderLine = models.OrderLine{
+				ImageURL:          os.Getenv("GC_IMG"),
+				ProductTitle:      line.ProductTitle,
+				Handle:            os.Getenv("GC_HANDLE"),
+				Variant1Key:       line.Variant1Key,
+				Variant1Value:     line.Variant1Value,
+				ProductID:         strconv.Itoa(line.ProductID),
+				VariantID:         strconv.Itoa(line.VariantID),
+				Quantity:          1,
+				UndiscountedPrice: line.Price,
+				EndPrice:          line.Price,
+				LineTotal:         line.Price,
+			}
+		} else {
+			product := products[line.ProductID]
+			orderLine = models.OrderLine{
+				ImageURL:          product.ImageURL,
+				ProductTitle:      product.Title,
+				Handle:            product.Handle,
+				PrintfulID:        product.PrintfulID,
+				Variant1Key:       line.Variant1Key,
+				Variant1Value:     line.Variant1Value,
+				Variant2Key:       *line.Variant2Key,
+				Variant2Value:     *line.Variant2Value,
+				Variant3Key:       *line.Variant3Key,
+				Variant3Value:     *line.Variant3Value,
+				ProductID:         strconv.Itoa(line.ProductID),
+				VariantID:         strconv.Itoa(line.VariantID),
+				Quantity:          line.Quantity,
+				UndiscountedPrice: line.Price,
+				EndPrice:          line.Price,
+				LineTotal:         line.Quantity * line.Price,
+			}
 		}
 		orderLines = append(orderLines, orderLine)
 		subtotal += line.Quantity * line.Price
