@@ -30,4 +30,5 @@ type CartLine struct {
 	Variant3Value *string
 	Quantity      int
 	Price         int
+	Subtotal      int
 }

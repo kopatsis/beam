@@ -170,14 +170,12 @@ func (s *cartService) GetCart(name string, custID int, guestID string) (*models.
 		return &ret, nil
 	}
 
-	count := 0
 	for _, l := range lines {
 		ret.CartLines = append(ret.CartLines, models.CartLineRender{ActualLine: l})
-		count += l.Quantity
 	}
 
-	ret.SumQuantity = count
 	ret.Cart = cart
+	carthelp.UpdateCartSub(&ret)
 
 	return &ret, nil
 }
@@ -230,7 +228,7 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 
 	if index == -1 {
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
-		ret.SumQuantity = carthelp.UpdateCartQuant(ret)
+		carthelp.UpdateCartSub(&ret)
 		return &ret, nil
 	}
 
@@ -245,7 +243,7 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 			return nil, err
 		}
 		ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
-		ret.SumQuantity = carthelp.UpdateCartQuant(ret)
+		carthelp.UpdateCartSub(&ret)
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
 	}
 
@@ -262,7 +260,7 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 			return nil, err
 		}
 		ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
-		ret.SumQuantity = carthelp.UpdateCartQuant(ret)
+		carthelp.UpdateCartSub(&ret)
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
 	}
 
@@ -280,12 +278,12 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 	_, err = s.cartRepo.SaveCartLine(ret.CartLines[index].ActualLine)
 	if err != nil {
 		ret.CartLines[index].ActualLine.Quantity = oldQuant
-		ret.SumQuantity = carthelp.UpdateCartQuant(ret)
+		carthelp.UpdateCartSub(&ret)
 		ret.CartError = "Unable to update cart :/ Please refresh and try again"
 		return &ret, nil
 	}
 
-	ret.SumQuantity = carthelp.UpdateCartQuant(ret)
+	carthelp.UpdateCartSub(&ret)
 	return &ret, nil
 }
 
@@ -399,7 +397,7 @@ func (s *cartService) DeleteGiftCard(cartID, lineID string, custID int, guestID 
 
 	if index == -1 {
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
-		ret.SumQuantity = carthelp.UpdateCartQuant(ret)
+		carthelp.UpdateCartSub(&ret)
 		return &ret, nil
 	}
 
@@ -408,6 +406,6 @@ func (s *cartService) DeleteGiftCard(cartID, lineID string, custID int, guestID 
 	}
 	ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
 
-	ret.SumQuantity = carthelp.UpdateCartQuant(ret)
+	carthelp.UpdateCartSub(&ret)
 	return &ret, nil
 }

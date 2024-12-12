@@ -2,10 +2,14 @@ package carthelp
 
 import "beam/data/models"
 
-func UpdateCartQuant(cart models.CartRender) int {
-	ret := 0
-	for _, l := range cart.CartLines {
-		ret += l.ActualLine.Quantity
+func UpdateCartSub(cart *models.CartRender) {
+	quant, subtotal := 0, 0
+	for i, l := range cart.CartLines {
+		l.ActualLine.Subtotal = l.ActualLine.Price * l.ActualLine.Quantity
+		subtotal += l.ActualLine.Subtotal
+		quant += l.ActualLine.Quantity
+		cart.CartLines[i].ActualLine = l.ActualLine
 	}
-	return ret
+	cart.SumQuantity = quant
+	cart.Subtotal = subtotal
 }

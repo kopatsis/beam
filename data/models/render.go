@@ -69,12 +69,13 @@ type ProductRender struct {
 	Blocks      AllVariants
 }
 
-//Cart
+// Cart
 type CartRender struct {
 	CartError   string
 	LineError   string
 	Empty       bool
 	SumQuantity int
+	Subtotal    int
 	Cart        Cart
 	CartLines   []CartLineRender
 }
@@ -84,7 +85,7 @@ type CartLineRender struct {
 	QuantityMaxed bool
 }
 
-//Payment
+// Payment
 type PaymentMethodStripe struct {
 	ID       string
 	CardType string
