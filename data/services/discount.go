@@ -16,6 +16,7 @@ type DiscountService interface {
 	UpdateDiscount(discount models.Discount) error
 	DeleteDiscount(id int) error
 	CreateGiftCard(cents int, message string, store string, tools *config.Tools) (int, string, error)
+	RenderGiftCard(code string) (*models.GiftCardRender, error)
 }
 
 type discountService struct {
@@ -101,4 +102,12 @@ func (s *discountService) RetrieveGiftCard(code string, store string) (*models.G
 	}
 
 	return gc, nil
+}
+
+func (s *discountService) RenderGiftCard(code string) (*models.GiftCardRender, error) {
+	gc, err := s.discountRepo.GetGiftCard(code)
+	if err != nil {
+		return nil, err
+	}
+	return &models.GiftCardRender{GiftCard: *gc, Expired: gc.Expired.Before(time.Now())}, nil
 }

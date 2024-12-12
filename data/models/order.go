@@ -110,6 +110,7 @@ type OrderLine struct {
 	VariantID         string         `bson:"variant_id" json:"variant_id"`
 	Quantity          int            `bson:"quantity" json:"quantity"`
 	UndiscountedPrice int            `bson:"undiscounted_price" json:"undiscounted_price"`
+	Price             int            `bson:"price" json:"price"`
 	LineLevelDiscount int            `bson:"line_level_discount" json:"line_level_discount"`
 	EndPrice          int            `bson:"end_price" json:"end_price"`
 	LineTotal         int            `bson:"line_total" json:"line_total"`

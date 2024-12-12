@@ -94,3 +94,9 @@ type PaymentMethodStripe struct {
 	ExpMonth int64
 	ExpYear  int64
 }
+
+// Gift Card
+type GiftCardRender struct {
+	GiftCard GiftCard
+	Expired  bool
+}

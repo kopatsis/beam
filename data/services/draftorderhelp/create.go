@@ -42,6 +42,7 @@ func CreateDraftOrder(customer models.Customer, cart models.Cart, cartLines []mo
 				VariantID:         strconv.Itoa(line.VariantID),
 				Quantity:          1,
 				UndiscountedPrice: line.Price,
+				Price:             line.Price,
 				EndPrice:          line.Price,
 				LineTotal:         line.Price,
 			}
@@ -79,7 +80,8 @@ func CreateDraftOrder(customer models.Customer, cart models.Cart, cartLines []mo
 				ProductID:         strconv.Itoa(line.ProductID),
 				VariantID:         strconv.Itoa(line.VariantID),
 				Quantity:          line.Quantity,
-				UndiscountedPrice: vp,
+				UndiscountedPrice: variant.Price,
+				Price:             vp,
 				EndPrice:          vp,
 				LineTotal:         line.Quantity * vp,
 			}
