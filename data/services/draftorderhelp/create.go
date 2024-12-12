@@ -2,6 +2,8 @@ package draftorderhelp
 
 import (
 	"beam/data/models"
+	"beam/data/services/product"
+	"errors"
 	"os"
 	"strconv"
 	"time"
@@ -43,13 +45,31 @@ func CreateDraftOrder(customer models.Customer, cart models.Cart, cartLines []mo
 				EndPrice:          line.Price,
 				LineTotal:         line.Price,
 			}
+			subtotal += line.Quantity * line.Price
 		} else {
-			product := products[line.ProductID]
+			prod, ok := products[line.ProductID]
+			if !ok {
+				return nil, errors.New("no matching redis product by id")
+			}
+
+			var variant models.VariantRedis
+			found := false
+			for _, v := range prod.Variants {
+				if v.PK == line.VariantID {
+					variant = v
+				}
+			}
+			if !found {
+				return nil, errors.New("no matching redis variant by id")
+			}
+
+			vp := product.VolumeDiscPrice(variant.Price, line.Quantity, prod.VolumeDisc)
+
 			orderLine = models.OrderLine{
-				ImageURL:          product.ImageURL,
-				ProductTitle:      product.Title,
-				Handle:            product.Handle,
-				PrintfulID:        product.PrintfulID,
+				ImageURL:          prod.ImageURL,
+				ProductTitle:      prod.Title,
+				Handle:            prod.Handle,
+				PrintfulID:        prod.PrintfulID,
 				Variant1Key:       line.Variant1Key,
 				Variant1Value:     line.Variant1Value,
 				Variant2Key:       *line.Variant2Key,
@@ -59,13 +79,13 @@ func CreateDraftOrder(customer models.Customer, cart models.Cart, cartLines []mo
 				ProductID:         strconv.Itoa(line.ProductID),
 				VariantID:         strconv.Itoa(line.VariantID),
 				Quantity:          line.Quantity,
-				UndiscountedPrice: line.Price,
-				EndPrice:          line.Price,
-				LineTotal:         line.Quantity * line.Price,
+				UndiscountedPrice: vp,
+				EndPrice:          vp,
+				LineTotal:         line.Quantity * vp,
 			}
+			subtotal += line.Quantity * vp
 		}
 		orderLines = append(orderLines, orderLine)
-		subtotal += line.Quantity * line.Price
 	}
 
 	draftOrder := &models.DraftOrder{

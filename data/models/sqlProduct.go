@@ -28,6 +28,7 @@ type Product struct {
 	SEOTitle       string         `gorm:"type:varchar(512)"`
 	SEODescription string         `gorm:"type:text"`
 	StandardPrice  int            `gorm:"type:int"`
+	VolumeDisc     bool
 }
 
 // Comparable represents the structure for the COMPARABLE table.

@@ -24,6 +24,7 @@ type ProductRedis struct {
 	Comparables    []ComparableRedis `json:"c"`
 	Variants       []VariantRedis    `json:"v"`
 	StandardPrice  int               `json:"sp"`
+	VolumeDisc     bool              `json:"vd"`
 }
 
 type ComparableRedis struct {

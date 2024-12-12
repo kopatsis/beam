@@ -5,6 +5,7 @@ import (
 	"beam/data/models"
 	"beam/data/repositories"
 	"beam/data/services/carthelp"
+	"beam/data/services/product"
 	"errors"
 	"os"
 	"strconv"
@@ -111,7 +112,6 @@ func (s *cartService) AddToCart(id, handle, name string, quant int, prodServ *pr
 			ProductTitle:  p.Title,
 			Variant1Key:   p.Var1Key,
 			Variant1Value: p.Variants[index].Var1Value,
-			Price:         p.Variants[index].Price,
 		}
 		if p.Var2Key != "" {
 			line.Variant2Key = &p.Var2Key
@@ -124,6 +124,7 @@ func (s *cartService) AddToCart(id, handle, name string, quant int, prodServ *pr
 	}
 
 	line.Quantity += quant
+	line.Price = product.VolumeDiscPrice(p.Variants[index].Price, quant, p.VolumeDisc)
 
 	if !exists {
 		cart, err = s.cartRepo.CreateCart(cart)

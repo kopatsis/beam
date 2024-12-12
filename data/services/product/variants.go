@@ -27,7 +27,7 @@ func VariantSelectorRenders(product models.ProductRedis, vid int) models.AllVari
 
 	first, second, third := createInitialLists(product, vid, inv, val1, val2, val3)
 
-	first, second, third = modifyEachList(product, vid, inv, layer, val1, val2, val3, first, second, third)
+	first, second, third = modifyEachList(product, layer, val1, val2, val3, first, second, third)
 
 	ret := models.AllVariants{
 		First:     first,
@@ -114,7 +114,7 @@ func createInitialLists(product models.ProductRedis, vid, inv int, val1, val2, v
 	return first, second, third
 }
 
-func modifyEachList(product models.ProductRedis, vid, inv, layer int, val1, val2, val3 string, first, second, third []models.VariantBlock) ([]models.VariantBlock, []models.VariantBlock, []models.VariantBlock) {
+func modifyEachList(product models.ProductRedis, layer int, val1, val2, val3 string, first, second, third []models.VariantBlock) ([]models.VariantBlock, []models.VariantBlock, []models.VariantBlock) {
 
 	if layer == 1 {
 
