@@ -18,6 +18,7 @@ type CartService interface {
 	AddToCart(id, handle, name string, quant int, prodServ *productService, custID int, guestID string) (*models.Cart, error)
 	GetCart(name string, custID int, guestID string) (*models.CartRender, error)
 	AdjustQuantity(id, handle, name string, quant int, prodServ *productService, custID int, guestID string) (*models.CartRender, error)
+	ClearCart(name string, custID int, guestID string) (*models.CartRender, error)
 	AddGiftCard(message, store string, cents int, discService *discountService, tools *config.Tools, custID int, guestID string) (*models.Cart, error)
 	DeleteGiftCard(cartID, lineID string, custID int, guestID string) (*models.CartRender, error)
 }
@@ -284,6 +285,46 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 	}
 
 	carthelp.UpdateCartSub(&ret)
+	return &ret, nil
+}
+
+func (s *cartService) ClearCart(name string, custID int, guestID string) (*models.CartRender, error) {
+	ret := models.CartRender{}
+
+	var err error
+	var cart models.Cart
+	var lines []models.CartLine
+	var exists bool
+
+	if custID > 0 {
+		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByCustomerID(custID)
+	} else if guestID != "" {
+		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByGuestID(guestID)
+	} else {
+		return nil, errors.New("no user id of either type provided")
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists {
+		ret.Empty = true
+		return &ret, nil
+	}
+
+	if err := s.cartRepo.DeleteCartWithLines(cart.ID); err != nil {
+		for _, l := range lines {
+			ret.CartLines = append(ret.CartLines, models.CartLineRender{ActualLine: l})
+		}
+
+		ret.Cart = cart
+		carthelp.UpdateCartSub(&ret)
+
+		return &ret, errors.New("failed to clear cart")
+	}
+
+	ret.Empty = true
 	return &ret, nil
 }
 

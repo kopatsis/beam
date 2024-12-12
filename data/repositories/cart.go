@@ -20,6 +20,7 @@ type CartRepository interface {
 	SaveCart(cart models.Cart) (models.Cart, error)
 	AddCartLine(cartLine models.CartLine) (models.CartLine, error)
 	SaveCartLine(cartLine models.CartLine) (models.CartLine, error)
+	DeleteCartWithLines(id int) error
 }
 
 type cartRepo struct {
@@ -156,4 +157,16 @@ func (r *cartRepo) SaveCartLine(cartLine models.CartLine) (models.CartLine, erro
 		return models.CartLine{}, err
 	}
 	return cartLine, nil
+}
+
+func (r *cartRepo) DeleteCartWithLines(id int) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("cart_id = ?", id).Delete(&models.CartLine{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("id = ?", id).Delete(&models.Cart{}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
