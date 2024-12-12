@@ -275,11 +275,13 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 
 	oldQuant := ret.CartLines[index].ActualLine.Quantity
 	ret.CartLines[index].ActualLine.Quantity = newQuant
+	ret.CartLines[index].ActualLine.Price = product.VolumeDiscPrice(prod.Variants[varIndex].Price, newQuant, prod.VolumeDisc)
 	ret.CartLines[index].QuantityMaxed = tooHigh
 
 	_, err = s.cartRepo.SaveCartLine(ret.CartLines[index].ActualLine)
 	if err != nil {
 		ret.CartLines[index].ActualLine.Quantity = oldQuant
+		ret.CartLines[index].ActualLine.Price = product.VolumeDiscPrice(prod.Variants[varIndex].Price, oldQuant, prod.VolumeDisc)
 		carthelp.UpdateCartSub(&ret)
 		ret.CartError = "Unable to update cart :/ Please refresh and try again"
 		return &ret, nil
