@@ -29,5 +29,6 @@ type CartLine struct {
 	Variant3Key   *string
 	Variant3Value *string
 	Quantity      int
+	NonDiscPrice  int
 	Price         int
 }

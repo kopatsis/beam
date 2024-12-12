@@ -112,6 +112,7 @@ func (s *cartService) AddToCart(id, handle, name string, quant int, prodServ *pr
 			ProductTitle:  p.Title,
 			Variant1Key:   p.Var1Key,
 			Variant1Value: p.Variants[index].Var1Value,
+			NonDiscPrice:  p.Variants[index].Price,
 		}
 		if p.Var2Key != "" {
 			line.Variant2Key = &p.Var2Key
