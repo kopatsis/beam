@@ -57,6 +57,12 @@ func ApplyGiftCardToOrder(gcID int, cents int, draftOrder *models.DraftOrder) er
 		cents = gc.Charged - delta
 	}
 
+	if draftOrder.Total+delta > 0 {
+		if err := updateStripePaymentIntent(draftOrder.StripePaymentIntentID, draftOrder.Total+delta); err != nil {
+			return err
+		}
+	}
+
 	draftOrder.Total += delta
 	draftOrder.GiftCardSum -= delta
 
@@ -81,11 +87,47 @@ func RemoveGiftCardFromOrder(gcID int, draftOrder *models.DraftOrder) error {
 	}
 
 	if gc.Charged != 0 {
+		if err := updateStripePaymentIntent(draftOrder.StripePaymentIntentID, draftOrder.Total+gc.Charged); err != nil {
+			return err
+		}
 		draftOrder.Total += gc.Charged
 		draftOrder.GiftCardSum -= gc.Charged
 	}
 
 	draftOrder.GiftCards = append(draftOrder.GiftCards[:ind], draftOrder.GiftCards[ind+1:]...)
+
+	return nil
+}
+
+func LowerGiftCardSum(draftOrder *models.DraftOrder, newAmount int) error {
+	if newAmount >= draftOrder.GiftCardSum {
+		return nil
+	}
+
+	if len(draftOrder.GiftCards) == 0 {
+		return errors.New("no gift cards here")
+	}
+
+	i := len(draftOrder.GiftCards) - 1
+	for i >= 0 && draftOrder.GiftCardSum > newAmount {
+		if draftOrder.GiftCards[i].Charged <= 0 {
+			continue
+		}
+		if draftOrder.GiftCardSum-newAmount > draftOrder.GiftCards[i].Charged {
+			draftOrder.GiftCardSum -= draftOrder.GiftCards[i].Charged
+			draftOrder.GiftCards[i].Charged = 0
+		} else if draftOrder.GiftCardSum-newAmount == draftOrder.GiftCards[i].Charged {
+			draftOrder.GiftCards[i].Charged = 0
+			draftOrder.GiftCardSum = newAmount
+		} else {
+			draftOrder.GiftCards[i].Charged -= draftOrder.GiftCardSum - newAmount
+			draftOrder.GiftCardSum = newAmount
+		}
+	}
+
+	if draftOrder.GiftCardSum > newAmount {
+		return errors.New("gift card amount zeroed out, but still above newAmount, somehow: SERIOUS")
+	}
 
 	return nil
 }

@@ -27,6 +27,7 @@ type Order struct {
 	Shipping                int                `bson:"shipping" json:"shipping"`
 	OrderLevelDiscount      int                `bson:"order_level_discount" json:"order_level_discount"`
 	Tax                     int                `bson:"tax" json:"tax"`
+	PostTaxTotal            int                `bson:"post_tax_total" json:"post_tax_total"`
 	Tip                     int                `bson:"tip" json:"tip"`
 	PreGiftCardTotal        int                `bson:"pgc_total" json:"pgc_total"`
 	GiftCardSum             int                `bson:"gc_sum" json:"gc_sum"`
@@ -66,6 +67,7 @@ type DraftOrder struct {
 	Shipping                int                       `bson:"shipping" json:"shipping"`
 	OrderLevelDiscount      int                       `bson:"order_level_discount" json:"order_level_discount"`
 	Tax                     int                       `bson:"tax" json:"tax"`
+	PostTaxTotal            int                       `bson:"post_tax_total" json:"post_tax_total"`
 	Tip                     int                       `bson:"tip" json:"tip"`
 	PreGiftCardTotal        int                       `bson:"pgc_total" json:"pgc_total"`
 	GiftCardSum             int                       `bson:"gc_sum" json:"gc_sum"`
