@@ -83,6 +83,7 @@ type CartRender struct {
 type CartLineRender struct {
 	ActualLine    CartLine
 	QuantityMaxed bool
+	Subtotal      int
 }
 
 // Payment
