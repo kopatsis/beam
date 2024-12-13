@@ -49,6 +49,8 @@ type Order struct {
 	ShippingTrackingNumber  string             `bson:"shipping_tracking_number" json:"shipping_tracking_number"`
 	ShippingTrackingURL     string             `bson:"shipping_tracking_url" json:"shipping_tracking_url"`
 	ActualRate              ShippingRate       `bson:"ship_current" json:"ship_current"`
+	GiftSubject             string             `bson:"gift_sub" json:"gift_sub"`
+	GiftMessage             string             `bson:"gift_mess" json:"gift_mess"`
 }
 
 type DraftOrder struct {
@@ -84,6 +86,8 @@ type DraftOrder struct {
 	ActualRate              ShippingRate              `bson:"ship_actual" json:"ship_actual"`
 	CurrentShipping         []ShippingRate            `bson:"ship_current" json:"ship_current"`
 	AllShippingRates        map[string][]ShippingRate `bson:"ship_all" json:"ship_all"`
+	GiftSubject             string                    `bson:"gift_sub" json:"gift_sub"`
+	GiftMessage             string                    `bson:"gift_mess" json:"gift_mess"`
 }
 
 type OrderGiftCard struct {
