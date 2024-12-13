@@ -9,6 +9,21 @@ import (
 	"github.com/stripe/stripe-go/v81/paymentmethod"
 )
 
+func CreatePaymentIntent(customerID string, amount int64, currency string) (string, error) {
+	params := &stripe.PaymentIntentParams{
+		Amount:   stripe.Int64(amount),
+		Currency: stripe.String(currency),
+	}
+	if customerID != "" {
+		params.Customer = stripe.String(customerID)
+	}
+	pi, err := paymentintent.New(params)
+	if err != nil {
+		return "", err
+	}
+	return pi.ID, nil
+}
+
 func ValidatePaymentMethod(draftOrder *models.DraftOrder, stripeID, paymentMethodID string) error {
 	paymentMethod, err := paymentmethod.Get(paymentMethodID, nil)
 	if err != nil {

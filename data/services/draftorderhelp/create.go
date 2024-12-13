@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func CreateDraftOrder(customer models.Customer, cart models.Cart, cartLines []models.CartLine, products map[int]models.ProductRedis, contact *models.Contact) (*models.DraftOrder, error) {
+func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Cart, cartLines []models.CartLine, products map[int]models.ProductRedis, contact *models.Contact) (*models.DraftOrder, error) {
 	var shippingContact *models.OrderContact
 	if contact != nil {
 		shippingContact = &models.OrderContact{
@@ -90,11 +90,12 @@ func CreateDraftOrder(customer models.Customer, cart models.Cart, cartLines []mo
 		orderLines = append(orderLines, orderLine)
 	}
 
+	if customer != nil {
+
+	}
+
 	draftOrder := &models.DraftOrder{
-		CustomerID:         customer.ID,
-		Email:              customer.Email,
-		Status:             cart.Status,
-		FirstName:          customer.DefaultName,
+		Status:             "Created",
 		LastName:           "",
 		DateCreated:        time.Now(),
 		Subtotal:           subtotal,
@@ -111,8 +112,29 @@ func CreateDraftOrder(customer models.Customer, cart models.Cart, cartLines []mo
 		Guest:              false,
 	}
 
-	if cart.GuestID != "" {
+	if customer != nil {
+		draftOrder.CustomerID = customer.ID
+		draftOrder.Email = customer.Email
+		draftOrder.FirstName = customer.DefaultName
+		pmid, err := CreatePaymentIntent(customer.StripeID, int64(draftOrder.Subtotal), "usd")
+		if err != nil {
+			return nil, err
+		}
+		draftOrder.StripePaymentIntentID = pmid
+	} else if guestID != "" {
+		draftOrder.GuestID = &guestID
+		pmid, err := CreatePaymentIntent("", int64(draftOrder.Subtotal), "usd")
+		if err != nil {
+			return nil, err
+		}
+		draftOrder.StripePaymentIntentID = pmid
+	} else {
 		draftOrder.GuestID = &cart.GuestID
+		pmid, err := CreatePaymentIntent("", int64(draftOrder.Subtotal), "usd")
+		if err != nil {
+			return nil, err
+		}
+		draftOrder.StripePaymentIntentID = pmid
 	}
 
 	return draftOrder, nil
