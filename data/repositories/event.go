@@ -3,6 +3,8 @@ package repositories
 import (
 	"beam/data/models"
 	"context"
+	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -10,12 +12,18 @@ import (
 )
 
 var (
-	eventQueue chan models.Event
-	once       sync.Once
+	eventQueue           chan models.Event
+	once                 sync.Once
+	validClassifications = []string{
+		"Order", "DraftOrder", "Product", "List", "Cart", "Collection", "Discount", "GiftCard",
+	}
 )
 
 type EventRepository interface {
-	SaveEvent(customerID int, guestID, eventClassification, eventDescription, specialNote, otherID string) error
+	SaveEvent(
+		customerID int,
+		guestID, eventClassification, eventDescription, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID string,
+	) error
 }
 
 type eventRepo struct {
@@ -27,7 +35,14 @@ func NewEventRepository(mdb *mongo.Database) EventRepository {
 	return &eventRepo{coll: collection}
 }
 
-func (repo *eventRepo) SaveEvent(customerID int, guestID, eventClassification, eventDescription, specialNote, otherID string) error {
+func (repo *eventRepo) SaveEvent(
+	customerID int,
+	guestID, eventClassification, eventDescription, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID string,
+) error {
+	if !slices.Contains(validClassifications, eventClassification) {
+		return fmt.Errorf("invalid event classification: %s", eventClassification)
+	}
+
 	event := models.Event{
 		CustomerID:          customerID,
 		GuestID:             guestID,
@@ -37,19 +52,26 @@ func (repo *eventRepo) SaveEvent(customerID int, guestID, eventClassification, e
 		SpecialNote:         specialNote,
 	}
 
-	switch eventClassification {
-	case "Order":
-		event.OrderID = &otherID
-	case "Product":
-		event.ProductID = &otherID
-	case "List":
-		event.ListID = &otherID
-	case "Cart":
-		event.CartID = &otherID
-	case "Collection":
-		event.CollectionID = &otherID
-	case "Discount":
-		event.DiscountID = &otherID
+	if orderID != "" {
+		event.OrderID = &orderID
+	}
+	if draftOrderID != "" {
+		event.DraftOrderID = &draftOrderID
+	}
+	if productID != "" {
+		event.ProductID = &productID
+	}
+	if listID != "" {
+		event.ListID = &listID
+	}
+	if cartID != "" {
+		event.CartID = &cartID
+	}
+	if discountID != "" {
+		event.DiscountID = &discountID
+	}
+	if giftCardID != "" {
+		event.GiftCardID = &giftCardID
 	}
 
 	once.Do(func() {
@@ -59,6 +81,7 @@ func (repo *eventRepo) SaveEvent(customerID int, guestID, eventClassification, e
 				for task := range eventQueue {
 					_, err := repo.coll.InsertOne(context.Background(), task)
 					if err != nil {
+						fmt.Printf("ERROR saving event: %e\n", err)
 					}
 				}
 			}()

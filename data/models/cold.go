@@ -38,11 +38,12 @@ type Event struct {
 	EventClassification string             `bson:"event_classification" json:"event_classification"`
 	EventDescription    string             `bson:"event_description" json:"event_description"`
 	OrderID             *string            `bson:"order_id,omitempty" json:"order_id,omitempty"`
+	DraftOrderID        *string            `bson:"draftorder_id,omitempty" json:"draftorder_id,omitempty"`
 	ProductID           *string            `bson:"product_id,omitempty" json:"product_id,omitempty"`
 	ListID              *string            `bson:"list_id,omitempty" json:"list_id,omitempty"`
 	CartID              *string            `bson:"cart_id,omitempty" json:"cart_id,omitempty"`
-	CollectionID        *string            `bson:"collection_id,omitempty" json:"collection_id,omitempty"`
 	DiscountID          *string            `bson:"discount_id,omitempty" json:"discount_id,omitempty"`
+	GiftCardID          *string            `bson:"giftcard_id,omitempty" json:"giftcard_id,omitempty"`
 	SpecialNote         string             `bson:"special_note" json:"special_note"`
 	Tags                []string           `bson:"tags" json:"tags"`
 }
