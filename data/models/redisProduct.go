@@ -42,6 +42,7 @@ type VariantRedis struct {
 	Var2Value       string         `json:"vk2,omitempty"` // Optional
 	Var3Value       string         `json:"vk3,omitempty"` // Optional
 	Price           int            `json:"p"`
+	CompareAtPrice  int            `json:"cp"`
 	Quantity        int            `json:"q"`
 	VariantImageURL string         `json:"vu"`
 	Barcode         string         `json:"bc"`
@@ -64,4 +65,18 @@ type ProductInfo struct {
 	Var2Values []string  `json:"vv2"`
 	Var3Values []string  `json:"vv3"`
 	SKUs       []string  `json:"ss"`
+}
+
+type PrinftulProduct struct {
+	ProductID         string `json:"p"`
+	VariantID         string `json:"v"`
+	ExternalProductID string `json:"ep"`
+	ExternalVariantID string `json:"ev"`
+	OriginalProductID string `json:"op"`
+	OriginalVariantID string `json:"ov"`
+	RetailPrice       int    `json:"r"`
+	Cost              int    `json:"c"`
+	GrowthCost        int    `json:"g"`
+	PrimaryShip       int    `json:"ps"`
+	SecondaryShip     int    `json:"ss"`
 }
