@@ -21,7 +21,7 @@ func AddGiftCardToOrder(giftCard *models.GiftCard, draftOrder *models.DraftOrder
 	return nil
 }
 
-func ApplyGiftCardToOrder(gcID int, cents int, draftOrder *models.DraftOrder) error {
+func ApplyGiftCardToOrder(gcID, cents int, fullAmount bool, draftOrder *models.DraftOrder) error {
 	if draftOrder.Total <= 0 {
 		return errors.New("nothing to pay for with this card")
 	}
@@ -43,7 +43,7 @@ func ApplyGiftCardToOrder(gcID int, cents int, draftOrder *models.DraftOrder) er
 		return errors.New("no matching gift card with that id")
 	}
 
-	if cents > gc.AmountAvailable {
+	if cents > gc.AmountAvailable || fullAmount {
 		cents = gc.AmountAvailable
 	}
 
@@ -57,16 +57,18 @@ func ApplyGiftCardToOrder(gcID int, cents int, draftOrder *models.DraftOrder) er
 		cents = gc.Charged - delta
 	}
 
+	draftOrder.GiftCards[ind].Charged = cents
+	draftOrder.GiftCards[ind].UseFullAmount = fullAmount
+
+	if err := EnsureGiftCardSum(draftOrder, draftOrder.GiftCardSum-delta, 0, true); err != nil {
+		return err
+	}
+
 	if draftOrder.Total+delta > 0 {
 		if err := updateStripePaymentIntent(draftOrder.StripePaymentIntentID, draftOrder.Total+delta); err != nil {
 			return err
 		}
 	}
-
-	draftOrder.Total += delta
-	draftOrder.GiftCardSum -= delta
-
-	draftOrder.GiftCards[ind].Charged = cents
 
 	return nil
 }
@@ -86,15 +88,18 @@ func RemoveGiftCardFromOrder(gcID int, draftOrder *models.DraftOrder) error {
 		return errors.New("no matching gift card with that id")
 	}
 
+	draftOrder.GiftCards = append(draftOrder.GiftCards[:ind], draftOrder.GiftCards[ind+1:]...)
+
 	if gc.Charged != 0 {
+
+		if err := EnsureGiftCardSum(draftOrder, draftOrder.GiftCardSum-gc.Charged, 0, true); err != nil {
+			return err
+		}
+
 		if err := updateStripePaymentIntent(draftOrder.StripePaymentIntentID, draftOrder.Total+gc.Charged); err != nil {
 			return err
 		}
-		draftOrder.Total += gc.Charged
-		draftOrder.GiftCardSum -= gc.Charged
 	}
-
-	draftOrder.GiftCards = append(draftOrder.GiftCards[:ind], draftOrder.GiftCards[ind+1:]...)
 
 	return nil
 }
@@ -130,4 +135,136 @@ func LowerGiftCardSum(draftOrder *models.DraftOrder, newAmount int) error {
 	}
 
 	return nil
+}
+
+func EnsureGiftCardSum(draftOrder *models.DraftOrder, newGiftCardSum, newPreGiftCardTotal int, fromGiftCardChange bool) error {
+	if draftOrder.GiftCardSum == 0 || len(draftOrder.GiftCards) == 0 {
+		return nil
+	}
+
+	if newGiftCardSum < 0 && fromGiftCardChange {
+		return errors.New("gift card sum must be positive or 0")
+	} else if newPreGiftCardTotal <= 0 && !fromGiftCardChange {
+		return errors.New("gift card sum must be positive")
+	}
+
+	newTotal, usedGiftCardSum, usedPreGiftCardTotal := 0, 0, 0
+	if fromGiftCardChange {
+		usedGiftCardSum = newGiftCardSum
+		usedPreGiftCardTotal = draftOrder.PreGiftCardTotal
+	} else {
+		usedGiftCardSum = draftOrder.GiftCardSum
+		usedPreGiftCardTotal = newPreGiftCardTotal
+	}
+	newTotal = usedPreGiftCardTotal - usedGiftCardSum
+
+	if newTotal < 0 {
+
+		for i := len(draftOrder.GiftCards) - 1; i >= 0; i++ {
+			if newTotal >= 0 {
+				break
+			}
+			gc := draftOrder.GiftCards[i]
+			if !gc.UseFullAmount {
+				delta := -1 * newTotal
+				if gc.Charged < delta {
+					delta = gc.Charged
+				}
+				newTotal += delta
+				draftOrder.GiftCards[i].Charged -= delta
+			}
+		}
+
+		if newTotal < 0 {
+			for i := len(draftOrder.GiftCards) - 1; i >= 0; i++ {
+				if newTotal >= 0 {
+					break
+				}
+				gc := draftOrder.GiftCards[i]
+				delta := -1 * newTotal
+				if gc.Charged < delta {
+					delta = gc.Charged
+				}
+				newTotal += delta
+				draftOrder.GiftCards[i].Charged -= delta
+			}
+		}
+
+		if newTotal < 0 {
+			// Error out
+		}
+
+	} else if newTotal < 50 || checkIfUnappliedMaxedGC(draftOrder) {
+		for i, gc := range draftOrder.GiftCards {
+			if newTotal == 0 {
+				break
+			}
+			if gc.UseFullAmount && gc.Charged < gc.AmountAvailable {
+				delta := newTotal
+				if gc.AmountAvailable-gc.Charged < delta {
+					delta = gc.AmountAvailable - gc.Charged
+				}
+				newTotal -= delta
+				draftOrder.GiftCards[i].Charged += delta
+			}
+		}
+
+		if newTotal < 0 {
+			// Error out, shouldn't be possible
+		} else if newTotal < 50 && newTotal > 0 {
+			newTotal, usedGiftCardSum, usedPreGiftCardTotal = between0And50Fix(draftOrder, newTotal, usedGiftCardSum, usedPreGiftCardTotal)
+			if newTotal < 0 || newTotal > 0 && newTotal < 50 {
+				// Error out, shouldn't be possible
+			}
+		}
+	}
+
+	draftOrder.PreGiftCardTotal = usedPreGiftCardTotal
+	draftOrder.GiftCardSum = usedGiftCardSum
+	draftOrder.Total = newTotal
+
+	return nil
+}
+
+func checkIfUnappliedMaxedGC(draftOrder *models.DraftOrder) bool {
+	for _, gc := range draftOrder.GiftCards {
+		if gc.UseFullAmount && gc.Charged < gc.AmountAvailable {
+			return true
+		}
+	}
+	return false
+}
+
+func between0And50Fix(draftOrder *models.DraftOrder, newTotal, usedGiftCardSum, usedPreGiftCardTotal int) (int, int, int) {
+	for i := len(draftOrder.GiftCards) - 1; i >= 0; i++ {
+		if newTotal >= 50 {
+			break
+		}
+		gc := draftOrder.GiftCards[i]
+		if !gc.UseFullAmount {
+			delta := 50 - newTotal
+			if gc.Charged < delta {
+				delta = gc.Charged
+			}
+			newTotal += delta
+			draftOrder.GiftCards[i].Charged -= delta
+		}
+	}
+
+	if newTotal < 50 {
+		for i := len(draftOrder.GiftCards) - 1; i >= 0; i++ {
+			if newTotal >= 50 {
+				break
+			}
+			gc := draftOrder.GiftCards[i]
+			delta := 50 - newTotal
+			if gc.Charged < delta {
+				delta = gc.Charged
+			}
+			newTotal += delta
+			draftOrder.GiftCards[i].Charged -= delta
+		}
+	}
+
+	return newTotal, usedGiftCardSum, usedPreGiftCardTotal
 }

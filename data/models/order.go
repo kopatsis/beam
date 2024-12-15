@@ -96,6 +96,7 @@ type OrderGiftCard struct {
 	AmountAvailable int    `bson:"available" json:"available"`
 	Charged         int    `bson:"charged" json:"charged"`
 	Message         string `bson:"message" json:"message"`
+	UseFullAmount   bool   `bson:"full_amount" json:"full_amount"`
 }
 
 type OrderLine struct {

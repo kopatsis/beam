@@ -15,8 +15,8 @@ func AddTipToOrder(draftOrder *models.DraftOrder, cents int) error {
 
 	newPGTotal := draftOrder.PostTaxTotal + cents
 
-	if newPGTotal < draftOrder.GiftCardSum {
-		LowerGiftCardSum(draftOrder, newPGTotal)
+	if err := EnsureGiftCardSum(draftOrder, 0, newPGTotal, false); err != nil {
+		return err
 	}
 
 	newTotal := newPGTotal - draftOrder.GiftCardSum
@@ -39,8 +39,8 @@ func DeleteTipFromOrder(draftOrder *models.DraftOrder) error {
 
 	newPGTotal := draftOrder.PostTaxTotal
 
-	if newPGTotal < draftOrder.GiftCardSum {
-		LowerGiftCardSum(draftOrder, newPGTotal)
+	if err := EnsureGiftCardSum(draftOrder, 0, newPGTotal, false); err != nil {
+		return err
 	}
 
 	newTotal := newPGTotal - draftOrder.GiftCardSum
