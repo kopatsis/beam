@@ -138,6 +138,7 @@ type ShippingRate struct {
 	ID              string    `json:"id" bson:"id"`
 	Name            string    `json:"name" bson:"name"`
 	Rate            string    `json:"rate" bson:"rate"`
+	CentsRate       int       `json:"cents" bson:"cents"`
 	Currency        string    `json:"currency" bson:"currency"`
 	MinDeliveryDays int       `json:"minDeliveryDays" bson:"min_delivery_days"`
 	MaxDeliveryDays int       `json:"maxDeliveryDays" bson:"max_delivery_days"`

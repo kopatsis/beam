@@ -152,21 +152,21 @@ func UpdateShippingRates(draft *models.DraftOrder, newContact models.OrderContac
 		}
 	}
 
-	newRates, err := getApiShipRates(draft, newContact, mutexes, name, ip, tools)
+	newRates, err := getApiShipRates(draft, newContact, mutexes, name, ip, freeship, tools)
 	if err != nil {
 		return err
 	}
 	draft.AllShippingRates[address] = newRates
 	draft.CurrentShipping = newRates
 
-	if err := UpdateActualShippingRate(draft, newRates[0].ID, freeship); err != nil {
+	if err := UpdateActualShippingRate(draft, newRates[0].ID); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func UpdateActualShippingRate(order *models.DraftOrder, shipID string, freeship bool) error {
+func UpdateActualShippingRate(order *models.DraftOrder, shipID string) error {
 	var selectedRate *models.ShippingRate
 
 	for _, rate := range order.CurrentShipping {
@@ -186,20 +186,18 @@ func UpdateActualShippingRate(order *models.DraftOrder, shipID string, freeship 
 
 	order.ActualRate = *selectedRate
 
-	if !freeship {
-		rateInt, err := convertRateToCents(selectedRate.Rate)
+	rateInt, err := convertRateToCents(selectedRate.Rate)
+	if err != nil {
+		return err
+	}
+
+	if rateInt != order.Shipping {
+		order.Shipping = rateInt
+		order.Total += (rateInt - order.Shipping)
+
+		err = updateStripePaymentIntent(order.StripePaymentIntentID, order.Total)
 		if err != nil {
 			return err
-		}
-
-		if rateInt != order.Shipping {
-			order.Shipping = rateInt
-			order.Total += (rateInt - order.Shipping)
-
-			err = updateStripePaymentIntent(order.StripePaymentIntentID, order.Total)
-			if err != nil {
-				return err
-			}
 		}
 	}
 
@@ -215,7 +213,7 @@ func convertRateToCents(rate string) (int, error) {
 	return rateInt, nil
 }
 
-func getApiShipRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name, ip string, tools *config.Tools) ([]models.ShippingRate, error) {
+func getApiShipRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name, ip string, freeship bool, tools *config.Tools) ([]models.ShippingRate, error) {
 
 	if err := applyRateLimitsConcurrently(name, ip, tools); err != nil {
 		return []models.ShippingRate{}, err
@@ -262,14 +260,31 @@ func getApiShipRates(draft *models.DraftOrder, newContact models.OrderContact, m
 		return nil, err
 	}
 
+	if len(apiResponse.Result) == 0 {
+		return nil, errors.New("no shipping options available")
+	}
+
 	now := time.Now()
 	newRates := apiResponse.Result
 	for i := range newRates {
 		newRates[i].Timestamp = now
+		cents, err := convertRateToCents(newRates[i].Rate)
+		if err != nil {
+			return nil, err
+		}
+		newRates[i].CentsRate = cents
 	}
 
-	if len(newRates) == 0 {
-		return nil, errors.New("no rates available")
+	if freeship {
+		cheapest := newRates[0].CentsRate
+		for _, r := range newRates {
+			if r.CentsRate < cheapest {
+				cheapest = r.CentsRate
+			}
+		}
+		for i := range newRates {
+			newRates[i].CentsRate = newRates[i].CentsRate - cheapest
+		}
 	}
 
 	return newRates, nil
@@ -307,7 +322,7 @@ func EvaluateFreeShip(draftOrder *models.DraftOrder, customer *models.Customer, 
 	if err != nil {
 		return false
 	}
-	if slices.Contains(customer.Tags, "FREESHIP") || draftOrder.Subtotal >= freeShipSubtotal {
+	if (customer != nil && slices.Contains(customer.Tags, "FREESHIP")) || draftOrder.Subtotal >= freeShipSubtotal {
 		allAllowed := true
 		for _, l := range draftOrder.Lines {
 			pid, err := strconv.Atoi(l.ProductID)
