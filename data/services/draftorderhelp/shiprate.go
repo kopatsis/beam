@@ -302,7 +302,7 @@ func createItemsArray(orderLines []models.OrderLine, mutexes *config.AllMutexes,
 	return items
 }
 
-func EvaluateIfFreeShip(draftOrder *models.DraftOrder, customer *models.Customer, products map[int]models.ProductRedis) bool {
+func EvaluateFreeShip(draftOrder *models.DraftOrder, customer *models.Customer, products map[int]models.ProductRedis) bool {
 	freeShipSubtotal, err := strconv.Atoi(os.Getenv("FREESHIP_SUBTOTAL"))
 	if err != nil {
 		return false

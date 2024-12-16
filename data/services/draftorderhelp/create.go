@@ -137,5 +137,6 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Car
 		draftOrder.StripePaymentIntentID = pmid
 	}
 
+	EvaluateFreeShip(draftOrder, customer, products)
 	return draftOrder, nil
 }
