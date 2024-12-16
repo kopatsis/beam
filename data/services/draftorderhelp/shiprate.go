@@ -12,6 +12,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"slices"
+	"strconv"
 	"sync"
 	"time"
 
@@ -137,8 +139,10 @@ func applyRateLimitsConcurrently(storeName, ip string, tools *config.Tools) erro
 	return nil
 }
 
-func UpdateShippingRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name, ip string, freeship bool, tools *config.Tools) error {
+func UpdateShippingRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name, ip string, tools *config.Tools) error {
 	address := newContact.StreetAddress1 + ", " + newContact.City + ", " + newContact.ProvinceState + ", " + newContact.ZipCode + ", " + newContact.Country
+
+	freeship := slices.Contains(draft.Tags, "FREESHIP_O")
 
 	if rates, exists := draft.AllShippingRates[address]; exists && len(rates) > 1 {
 		if time.Since(rates[0].Timestamp) < time.Hour {
@@ -296,4 +300,35 @@ func createItemsArray(orderLines []models.OrderLine, mutexes *config.AllMutexes,
 	}
 
 	return items
+}
+
+func EvaluateIfFreeShip(draftOrder *models.DraftOrder, customer *models.Customer, products map[int]models.ProductRedis) bool {
+	freeShipSubtotal, err := strconv.Atoi(os.Getenv("FREESHIP_SUBTOTAL"))
+	if err != nil {
+		return false
+	}
+	if slices.Contains(customer.Tags, "FREESHIP") || draftOrder.Subtotal >= freeShipSubtotal {
+		allAllowed := true
+		for _, l := range draftOrder.Lines {
+			pid, err := strconv.Atoi(l.ProductID)
+			if err != nil {
+				allAllowed = false
+				break
+			}
+			p, ok := products[pid]
+			if !ok {
+				allAllowed = false
+				break
+			}
+			if slices.Contains(p.Tags, "NOFREESHIP") {
+				allAllowed = false
+				break
+			}
+		}
+		if allAllowed {
+			draftOrder.Tags = append(draftOrder.Tags, "FREESHIP_O")
+		}
+		return allAllowed
+	}
+	return false
 }
