@@ -16,6 +16,8 @@ type DiscountRepository interface {
 	CreateGiftCard(idCode string, cents int, message string) (int, error)
 	IDCodeExists(idCode string) (bool, error)
 	GetGiftCard(idCode string) (*models.GiftCard, error)
+	GetGiftCardsByIDCodes(idCodes []string) ([]*models.GiftCard, error)
+	GetDiscountsByCodes(codes []string) ([]*models.Discount, error)
 }
 
 type discountRepo struct {
@@ -75,4 +77,16 @@ func (r *discountRepo) GetGiftCard(idCode string) (*models.GiftCard, error) {
 	}
 
 	return &giftCard, nil
+}
+
+func (r *discountRepo) GetGiftCardsByIDCodes(idCodes []string) ([]*models.GiftCard, error) {
+	var giftCards []*models.GiftCard
+	err := r.db.Where("id_code IN ?", idCodes).Find(&giftCards).Error
+	return giftCards, err
+}
+
+func (r *discountRepo) GetDiscountsByCodes(codes []string) ([]*models.Discount, error) {
+	var discounts []*models.Discount
+	err := r.db.Where("discount_code IN ?", codes).Find(&discounts).Error
+	return discounts, err
 }
