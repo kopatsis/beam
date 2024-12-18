@@ -104,39 +104,6 @@ func RemoveGiftCardFromOrder(gcID int, draftOrder *models.DraftOrder) error {
 	return nil
 }
 
-func LowerGiftCardSum(draftOrder *models.DraftOrder, newAmount int) error {
-	if newAmount >= draftOrder.GiftCardSum {
-		return nil
-	}
-
-	if len(draftOrder.GiftCards) == 0 {
-		return errors.New("no gift cards here")
-	}
-
-	i := len(draftOrder.GiftCards) - 1
-	for i >= 0 && draftOrder.GiftCardSum > newAmount {
-		if draftOrder.GiftCards[i].Charged <= 0 {
-			continue
-		}
-		if draftOrder.GiftCardSum-newAmount > draftOrder.GiftCards[i].Charged {
-			draftOrder.GiftCardSum -= draftOrder.GiftCards[i].Charged
-			draftOrder.GiftCards[i].Charged = 0
-		} else if draftOrder.GiftCardSum-newAmount == draftOrder.GiftCards[i].Charged {
-			draftOrder.GiftCards[i].Charged = 0
-			draftOrder.GiftCardSum = newAmount
-		} else {
-			draftOrder.GiftCards[i].Charged -= draftOrder.GiftCardSum - newAmount
-			draftOrder.GiftCardSum = newAmount
-		}
-	}
-
-	if draftOrder.GiftCardSum > newAmount {
-		return errors.New("gift card amount zeroed out, but still above newAmount, somehow: SERIOUS")
-	}
-
-	return nil
-}
-
 func EnsureGiftCardSum(draftOrder *models.DraftOrder, newGiftCardSum, newPreGiftCardTotal int, fromGiftCardChange bool) error {
 	if draftOrder.GiftCardSum == 0 || len(draftOrder.GiftCards) == 0 {
 		return nil

@@ -18,6 +18,7 @@ type DiscountRepository interface {
 	GetGiftCard(idCode string) (*models.GiftCard, error)
 	GetGiftCardsByIDCodes(idCodes []string) ([]*models.GiftCard, error)
 	GetDiscountsByCodes(codes []string) ([]*models.Discount, error)
+	GetDiscountWithUsers(discountCode string) (*models.Discount, []*models.DiscountUser, error)
 }
 
 type discountRepo struct {
@@ -89,4 +90,19 @@ func (r *discountRepo) GetDiscountsByCodes(codes []string) ([]*models.Discount, 
 	var discounts []*models.Discount
 	err := r.db.Where("discount_code IN ?", codes).Find(&discounts).Error
 	return discounts, err
+}
+
+func (r *discountRepo) GetDiscountWithUsers(discountCode string) (*models.Discount, []*models.DiscountUser, error) {
+	var discount models.Discount
+	if err := r.db.Where("discount_code = ?", discountCode).First(&discount).Error; err != nil {
+		return nil, nil, err
+	}
+
+	var discountUsers []*models.DiscountUser
+	if discount.HasUserList {
+		if err := r.db.Where("discount_id = ?", discount.ID).Find(&discountUsers).Error; err != nil {
+			return &discount, nil, err
+		}
+	}
+	return &discount, discountUsers, nil
 }

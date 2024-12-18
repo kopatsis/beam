@@ -3,21 +3,25 @@ package models
 import "time"
 
 type Discount struct {
-	ID                int    `gorm:"primaryKey"`
-	DiscountCode      string `gorm:"unique"`
-	Status            string
-	Created           time.Time
-	IsPercentageOff   bool
-	PercentageOff     float64
-	IsDollarsOff      bool
-	DollarsOff        int
-	OneTime           bool
-	Uses              int
-	HasMinSubtotal    bool
-	MinSubtotal       int
-	Stacks            bool
-	AppliesToAllUsers bool
-	SingleCustomerID  int
+	ID               int    `gorm:"primaryKey"`
+	DiscountCode     string `gorm:"unique;index"`
+	Status           string // Active, Deactivated (Expired)
+	Created          time.Time
+	Deactivated      time.Time
+	Expired          time.Time
+	IsPercentageOff  bool
+	PercentageOff    float64
+	IsDollarsOff     bool // DNE Now
+	DollarsOff       int  // DNE Now
+	OneTime          bool
+	Uses             int
+	HasMinSubtotal   bool
+	MinSubtotal      int
+	Stacks           bool // DNE Now
+	AppliesToAllAny  bool
+	SingleCustomerID int
+	ShortMessage     string
+	HasUserList      bool
 }
 
 type DiscountUser struct {
@@ -32,7 +36,7 @@ type GiftCard struct {
 	Activated     time.Time
 	Spent         time.Time
 	Expired       time.Time
-	Status        string // Draft, Active, Spent
+	Status        string // Draft, Active, Spent (Expired)
 	OriginalCents int
 	LeftoverCents int
 	ShortMessage  string

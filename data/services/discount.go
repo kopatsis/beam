@@ -216,3 +216,46 @@ func (s *discountService) CheckGiftCardsAndDiscountCodes(codesAndAmounts map[str
 	wg.Wait()
 	return errGiftCards, errDiscountCodes
 }
+
+func (s *discountService) GetDiscountCodeForDraft(code string, subtotal, cust int, noCustomer bool) (*models.Discount, []*models.DiscountUser, error) {
+	disc, users, err := s.discountRepo.GetDiscountWithUsers(code)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !disc.AppliesToAllAny {
+		if noCustomer {
+			return nil, nil, fmt.Errorf("cannot apply discount for specific users without a userid")
+		} else if disc.HasUserList {
+			contains := false
+			for _, user := range users {
+				if user.CustomerID == cust {
+					contains = true
+				}
+			}
+			if !contains {
+				return nil, nil, fmt.Errorf("user not in approved list for discount")
+			}
+		} else if disc.SingleCustomerID != cust {
+			return nil, nil, fmt.Errorf("not approved user for discount")
+		}
+	}
+
+	if disc.Expired.Before(time.Now()) {
+		return nil, nil, fmt.Errorf("expired discount code")
+	}
+
+	if disc.Status != "Active" {
+		return nil, nil, fmt.Errorf("inactive discount code")
+	}
+
+	if disc.OneTime && disc.Uses > 0 {
+		return nil, nil, fmt.Errorf("single use, already used discount code")
+	}
+
+	if disc.HasMinSubtotal && disc.MinSubtotal > subtotal {
+		return nil, nil, fmt.Errorf("subtotal too low for discount code")
+	}
+
+	return disc, users, nil
+}
