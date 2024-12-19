@@ -13,7 +13,8 @@ type Discount struct {
 	PercentageOff    float64
 	IsDollarsOff     bool // DNE Now
 	DollarsOff       int  // DNE Now
-	OneTime          bool
+	HasMaxUses       bool
+	MaxUses          int
 	Uses             int
 	HasMinSubtotal   bool
 	MinSubtotal      int
@@ -27,6 +28,7 @@ type Discount struct {
 type DiscountUser struct {
 	DiscountID int `gorm:"primaryKey;index"`
 	CustomerID int `gorm:"primaryKey;index"`
+	Uses       int
 }
 
 type GiftCard struct {

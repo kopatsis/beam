@@ -222,8 +222,18 @@ func (s *discountService) GetDiscountCodeForDraft(code string, subtotal, cust in
 		return nil, nil, fmt.Errorf("inactive discount code")
 	}
 
-	if disc.OneTime && disc.Uses > 0 {
-		return nil, nil, fmt.Errorf("single use, already used discount code")
+	if !disc.HasUserList && disc.Uses >= disc.MaxUses {
+		return nil, nil, fmt.Errorf("discount code used more than maximum allowed")
+	}
+
+	if disc.HasUserList {
+		for _, u := range users {
+			if u.CustomerID == cust {
+				if u.Uses >= disc.MaxUses {
+					return nil, nil, fmt.Errorf("discount code used more than maximum allowed for this user")
+				}
+			}
+		}
 	}
 
 	if disc.HasMinSubtotal && disc.MinSubtotal > subtotal {
