@@ -158,7 +158,7 @@ func EnsureGiftCardSum(draftOrder *models.DraftOrder, newGiftCardSum, newPreGift
 		}
 
 		if newTotal < 0 {
-			// Error out
+			return errors.New("unable to apply gift cards correctly under current system")
 		}
 
 	} else if newTotal < 50 || checkIfUnappliedMaxedGC(draftOrder) {
@@ -177,11 +177,11 @@ func EnsureGiftCardSum(draftOrder *models.DraftOrder, newGiftCardSum, newPreGift
 		}
 
 		if newTotal < 0 {
-			// Error out, shouldn't be possible
+			return errors.New("unable to apply gift cards correctly under current system")
 		} else if newTotal < 50 && newTotal > 0 {
 			newTotal, usedGiftCardSum, usedPreGiftCardTotal = between0And50Fix(draftOrder, newTotal, usedGiftCardSum, usedPreGiftCardTotal)
 			if newTotal < 0 || newTotal > 0 && newTotal < 50 {
-				// Error out, shouldn't be possible
+				return errors.New("unable to apply gift cards correctly under current system")
 			}
 		}
 	}

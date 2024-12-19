@@ -109,7 +109,7 @@ type OrderDiscount struct {
 	AppliesToAllAny  bool
 	SingleCustomerID int
 	HasUserList      bool
-	CustomerLit      []int
+	CustomerList     []int
 }
 
 type OrderLine struct {

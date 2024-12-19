@@ -20,8 +20,9 @@ type DiscountService interface {
 	CreateGiftCard(cents int, message string, store string, tools *config.Tools) (int, string, error)
 	RenderGiftCard(code string) (*models.GiftCardRender, error)
 	CheckMultipleGiftCards(codesAndAmounts map[string]int) error
-	CheckMultipleDiscountCodes(allCodes []string) error
-	CheckGiftCardsAndDiscountCodes(codesAndAmounts map[string]int, allCodes []string) (error, error)
+	CheckDiscountCode(code string, subtotal int, cust int, noCustomer bool) error
+	CheckGiftCardsAndDiscountCodes(codesAndAmounts map[string]int, code string, subtotal int, cust int, noCustomer bool) (error, error)
+	GetDiscountCodeForDraft(code string, subtotal, cust int, noCustomer bool) (*models.Discount, []*models.DiscountUser, error)
 }
 
 type discountService struct {
@@ -163,41 +164,13 @@ func (s *discountService) CheckMultipleGiftCards(codesAndAmounts map[string]int)
 	return nil
 }
 
-func (s *discountService) CheckMultipleDiscountCodes(allCodes []string) error {
+func (s *discountService) CheckDiscountCode(code string, subtotal int, cust int, noCustomer bool) error {
 
-	allDiscs, err := s.discountRepo.GetDiscountsByCodes(allCodes)
-	if err != nil {
-		return err
-	} else if len(allDiscs) != len(allCodes) {
-		return fmt.Errorf("issue with checking codes: queried %d, got %d", len(allDiscs), len(allCodes))
-	}
-
-	for _, idCode := range allCodes {
-
-		var gc *models.Discount
-		for _, c := range allDiscs {
-			if c.DiscountCode == idCode {
-				gc = c
-			}
-		}
-
-		if gc == nil {
-			return fmt.Errorf("one of the provided id codes not represented: %s", idCode)
-		}
-
-		if gc.Status == "Draft" {
-			return fmt.Errorf("not yet paid for: %s", idCode)
-		}
-
-		if gc.Status == "Inactive" {
-			return fmt.Errorf("discount inactive: %s", idCode)
-		}
-	}
-
-	return nil
+	_, _, err := s.GetDiscountCodeForDraft(code, subtotal, cust, noCustomer)
+	return err
 }
 
-func (s *discountService) CheckGiftCardsAndDiscountCodes(codesAndAmounts map[string]int, allCodes []string) (error, error) {
+func (s *discountService) CheckGiftCardsAndDiscountCodes(codesAndAmounts map[string]int, code string, subtotal int, cust int, noCustomer bool) (error, error) {
 	var errGiftCards, errDiscountCodes error
 
 	wg := sync.WaitGroup{}
@@ -210,7 +183,7 @@ func (s *discountService) CheckGiftCardsAndDiscountCodes(codesAndAmounts map[str
 
 	go func() {
 		defer wg.Done()
-		errDiscountCodes = s.CheckMultipleDiscountCodes(allCodes)
+		errDiscountCodes = s.CheckDiscountCode(code, subtotal, cust, noCustomer)
 	}()
 
 	wg.Wait()
