@@ -8,6 +8,7 @@ import (
 	"beam/data/services/discount"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -88,6 +89,8 @@ func (s *discountService) CreateGiftCard(cents int, message string, store string
 }
 
 func (s *discountService) RetrieveGiftCard(code string, store string) (*models.GiftCard, error) {
+	code = strings.ToLower(code)
+
 	if !discount.CheckID(code) {
 		return nil, errors.New("invalid gift card code")
 	}
@@ -113,6 +116,7 @@ func (s *discountService) RetrieveGiftCard(code string, store string) (*models.G
 }
 
 func (s *discountService) RenderGiftCard(code string) (*models.GiftCardRender, error) {
+	code = strings.ToLower(code)
 	gc, err := s.discountRepo.GetGiftCard(code)
 	if err != nil {
 		return nil, err
@@ -121,6 +125,8 @@ func (s *discountService) RenderGiftCard(code string) (*models.GiftCardRender, e
 }
 
 func (s *discountService) CheckMultipleGiftCards(codesAndAmounts map[string]int) error {
+	codesAndAmounts = discount.ConvertMapKeysToLowerCase(codesAndAmounts)
+
 	allCodes := []string{}
 	for idCode, amt := range codesAndAmounts {
 		if amt <= 0 {
@@ -251,6 +257,8 @@ func (s *discountService) GetDiscountCodeForDraft(code string, subtotal, cust in
 }
 
 func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[string]int) error {
+	codesAndAmounts = discount.ConvertMapKeysToLowerCase(codesAndAmounts)
+
 	allCodes := []string{}
 	for idCode, amt := range codesAndAmounts {
 		if amt <= 0 {

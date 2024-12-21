@@ -3,7 +3,7 @@ package discount
 import (
 	"strings"
 
-	"golang.org/x/exp/rand"
+	"math/rand"
 )
 
 const Vals = "0123456789abcdefghijklmnopqrstuvwxyz"
@@ -14,7 +14,7 @@ func GenerateCartID() string {
 	sum1, sum2 := 0, 0
 	for i := range slice {
 		v := rand.Intn(36)
-		slice[i] = rand.Intn(36)
+		slice[i] = v
 		if i%2 == 0 {
 			sum1 += v * 1
 			sum2 += v * 2
@@ -74,4 +74,13 @@ func CheckID(id string) bool {
 	}
 
 	return slice[15] == (sum2+slice[14]*2)%36
+}
+
+func ConvertMapKeysToLowerCase(m map[string]int) map[string]int {
+	newMap := make(map[string]int)
+	for key, value := range m {
+		newKey := strings.ToLower(key)
+		newMap[newKey] = value
+	}
+	return newMap
 }
