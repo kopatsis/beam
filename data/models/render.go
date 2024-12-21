@@ -61,6 +61,7 @@ type AllVariants struct {
 
 type ProductRender struct {
 	Price       string
+	CompareAt   string
 	VariantID   int
 	Inventory   int
 	VarImage    string

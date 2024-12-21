@@ -140,6 +140,7 @@ func (s *productService) GetProductAndProductRender(Mutex *config.AllMutexes, na
 			VariantID: rprod.Variants[0].PK,
 			Inventory: rprod.Variants[0].Quantity,
 			Price:     fmt.Sprintf("%.2f", float64(rprod.Variants[0].Price)/100),
+			CompareAt: fmt.Sprintf("%.2f", float64(rprod.Variants[0].CompareAtPrice)/100),
 			VarImage:  rprod.Variants[0].VariantImageURL,
 		}, "", nil
 	}
@@ -160,6 +161,7 @@ func (s *productService) GetProductAndProductRender(Mutex *config.AllMutexes, na
 		VariantID:   rprod.Variants[0].PK,
 		Inventory:   rprod.Variants[0].Quantity,
 		Price:       fmt.Sprintf("%.2f", float64(rprod.Variants[0].Price)/100),
+		CompareAt:   fmt.Sprintf("%.2f", float64(rprod.Variants[0].CompareAtPrice)/100),
 		VarImage:    rprod.Variants[0].VariantImageURL,
 		HasVariants: true,
 		Blocks:      product.VariantSelectorRenders(rprod, actualID),
