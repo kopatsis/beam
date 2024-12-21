@@ -23,6 +23,8 @@ type DiscountService interface {
 	CheckDiscountCode(code string, subtotal int, cust int, noCustomer bool) error
 	CheckGiftCardsAndDiscountCodes(codesAndAmounts map[string]int, code string, subtotal int, cust int, noCustomer bool) (error, error)
 	GetDiscountCodeForDraft(code string, subtotal, cust int, noCustomer bool) (*models.Discount, []*models.DiscountUser, error)
+	UseMultipleGiftCards(codesAndAmounts map[string]int) error
+	UseDiscountCode(code string, subtotal int, cust int, noCustomer bool) error
 }
 
 type discountService struct {
@@ -120,7 +122,10 @@ func (s *discountService) RenderGiftCard(code string) (*models.GiftCardRender, e
 
 func (s *discountService) CheckMultipleGiftCards(codesAndAmounts map[string]int) error {
 	allCodes := []string{}
-	for idCode := range codesAndAmounts {
+	for idCode, amt := range codesAndAmounts {
+		if amt <= 0 {
+			continue
+		}
 		allCodes = append(allCodes, idCode)
 	}
 
@@ -131,7 +136,9 @@ func (s *discountService) CheckMultipleGiftCards(codesAndAmounts map[string]int)
 		return fmt.Errorf("issue with checking codes: queried %d, got %d", len(allCards), len(allCodes))
 	}
 
-	for idCode, amount := range codesAndAmounts {
+	for _, idCode := range allCodes {
+
+		amount := codesAndAmounts[idCode]
 
 		var gc *models.GiftCard
 		for _, c := range allCards {
@@ -222,14 +229,14 @@ func (s *discountService) GetDiscountCodeForDraft(code string, subtotal, cust in
 		return nil, nil, fmt.Errorf("inactive discount code")
 	}
 
-	if !disc.HasUserList && disc.Uses >= disc.MaxUses {
+	if !disc.HasUserList && disc.HasMaxUses && disc.Uses >= disc.MaxUses {
 		return nil, nil, fmt.Errorf("discount code used more than maximum allowed")
 	}
 
 	if disc.HasUserList {
 		for _, u := range users {
 			if u.CustomerID == cust {
-				if u.Uses >= disc.MaxUses {
+				if disc.HasMaxUses && u.Uses >= disc.MaxUses {
 					return nil, nil, fmt.Errorf("discount code used more than maximum allowed for this user")
 				}
 			}
@@ -241,4 +248,100 @@ func (s *discountService) GetDiscountCodeForDraft(code string, subtotal, cust in
 	}
 
 	return disc, users, nil
+}
+
+func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[string]int) error {
+	allCodes := []string{}
+	for idCode, amt := range codesAndAmounts {
+		if amt <= 0 {
+			continue
+		}
+		allCodes = append(allCodes, idCode)
+	}
+
+	if len(allCodes) == 0 {
+		return nil
+	}
+
+	allCards, err := s.discountRepo.GetGiftCardsByIDCodes(allCodes)
+	if err != nil {
+		return err
+	} else if len(allCards) != len(allCodes) {
+		return fmt.Errorf("issue with checking codes: queried %d, got %d", len(allCards), len(allCodes))
+	}
+
+	for _, idCode := range allCodes {
+
+		amount := codesAndAmounts[idCode]
+
+		var gc *models.GiftCard
+		for _, c := range allCards {
+			if c.IDCode == idCode {
+				gc = c
+			}
+		}
+
+		if gc == nil {
+			return fmt.Errorf("one of the provided id codes not represented: %s", idCode)
+		}
+
+		if gc.Status == "Draft" {
+			return fmt.Errorf("not yet paid for: %s", idCode)
+		}
+
+		if gc.Status == "Spent" || gc.LeftoverCents == 0 {
+			return fmt.Errorf("giftcard spent: %s", idCode)
+		}
+
+		if gc.Expired.Before(time.Now()) {
+			return fmt.Errorf("expired: %s", idCode)
+		}
+
+		if gc.LeftoverCents < amount {
+			return fmt.Errorf("cents left over: %d, cents needed: %d", gc.LeftoverCents, amount)
+		}
+
+		gc.LeftoverCents -= amount
+
+		if gc.LeftoverCents == 0 {
+			gc.Status = "Spent"
+			gc.Spent = time.Now()
+		}
+	}
+
+	return s.discountRepo.SaveGiftCards(allCards)
+}
+
+func (s *discountService) UseDiscountCode(code string, subtotal int, cust int, noCustomer bool) error {
+
+	disc, users, err := s.GetDiscountCodeForDraft(code, subtotal, cust, noCustomer)
+	if err != nil {
+		return err
+	}
+
+	disc.Uses += 1
+	var saveUser *models.DiscountUser
+
+	if disc.HasUserList {
+		reachedMax := true
+		for _, u := range users {
+			if u.CustomerID == cust {
+				u.Uses += 1
+				saveUser = u
+			}
+			if u.Uses < disc.MaxUses || !disc.HasMaxUses {
+				reachedMax = false
+			}
+		}
+		if reachedMax {
+			disc.Status = "Deactivated"
+		}
+	} else if disc.HasMaxUses && disc.Uses == disc.MaxUses {
+		disc.Status = "Deactivated"
+	}
+
+	if disc.HasUserList {
+		return s.discountRepo.SaveDiscountWithUser(disc, saveUser)
+	}
+	return s.discountRepo.SaveDiscount(disc)
 }

@@ -210,3 +210,30 @@ type PackageShippedPF struct {
 		} `json:"order"`
 	} `json:"data"`
 }
+
+type CodeEstimate struct {
+	Code   int `json:"code"`
+	Result struct {
+		Costs struct {
+			Currency       string `json:"currency"`
+			Subtotal       int    `json:"subtotal"`
+			Discount       int    `json:"discount"`
+			Shipping       int    `json:"shipping"`
+			Digitization   int    `json:"digitization"`
+			AdditionalFee  int    `json:"additional_fee"`
+			FulfillmentFee int    `json:"fulfillment_fee"`
+			Tax            int    `json:"tax"`
+			Vat            int    `json:"vat"`
+			Total          int    `json:"total"`
+		} `json:"costs"`
+		RetailCosts struct {
+			Currency string `json:"currency"`
+			Subtotal int    `json:"subtotal"`
+			Discount int    `json:"discount"`
+			Shipping int    `json:"shipping"`
+			Tax      int    `json:"tax"`
+			Vat      int    `json:"vat"`
+			Total    int    `json:"total"`
+		} `json:"retail_costs"`
+	} `json:"result"`
+}

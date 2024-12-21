@@ -20,6 +20,9 @@ type DiscountRepository interface {
 	GetDiscountsByCodes(codes []string) ([]*models.Discount, error)
 	GetDiscountByCode(code string) (*models.Discount, error)
 	GetDiscountWithUsers(discountCode string) (*models.Discount, []*models.DiscountUser, error)
+	SaveDiscount(discount *models.Discount) error
+	SaveDiscountWithUser(discount *models.Discount, discountUser *models.DiscountUser) error
+	SaveGiftCards(giftCards []*models.GiftCard) error
 }
 
 type discountRepo struct {
@@ -112,4 +115,24 @@ func (r *discountRepo) GetDiscountWithUsers(discountCode string) (*models.Discou
 		}
 	}
 	return &discount, discountUsers, nil
+}
+
+func (r *discountRepo) SaveDiscount(discount *models.Discount) error {
+	return r.db.Save(discount).Error
+}
+
+func (r *discountRepo) SaveDiscountWithUser(discount *models.Discount, discountUser *models.DiscountUser) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(discount).Error; err != nil {
+			return err
+		}
+		if err := tx.Save(discountUser).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (r *discountRepo) SaveGiftCards(giftCards []*models.GiftCard) error {
+	return r.db.Save(giftCards).Error
 }
