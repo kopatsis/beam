@@ -51,6 +51,8 @@ type Order struct {
 	ActualRate             ShippingRate       `bson:"ship_current" json:"ship_current"`
 	GiftSubject            string             `bson:"gift_sub" json:"gift_sub"`
 	GiftMessage            string             `bson:"gift_mess" json:"gift_mess"`
+	CATax                  bool               `bson:"ca_tax" json:"ca_tax"`
+	CATaxRate              float64            `bson:"ca_tax_rate" json:"ca_tax_rate"`
 }
 
 type DraftOrder struct {
@@ -88,6 +90,8 @@ type DraftOrder struct {
 	AllShippingRates      map[string][]ShippingRate `bson:"ship_all" json:"ship_all"`
 	GiftSubject           string                    `bson:"gift_sub" json:"gift_sub"`
 	GiftMessage           string                    `bson:"gift_mess" json:"gift_mess"`
+	CATax                 bool                      `bson:"ca_tax" json:"ca_tax"`
+	CATaxRate             float64                   `bson:"ca_tax_rate" json:"ca_tax_rate"`
 }
 
 type OrderGiftCard struct {

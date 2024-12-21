@@ -11,12 +11,9 @@ import (
 	"strings"
 )
 
-func GetTaxRate(client *http.Client, contact *models.Contact) (float64, error) {
+func GetTaxRate(client *http.Client, contact models.OrderContact) (float64, error) {
 	if client == nil {
 		return 0, errors.New("http client is required")
-	}
-	if contact == nil {
-		return 0, errors.New("contact is required")
 	}
 
 	baseURL := "https://services.maps.cdtfa.ca.gov/api/taxrate/GetRateByAddress"
@@ -52,8 +49,8 @@ func GetTaxRate(client *http.Client, contact *models.Contact) (float64, error) {
 	return 0, errors.New("no tax rate information found")
 }
 
-func GetRateWithFallback(client *http.Client, contact *models.Contact, taxData *config.TaxMutex) (float64, error) {
-	if client == nil || contact == nil || taxData == nil {
+func GetRateWithFallback(client *http.Client, contact models.OrderContact, taxData *config.TaxMutex) (float64, error) {
+	if client == nil || taxData == nil {
 		return 0, errors.New("client, contact, and taxData are required")
 	}
 
@@ -77,4 +74,24 @@ func GetRateWithFallback(client *http.Client, contact *models.Contact, taxData *
 	}
 
 	return rate, nil
+}
+
+func ModifyTaxRate(draft *models.DraftOrder, tools *config.Tools, mutex *config.AllMutexes) error {
+	if draft.ShippingContact.StreetAddress1 == "" || draft.ShippingContact.City == "" || draft.ShippingContact.ZipCode == "" {
+		return errors.New("contact is required")
+	}
+
+	isCalifornia := strings.EqualFold(draft.ShippingContact.ProvinceState, "ca") || strings.EqualFold(draft.ShippingContact.ProvinceState, "california")
+	isUS := strings.EqualFold(draft.ShippingContact.Country, "US")
+
+	if isCalifornia && isUS {
+		draft.CATax = true
+		rate, err := GetRateWithFallback(tools.Client, draft.ShippingContact, &mutex.Tax)
+		if err != nil {
+			return err
+		}
+		draft.CATaxRate = rate
+	}
+
+	return nil
 }
