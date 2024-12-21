@@ -10,7 +10,6 @@ import (
 type Product struct {
 	PK             int            `gorm:"primaryKey"`
 	Store          string         `gorm:"type:varchar(16)"`
-	PrintfulID     string         `gorm:"type:json"`
 	Handle         string         `gorm:"type:varchar(512)"`
 	Title          string         `gorm:"type:varchar(512)"`
 	Description    string         `gorm:"type:text"`
@@ -45,15 +44,29 @@ type PreComprableSQL struct {
 
 // Variant represents the structure for the VARIANT table.
 type Variant struct {
-	PK              int            `gorm:"primaryKey"`
-	ProductID       int            `gorm:"index"`
-	PrintfulID      map[string]int `gorm:"type:json"`
-	SKU             string         `gorm:"type:varchar(256)"`
-	Variant1Value   string         `gorm:"type:varchar(256)"`
-	Variant2Value   *string        `gorm:"type:varchar(256)"`
-	Variant3Value   *string        `gorm:"type:varchar(256)"`
-	Price           int            `gorm:"type:int"`
-	Quantity        int            `gorm:"type:int"`
-	VariantImageURL string         `gorm:"type:varchar(1024)"`
-	VariantBarcode  string         `gorm:"type:varchar(256)"`
+	PK              int     `gorm:"primaryKey"`
+	ProductID       int     `gorm:"index"`
+	SKU             string  `gorm:"type:varchar(256)"`
+	Variant1Value   string  `gorm:"type:varchar(256)"`
+	Variant2Value   *string `gorm:"type:varchar(256)"`
+	Variant3Value   *string `gorm:"type:varchar(256)"`
+	Price           int     `gorm:"type:int"`
+	CompareAtPrice  int     `gorm:"type:int"`
+	Quantity        int     `gorm:"type:int"`
+	VariantImageURL string  `gorm:"type:varchar(1024)"`
+	VariantBarcode  string  `gorm:"type:varchar(256)"`
+}
+
+type OriginalProduct struct {
+	PK                int `gorm:"primaryKey"`
+	ActualVariantID   int `gorm:"index"`
+	Quantity          int
+	ProductID         string
+	ExternalProductID string
+	FullVariantName   string
+	VariantID         string
+	ExternalVariantID string
+	RetailPrice       int
+	OriginalProductID string
+	OriginalVariantID string
 }

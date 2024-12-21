@@ -113,25 +113,25 @@ type OrderDiscount struct {
 }
 
 type OrderLine struct {
-	ImageURL          string         `bson:"image_url" json:"image_url"`
-	ProductTitle      string         `bson:"product_title" json:"product_title"`
-	Handle            string         `bson:"handle" json:"handle"`
-	PrintfulID        map[string]int `bson:"pid" json:"pid"`
-	Variant1Key       string         `bson:"variant_1_key" json:"variant_1_key"`
-	Variant1Value     string         `bson:"variant_1_value" json:"variant_1_value"`
-	Variant2Key       string         `bson:"variant_2_key" json:"variant_2_key"`
-	Variant2Value     string         `bson:"variant_2_value" json:"variant_2_value"`
-	Variant3Key       string         `bson:"variant_3_key" json:"variant_3_key"`
-	Variant3Value     string         `bson:"variant_3_value" json:"variant_3_value"`
-	ProductID         string         `bson:"product_id" json:"product_id"`
-	IsGiftCard        int            `bson:"gift_card" json:"gift_card"`
-	VariantID         string         `bson:"variant_id" json:"variant_id"`
-	Quantity          int            `bson:"quantity" json:"quantity"`
-	UndiscountedPrice int            `bson:"undiscounted_price" json:"undiscounted_price"`
-	Price             int            `bson:"price" json:"price"`
-	LineLevelDiscount int            `bson:"line_level_discount" json:"line_level_discount"`
-	EndPrice          int            `bson:"end_price" json:"end_price"`
-	LineTotal         int            `bson:"line_total" json:"line_total"`
+	ImageURL          string                 `bson:"image_url" json:"image_url"`
+	ProductTitle      string                 `bson:"product_title" json:"product_title"`
+	Handle            string                 `bson:"handle" json:"handle"`
+	PrintfulID        []OriginalProductRedis `bson:"pid" json:"pid"`
+	Variant1Key       string                 `bson:"variant_1_key" json:"variant_1_key"`
+	Variant1Value     string                 `bson:"variant_1_value" json:"variant_1_value"`
+	Variant2Key       string                 `bson:"variant_2_key" json:"variant_2_key"`
+	Variant2Value     string                 `bson:"variant_2_value" json:"variant_2_value"`
+	Variant3Key       string                 `bson:"variant_3_key" json:"variant_3_key"`
+	Variant3Value     string                 `bson:"variant_3_value" json:"variant_3_value"`
+	ProductID         string                 `bson:"product_id" json:"product_id"`
+	IsGiftCard        int                    `bson:"gift_card" json:"gift_card"`
+	VariantID         string                 `bson:"variant_id" json:"variant_id"`
+	Quantity          int                    `bson:"quantity" json:"quantity"`
+	UndiscountedPrice int                    `bson:"undiscounted_price" json:"undiscounted_price"`
+	Price             int                    `bson:"price" json:"price"`
+	LineLevelDiscount int                    `bson:"line_level_discount" json:"line_level_discount"`
+	EndPrice          int                    `bson:"end_price" json:"end_price"`
+	LineTotal         int                    `bson:"line_total" json:"line_total"`
 }
 
 type OrderContact struct {

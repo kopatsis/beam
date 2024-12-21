@@ -70,7 +70,7 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Car
 				ImageURL:          prod.ImageURL,
 				ProductTitle:      prod.Title,
 				Handle:            prod.Handle,
-				PrintfulID:        prod.PrintfulID,
+				PrintfulID:        variant.Printful,
 				Variant1Key:       line.Variant1Key,
 				Variant1Value:     line.Variant1Value,
 				Variant2Key:       *line.Variant2Key,

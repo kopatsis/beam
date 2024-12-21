@@ -4,7 +4,6 @@ import "time"
 
 type ProductRedis struct {
 	PK             int               `json:"pk"`
-	PrintfulID     map[string]int    `json:"pid"`
 	Handle         string            `json:"h"`
 	Store          string            `json:"sr"`
 	Title          string            `json:"t"`
@@ -34,18 +33,18 @@ type ComparableRedis struct {
 }
 
 type VariantRedis struct {
-	PK              int            `json:"pk"`
-	ProductID       int            `json:"pr"`
-	PrintfulID      map[string]int `json:"pid"`
-	SKU             string         `json:"sku"`
-	Var1Value       string         `json:"vk1"`
-	Var2Value       string         `json:"vk2,omitempty"` // Optional
-	Var3Value       string         `json:"vk3,omitempty"` // Optional
-	Price           int            `json:"p"`
-	CompareAtPrice  int            `json:"cp"`
-	Quantity        int            `json:"q"`
-	VariantImageURL string         `json:"vu"`
-	Barcode         string         `json:"bc"`
+	PK              int                    `json:"pk"`
+	ProductID       int                    `json:"pr"`
+	Printful        []OriginalProductRedis `json:"pid"`
+	SKU             string                 `json:"sku"`
+	Var1Value       string                 `json:"vk1"`
+	Var2Value       string                 `json:"vk2,omitempty"` // Optional
+	Var3Value       string                 `json:"vk3,omitempty"` // Optional
+	Price           int                    `json:"p"`
+	CompareAtPrice  int                    `json:"c"`
+	Quantity        int                    `json:"q"`
+	VariantImageURL string                 `json:"vu"`
+	Barcode         string                 `json:"bc"`
 }
 
 type ProductInfo struct {
@@ -67,16 +66,14 @@ type ProductInfo struct {
 	SKUs       []string  `json:"ss"`
 }
 
-type PrinftulProduct struct {
+type OriginalProductRedis struct {
+	Quantity          int    `json:"q"`
 	ProductID         string `json:"p"`
 	VariantID         string `json:"v"`
 	ExternalProductID string `json:"ep"`
 	ExternalVariantID string `json:"ev"`
 	OriginalProductID string `json:"op"`
 	OriginalVariantID string `json:"ov"`
-	RetailPrice       int    `json:"r"`
-	Cost              int    `json:"c"`
-	GrowthCost        int    `json:"g"`
-	PrimaryShip       int    `json:"ps"`
-	SecondaryShip     int    `json:"ss"`
+	FullVariantName   string `json:"f"`
+	RetailPrice       int    `json:"rp"`
 }

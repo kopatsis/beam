@@ -231,7 +231,7 @@ func getApiShipRates(draft *models.DraftOrder, newContact models.OrderContact, m
 			"state_code":   newContact.ProvinceState,
 			"zip":          newContact.ZipCode,
 		},
-		"items":    createItemsArray(draft.Lines, mutexes, name),
+		"items":    createItemsArray(draft.Lines),
 		"currency": "USD",
 		"locale":   "en_US",
 	}
@@ -290,25 +290,25 @@ func getApiShipRates(draft *models.DraftOrder, newContact models.OrderContact, m
 	return newRates, nil
 }
 
-func createItemsArray(orderLines []models.OrderLine, mutexes *config.AllMutexes, name string) []map[string]any {
-	variantMap := make(map[string]int)
+func createItemsArray(orderLines []models.OrderLine) []map[string]any {
+	variantMap := map[string]int{}
+	pfOGMap := map[string]models.OriginalProductRedis{}
 
 	for _, line := range orderLines {
-		for variantID, count := range line.PrintfulID {
-			variantMap[variantID] += count * line.Quantity
+		for _, pf := range line.PrintfulID {
+			variantMap[pf.VariantID] += pf.Quantity * line.Quantity
+			copy := pf
+			pfOGMap[pf.VariantID] = copy
 		}
 	}
 
-	mutexes.External.Mu.RLock()
-	defer mutexes.External.Mu.RUnlock()
 	items := make([]map[string]any, 0, len(variantMap))
 
 	for variantID, quantity := range variantMap {
-		externalKey := name + "::" + variantID
-		if externalVariantID, exists := mutexes.External.IDMap[externalKey]; exists {
+		if pfProd, exists := pfOGMap[variantID]; exists {
 			items = append(items, map[string]any{
 				"variant_id":          variantID,
-				"external_variant_id": externalVariantID,
+				"external_variant_id": pfProd.ExternalVariantID,
 				"quantity":            quantity,
 			})
 		}
