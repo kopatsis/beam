@@ -91,6 +91,11 @@ func ModifyTaxRate(draft *models.DraftOrder, tools *config.Tools, mutex *config.
 			return err
 		}
 		draft.CATaxRate = rate
+	} else {
+		err := DraftOrderEstimateUpdate(draft, draft.ShippingContact)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

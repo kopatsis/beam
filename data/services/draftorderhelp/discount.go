@@ -47,6 +47,9 @@ func applyPercentOffToDraft(draftOrder *models.DraftOrder, percentageOff, oldDis
 	newPostDiscountTotal := draftOrder.Subtotal - discOff
 
 	newTax := int(math.Round((1 - (percentageOff - oldDiscPct)) * float64(draftOrder.Tax)))
+	if draftOrder.CATax {
+		newTax = int(math.Round(float64(newPostDiscountTotal) * draftOrder.CATaxRate))
+	}
 
 	newPostTaxTotal := newPostDiscountTotal + newTax + draftOrder.Shipping
 	newPreGiftCardTotal := draftOrder.PostTaxTotal + draftOrder.Tip
