@@ -137,3 +137,55 @@ func HandleWebhook(tools *config.Tools, payload map[string]any) {
 		log.Printf("SendGrid responded with status code %d: %s", response.StatusCode, response.Body)
 	}
 }
+
+func AlertEmailEstRateDanger(store string, wait time.Duration, tools *config.Tools, completed bool) {
+	fromEmail := os.Getenv("ADMIN_EMAIL")
+	if fromEmail == "" {
+		log.Fatal("ADMIN_EMAIL is not set")
+	}
+
+	toEmail := fromEmail
+	subject := "Alert: High Wait Time for Order Estimate Rate API"
+
+	if !completed {
+		subject += " + DID NOT COMPLETE"
+	}
+
+	message := fmt.Sprintf("The wait time for the Order Estimate Rate API is very high.\n\nStore: %s\nWait Time: %v\n\nPlease investigate.", store, wait)
+
+	from := mail.NewEmail("Admin", fromEmail)
+	to := mail.NewEmail("Admin", toEmail)
+	content := mail.NewContent("text/plain", message)
+	mailMessage := mail.NewV3MailInit(from, subject, to, content)
+
+	_, err := tools.SendGrid.Send(mailMessage)
+	if err != nil {
+		log.Printf("Error sending email: %v", err)
+	}
+}
+
+func AlertIPEstRateDanger(ip string, wait time.Duration, tools *config.Tools, completed bool) {
+	fromEmail := os.Getenv("ADMIN_EMAIL")
+	if fromEmail == "" {
+		log.Fatal("ADMIN_EMAIL is not set")
+	}
+
+	toEmail := fromEmail
+	subject := "Alert: High Wait Time for Order Estimate Rate API from IP"
+
+	if !completed {
+		subject += " + DID NOT COMPLETE"
+	}
+
+	message := fmt.Sprintf("The wait time for the rder Estimate API from IP is very high.\n\nIP: %s\nWait Time: %v\n\nPlease investigate.", ip, wait)
+
+	from := mail.NewEmail("Admin", fromEmail)
+	to := mail.NewEmail("Admin", toEmail)
+	content := mail.NewContent("text/plain", message)
+	mailMessage := mail.NewV3MailInit(from, subject, to, content)
+
+	_, err := tools.SendGrid.Send(mailMessage)
+	if err != nil {
+		log.Printf("Error sending email: %v", err)
+	}
+}

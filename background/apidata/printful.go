@@ -1,5 +1,7 @@
 package apidata
 
+import "beam/data/models"
+
 type PackageShippedPF struct {
 	Type    string `json:"type"`
 	Created int    `json:"created"`
@@ -211,21 +213,10 @@ type PackageShippedPF struct {
 	} `json:"data"`
 }
 
-type CodeEstimate struct {
+type FromCostEstimate struct {
 	Code   int `json:"code"`
 	Result struct {
-		Costs struct {
-			Currency       string `json:"currency"`
-			Subtotal       int    `json:"subtotal"`
-			Discount       int    `json:"discount"`
-			Shipping       int    `json:"shipping"`
-			Digitization   int    `json:"digitization"`
-			AdditionalFee  int    `json:"additional_fee"`
-			FulfillmentFee int    `json:"fulfillment_fee"`
-			Tax            int    `json:"tax"`
-			Vat            int    `json:"vat"`
-			Total          int    `json:"total"`
-		} `json:"costs"`
+		Costs       models.OrderEstimateCost `json:"costs"`
 		RetailCosts struct {
 			Currency string `json:"currency"`
 			Subtotal int    `json:"subtotal"`
@@ -236,4 +227,33 @@ type CodeEstimate struct {
 			Total    int    `json:"total"`
 		} `json:"retail_costs"`
 	} `json:"result"`
+}
+
+type ToCostEstimate struct {
+	Shipping  string    `json:"shipping,omitempty"`
+	Recipient Recipient `json:"recipient,omitempty"`
+	Items     []Items   `json:"items,omitempty"`
+	Currency  string    `json:"currency,omitempty"`
+	Locale    string    `json:"locale,omitempty"`
+}
+
+type Recipient struct {
+	Address1    string `json:"address1,omitempty"`
+	City        string `json:"city,omitempty"`
+	CountryCode string `json:"country_code,omitempty"`
+	StateCode   string `json:"state_code,omitempty"`
+	Zip         string `json:"zip,omitempty"`
+}
+type Product struct {
+	VariantID int `json:"variant_id,omitempty"`
+	ProductID int `json:"product_id,omitempty"`
+}
+type Items struct {
+	ID                int     `json:"id,omitempty"`
+	ExternalID        string  `json:"external_id,omitempty"`
+	VariantID         int     `json:"variant_id,omitempty"`
+	SyncVariantID     int64   `json:"sync_variant_id,omitempty"`
+	ExternalVariantID string  `json:"external_variant_id,omitempty"`
+	Quantity          int     `json:"quantity,omitempty"`
+	Product           Product `json:"product,omitempty"`
 }

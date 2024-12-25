@@ -56,42 +56,44 @@ type Order struct {
 }
 
 type DraftOrder struct {
-	ID                    primitive.ObjectID        `bson:"_id,omitempty" json:"id"`
-	PrintfulID            string                    `bson:"printful_id" json:"printful_id"`
-	CustomerID            int                       `bson:"customer_id" json:"customer_id"`
-	Status                string                    `bson:"status" json:"status"`
-	Email                 string                    `bson:"email" json:"email"`
-	FirstName             string                    `bson:"fname" json:"fname"`
-	LastName              string                    `bson:"lname" json:"lname"`
-	DateCreated           time.Time                 `bson:"date_created" json:"date_created"`
-	DateAbandoned         *time.Time                `bson:"date_abandoned,omitempty" json:"date_abandoned,omitempty"`
-	StripePaymentIntentID string                    `bson:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
-	StripeMethodID        string                    `bson:"stripe_method_id" json:"stripe_method_id"`
-	Subtotal              int                       `bson:"subtotal" json:"subtotal"`
-	OrderLevelDiscount    int                       `bson:"order_level_discount" json:"order_level_discount"`
-	PostDiscountTotal     int                       `bson:"post_disc_total" json:"post_disc_total"`
-	Shipping              int                       `bson:"shipping" json:"shipping"`
-	Tax                   int                       `bson:"tax" json:"tax"`
-	PostTaxTotal          int                       `bson:"post_tax_total" json:"post_tax_total"`
-	Tip                   int                       `bson:"tip" json:"tip"`
-	PreGiftCardTotal      int                       `bson:"pgc_total" json:"pgc_total"`
-	GiftCardSum           int                       `bson:"gc_sum" json:"gc_sum"`
-	Total                 int                       `bson:"total" json:"total"`
-	OrderDiscount         OrderDiscount             `bson:"non_stacking_discount_code" json:"non_stacking_discount_code"`
-	ShippingContact       OrderContact              `bson:"shipping_contact" json:"shipping_contact"`
-	Lines                 []OrderLine               `bson:"lines" json:"lines"`
-	GiftCards             []OrderGiftCard           `bson:"gift_cards" json:"gift_cards"`
-	Tags                  []string                  `bson:"tags" json:"tags"`
-	DeliveryNote          string                    `bson:"delivery_note" json:"delivery_note"`
-	Guest                 bool                      `bson:"guest" json:"guest"`
-	GuestID               *string                   `bson:"guest_id,omitempty" json:"guest_id,omitempty"`
-	ActualRate            ShippingRate              `bson:"ship_actual" json:"ship_actual"`
-	CurrentShipping       []ShippingRate            `bson:"ship_current" json:"ship_current"`
-	AllShippingRates      map[string][]ShippingRate `bson:"ship_all" json:"ship_all"`
-	GiftSubject           string                    `bson:"gift_sub" json:"gift_sub"`
-	GiftMessage           string                    `bson:"gift_mess" json:"gift_mess"`
-	CATax                 bool                      `bson:"ca_tax" json:"ca_tax"`
-	CATaxRate             float64                   `bson:"ca_tax_rate" json:"ca_tax_rate"`
+	ID                    primitive.ObjectID           `bson:"_id,omitempty" json:"id"`
+	PrintfulID            string                       `bson:"printful_id" json:"printful_id"`
+	CustomerID            int                          `bson:"customer_id" json:"customer_id"`
+	Status                string                       `bson:"status" json:"status"`
+	Email                 string                       `bson:"email" json:"email"`
+	FirstName             string                       `bson:"fname" json:"fname"`
+	LastName              string                       `bson:"lname" json:"lname"`
+	DateCreated           time.Time                    `bson:"date_created" json:"date_created"`
+	DateAbandoned         *time.Time                   `bson:"date_abandoned,omitempty" json:"date_abandoned,omitempty"`
+	StripePaymentIntentID string                       `bson:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
+	StripeMethodID        string                       `bson:"stripe_method_id" json:"stripe_method_id"`
+	Subtotal              int                          `bson:"subtotal" json:"subtotal"`
+	OrderLevelDiscount    int                          `bson:"order_level_discount" json:"order_level_discount"`
+	PostDiscountTotal     int                          `bson:"post_disc_total" json:"post_disc_total"`
+	Shipping              int                          `bson:"shipping" json:"shipping"`
+	Tax                   int                          `bson:"tax" json:"tax"`
+	PostTaxTotal          int                          `bson:"post_tax_total" json:"post_tax_total"`
+	Tip                   int                          `bson:"tip" json:"tip"`
+	PreGiftCardTotal      int                          `bson:"pgc_total" json:"pgc_total"`
+	GiftCardSum           int                          `bson:"gc_sum" json:"gc_sum"`
+	Total                 int                          `bson:"total" json:"total"`
+	OrderDiscount         OrderDiscount                `bson:"non_stacking_discount_code" json:"non_stacking_discount_code"`
+	ShippingContact       OrderContact                 `bson:"shipping_contact" json:"shipping_contact"`
+	Lines                 []OrderLine                  `bson:"lines" json:"lines"`
+	GiftCards             []OrderGiftCard              `bson:"gift_cards" json:"gift_cards"`
+	Tags                  []string                     `bson:"tags" json:"tags"`
+	DeliveryNote          string                       `bson:"delivery_note" json:"delivery_note"`
+	Guest                 bool                         `bson:"guest" json:"guest"`
+	GuestID               *string                      `bson:"guest_id,omitempty" json:"guest_id,omitempty"`
+	ActualRate            ShippingRate                 `bson:"ship_actual" json:"ship_actual"`
+	CurrentShipping       []ShippingRate               `bson:"ship_current" json:"ship_current"`
+	AllShippingRates      map[string][]ShippingRate    `bson:"ship_all" json:"ship_all"`
+	AllOrderEstimates     map[string]OrderEstimateCost `bson:"order_est_all" json:"order_est_all"`
+	OrderEstimate         OrderEstimateCost            `bson:"order_est" json:"order_est"`
+	GiftSubject           string                       `bson:"gift_sub" json:"gift_sub"`
+	GiftMessage           string                       `bson:"gift_mess" json:"gift_mess"`
+	CATax                 bool                         `bson:"ca_tax" json:"ca_tax"`
+	CATaxRate             float64                      `bson:"ca_tax_rate" json:"ca_tax_rate"`
 }
 
 type OrderGiftCard struct {
@@ -162,4 +164,20 @@ type ShippingRate struct {
 	MinDeliveryDate string    `json:"minDeliveryDate" bson:"min_delivery_date"`
 	MaxDeliveryDate string    `json:"maxDeliveryDate" bson:"max_delivery_date"`
 	Timestamp       time.Time `json:"timestamp" bson:"timestamp"`
+}
+
+type OrderEstimateCost struct {
+	Currency       string    `json:"currency" bson:"currency"`
+	Subtotal       float64   `json:"subtotal" bson:"subtotal"`
+	Discount       float64   `json:"discount" bson:"discount"`
+	Shipping       float64   `json:"shipping" bson:"shipping"`
+	Digitization   float64   `json:"digitization" bson:"digitization"`
+	AdditionalFee  float64   `json:"additional_fee" bson:"additional_fee"`
+	FulfillmentFee float64   `json:"fulfillment_fee" bson:"fulfillment_fee"`
+	Tax            float64   `json:"tax" bson:"tax"`
+	Vat            float64   `json:"vat" bson:"vat"`
+	Total          float64   `json:"total" bson:"total"`
+	Timestamp      time.Time `json:"timestamp" bson:"timestamp"`
+	AddressFormat  string    `json:"address_form" bson:"address_form"`
+	ShipRate       string    `json:"ship_rate" bson:"ship_rate"`
 }

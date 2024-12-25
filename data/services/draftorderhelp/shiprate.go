@@ -104,7 +104,7 @@ func applyIpRateLimit(ip string, tools *config.Tools) error {
 	waitDuration := time.Since(startTime)
 
 	if waitDuration > 6*time.Second {
-		go emails.AlertEmailRateDanger(ip, waitDuration, tools, false)
+		go emails.AlertIPRateDanger(ip, waitDuration, tools, false)
 	}
 
 	if waitDuration > 3*time.Second {
@@ -215,10 +215,6 @@ func convertRateToCents(rate string) (int, error) {
 
 func getApiShipRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name, ip string, freeship bool, tools *config.Tools) ([]models.ShippingRate, error) {
 
-	if err := applyRateLimitsConcurrently(name, ip, tools); err != nil {
-		return []models.ShippingRate{}, err
-	}
-
 	mutexes.Api.Mu.RLock()
 	apiKey := mutexes.Api.KeyMap[name]
 	mutexes.Api.Mu.RUnlock()
@@ -235,12 +231,23 @@ func getApiShipRates(draft *models.DraftOrder, newContact models.OrderContact, m
 		"currency": "USD",
 		"locale":   "en_US",
 	}
-	reqBodyBytes, _ := json.Marshal(reqBody)
+	reqBodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
 
 	base := os.Getenv("PF_URL")
-	req, _ := http.NewRequest("POST", base+"/shipping/rates", bytes.NewBuffer(reqBodyBytes))
+	req, err := http.NewRequest("POST", base+"/shipping/rates", bytes.NewBuffer(reqBodyBytes))
+	if err != nil {
+		return nil, err
+	}
+
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
+
+	if err := applyRateLimitsConcurrently(name, ip, tools); err != nil {
+		return []models.ShippingRate{}, err
+	}
 
 	resp, err := tools.Client.Do(req)
 	if err != nil {
