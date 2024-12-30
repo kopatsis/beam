@@ -34,6 +34,7 @@ type FavesLine struct {
 	ID         int `gorm:"primaryKey"`
 	CustomerID int `gorm:"index"`
 	VariantID  int `gorm:"index"`
+	ProductID  int `gorm:"index"`
 	AddDate    time.Time
 }
 
@@ -41,6 +42,7 @@ type SavesList struct {
 	ID         int `gorm:"primaryKey"`
 	CustomerID int `gorm:"index"`
 	VariantID  int `gorm:"index"`
+	ProductID  int `gorm:"index"`
 	AddDate    time.Time
 }
 
@@ -48,6 +50,7 @@ type LastOrdersList struct {
 	ID          int `gorm:"primaryKey"`
 	CustomerID  int `gorm:"index"`
 	VariantID   int `gorm:"index"`
+	ProductID   int `gorm:"index"`
 	LastOrder   time.Time
 	LastOrderID string
 }

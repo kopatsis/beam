@@ -37,6 +37,7 @@ type CartLineNew struct {
 	ID           int `gorm:"primaryKey"`
 	CartID       int `gorm:"index"`
 	VariantID    int `gorm:"index"`
+	ProductID    int `gorm:"index"`
 	IsGiftCard   bool
 	Quantity     int
 	NonDiscPrice int
