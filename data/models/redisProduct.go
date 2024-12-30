@@ -77,3 +77,18 @@ type OriginalProductRedis struct {
 	FullVariantName   string `json:"f"`
 	RetailPrice       int    `json:"rp"`
 }
+
+type LimitedVariantRedis struct {
+	VariantID       int    `json:"v"`
+	ProductID       int    `json:"p"`
+	Handle          string `json:"h"`
+	Title           string `json:"t"`
+	VariantImageURL string `json:"i"`
+	Var1Key         string `json:"k1"`
+	Var2Key         string `json:"k2,omitempty"` // Optional
+	Var3Key         string `json:"k3,omitempty"` // Optional
+	Var1Value       string `json:"v1"`
+	Var2Value       string `json:"v2,omitempty"` // Optional
+	Var3Value       string `json:"v3,omitempty"` // Optional
+	Price           int    `json:"c"`
+}

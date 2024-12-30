@@ -29,3 +29,25 @@ type ListLine struct {
 	Price         int
 	DateAdded     time.Time
 }
+
+type FavesLine struct {
+	ID         int `gorm:"primaryKey"`
+	CustomerID int `gorm:"index"`
+	VariantID  int `gorm:"index"`
+	AddDate    time.Time
+}
+
+type SavesList struct {
+	ID         int `gorm:"primaryKey"`
+	CustomerID int `gorm:"index"`
+	VariantID  int `gorm:"index"`
+	AddDate    time.Time
+}
+
+type LastOrdersList struct {
+	ID          int `gorm:"primaryKey"`
+	CustomerID  int `gorm:"index"`
+	VariantID   int `gorm:"index"`
+	LastOrder   time.Time
+	LastOrderID string
+}
