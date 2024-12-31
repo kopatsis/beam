@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/go-redis/redis/v8"
@@ -18,6 +19,7 @@ type ProductRepository interface {
 	Delete(id int) error
 	GetAllProductInfo(name string) ([]models.ProductInfo, error)
 	GetFullProduct(name, handle string) (models.ProductRedis, string, error)
+	GetLimVars(name string, vids []int) ([]*models.LimitedVariantRedis, error)
 }
 
 type productRepo struct {
@@ -87,4 +89,30 @@ func (r *productRepo) GetFullProduct(name, handle string) (models.ProductRedis, 
 	}
 
 	return product, "", nil
+}
+
+func (r *productRepo) GetLimVars(name string, vids []int) ([]*models.LimitedVariantRedis, error) {
+	var keys []string
+	for _, id := range vids {
+		keys = append(keys, name+"::LVR::"+strconv.Itoa(id))
+	}
+
+	results, err := r.rdb.MGet(context.Background(), keys...).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	var limitedVariants []*models.LimitedVariantRedis
+	for _, result := range results {
+		if result == nil {
+			continue
+		}
+		var variant models.LimitedVariantRedis
+		if err := json.Unmarshal([]byte(result.(string)), &variant); err != nil {
+			return nil, err
+		}
+		limitedVariants = append(limitedVariants, &variant)
+	}
+
+	return limitedVariants, nil
 }

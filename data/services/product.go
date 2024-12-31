@@ -18,6 +18,7 @@ type ProductService interface {
 	GetAllProductInfo(fromURL url.Values, Mutex *config.AllMutexes, name string) (models.CollectionRender, error)
 	GetProductAndProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRedis, models.ProductRender, string, error)
 	GetProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRender, string, error)
+	GetLimitedVariants(name string, vids []int) ([]*models.LimitedVariantRedis, error)
 }
 
 type productService struct {
@@ -173,4 +174,8 @@ func (s *productService) GetProductAndProductRender(Mutex *config.AllMutexes, na
 func (s *productService) GetProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRender, string, error) {
 	_, rend, redir, err := s.GetProductAndProductRender(Mutex, name, handle, id)
 	return rend, redir, err
+}
+
+func (s *productService) GetLimitedVariants(name string, vids []int) ([]*models.LimitedVariantRedis, error) {
+	return s.productRepo.GetLimVars(name, vids)
 }
