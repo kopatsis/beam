@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"beam/config"
 	"beam/data/models"
 	"errors"
 	"time"
@@ -23,6 +24,10 @@ type ListRepository interface {
 	DeleteLastOrdersListVariants(customerID int, variantIDs []int) error
 	DeleteFavesLine(customerID, variantID int) error
 	DeleteSavesList(customerID, variantID int) error
+	UpdateLastOrdersList(customerID int, orderDate time.Time, orderID string, variants map[int]int) error
+	GetFavesLineByPage(customerID, page int) ([]*models.FavesLine, bool, bool, error)
+	GetSavesListByPage(customerID, page int) ([]*models.SavesList, bool, bool, error)
+	GetLastOrdersListByPage(customerID, page int) ([]*models.LastOrdersList, bool, bool, error)
 }
 
 type listRepo struct {
@@ -167,4 +172,117 @@ func (r *listRepo) DeleteSavesList(customerID, variantID int) error {
 func (r *listRepo) DeleteLastOrdersListVariants(customerID int, variantIDs []int) error {
 	return r.db.Where("customer_id = ? AND variant_id IN (?)", customerID, variantIDs).
 		Delete(&models.LastOrdersList{}).Error
+}
+
+func (r *listRepo) UpdateLastOrdersList(customerID int, orderDate time.Time, orderID string, variants map[int]int) error {
+	variantIDs := make([]int, 0, len(variants))
+	for variantID := range variants {
+		variantIDs = append(variantIDs, variantID)
+	}
+
+	existingMap, err := r.CheckLastOrdersListMultiVar(customerID, variantIDs)
+	if err != nil {
+		return err
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		txRepo := &listRepo{db: tx}
+
+		toDelete := make([]int, 0)
+		for id, exists := range existingMap {
+			if exists {
+				toDelete = append(toDelete, id)
+			}
+		}
+
+		if len(toDelete) > 0 {
+			if err := txRepo.DeleteLastOrdersListVariants(customerID, toDelete); err != nil {
+				return err
+			}
+		}
+
+		if err := txRepo.AddLastOrdersList(customerID, orderDate, orderID, variants); err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+func (r *listRepo) GetFavesLineByPage(customerID, page int) ([]*models.FavesLine, bool, bool, error) {
+	limit := config.LIST_LIMIT
+	offset := (page - 1)
+	if offset < 0 {
+		offset = 0
+	}
+	offset *= limit
+
+	var faves []*models.FavesLine
+	if err := r.db.Where("customer_id = ?", customerID).
+		Order("add_date DESC").
+		Limit(limit + 1).
+		Offset(offset).
+		Find(&faves).Error; err != nil {
+		return nil, false, false, err
+	}
+
+	hasPrev := offset > 0
+	hasNext := len(faves) > limit
+	if hasNext {
+		faves = faves[:limit]
+	}
+
+	return faves, hasPrev, hasNext, nil
+}
+
+func (r *listRepo) GetSavesListByPage(customerID, page int) ([]*models.SavesList, bool, bool, error) {
+	limit := config.LIST_LIMIT
+	offset := (page - 1)
+	if offset < 0 {
+		offset = 0
+	}
+	offset *= limit
+
+	var saves []*models.SavesList
+	if err := r.db.Where("customer_id = ?", customerID).
+		Order("add_date DESC").
+		Limit(limit + 1).
+		Offset(offset).
+		Find(&saves).Error; err != nil {
+		return nil, false, false, err
+	}
+
+	hasPrev := offset > 0
+	hasNext := len(saves) > limit
+	if hasNext {
+		saves = saves[:limit]
+	}
+
+	return saves, hasPrev, hasNext, nil
+}
+
+func (r *listRepo) GetLastOrdersListByPage(customerID, page int) ([]*models.LastOrdersList, bool, bool, error) {
+	limit := config.LIST_LIMIT
+	offset := (page - 1)
+	if offset < 0 {
+		offset = 0
+	}
+	offset *= limit
+
+	var orders []*models.LastOrdersList
+	if err := r.db.Where("customer_id = ?", customerID).
+		Order("last_order DESC").
+		Limit(limit + 1).
+		Offset(offset).
+		Find(&orders).Error; err != nil {
+		return nil, false, false, err
+	}
+
+	hasPrev := offset > 0
+	hasNext := len(orders) > limit
+	if hasNext {
+		orders = orders[:limit]
+	}
+
+	return orders, hasPrev, hasNext, nil
 }

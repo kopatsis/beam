@@ -11,3 +11,5 @@ const IPEREQS int = 119
 const ESTREQS int = 199
 
 const SHIPINTERVAL time.Duration = 60 * time.Second
+
+const LIST_LIMIT = 15
