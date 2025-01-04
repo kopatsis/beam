@@ -18,12 +18,12 @@ type CartService interface {
 	DeleteCart(id int) error
 	AddToCart(id, handle, name string, quant int, prodServ *productService, custID int, guestID string, logger eventService) (*models.Cart, error)
 	GetCart(name string, custID int, guestID string) (*models.CartRender, error)
-	AdjustQuantity(id, handle, name string, quant int, prodServ *productService, custID int, guestID string, logger eventService) (*models.CartRender, error)
+	AdjustQuantity(id, cartID, lineID string, quant int, prodServ *productService, custID int, guestID string, logger eventService) (*models.CartRender, error)
 	ClearCart(name string, custID int, guestID string, logger eventService) (*models.CartRender, error)
 	AddGiftCard(message, store string, cents int, discService *discountService, tools *config.Tools, custID int, guestID string, logger eventService) (*models.Cart, error)
 	DeleteGiftCard(cartID, lineID string, custID int, guestID string, logger eventService) (*models.CartRender, error)
 
-	SavesListToCart(id, handle, name string, ps *productService, ls *listService, custID int, logger eventService) (*models.CartRender, error)
+	SavesListToCart(id, handle, name string, ps *productService, ls *listService, custID int, logger eventService) (models.SavesListRender, *models.CartRender, error)
 }
 
 type cartService struct {
@@ -464,21 +464,26 @@ func (s *cartService) DeleteGiftCard(cartID, lineID string, custID int, guestID 
 	return &ret, nil
 }
 
-func (s *cartService) SavesListToCart(id, handle, name string, ps *productService, ls *listService, custID int, logger eventService) (*models.CartRender, error) {
+func (s *cartService) SavesListToCart(id, handle, name string, ps *productService, ls *listService, custID int, logger eventService) (models.SavesListRender, *models.CartRender, error) {
 	vid, err := strconv.Atoi(id)
 	if err != nil {
-		return nil, err
+		return models.SavesListRender{}, nil, err
 	}
 
-	err = ls.DeleteSavesList(name, custID, vid, ps)
+	sl, err := ls.DeleteSavesListRender(name, custID, vid, 1, ps)
 	if err != nil {
-		return nil, err
+		return models.SavesListRender{}, nil, err
 	}
 
 	_, err = s.AddToCart(id, handle, name, 1, ps, custID, "", logger)
 	if err != nil {
-		return nil, err
+		return models.SavesListRender{}, nil, err
 	}
 
-	return s.GetCart(name, custID, "")
+	cr, err := s.GetCart(name, custID, "")
+	if err != nil {
+		return models.SavesListRender{}, nil, err
+	}
+
+	return sl, cr, nil
 }
