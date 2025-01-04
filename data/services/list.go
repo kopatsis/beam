@@ -16,9 +16,13 @@ type ListService interface {
 
 	AddFavesLine(name string, customerID, variantID int, ps *productService) error
 	AddSavesList(name string, customerID, variantID int, ps *productService) error
-
 	DeleteFavesLine(name string, customerID, variantID int, ps *productService) error
 	DeleteSavesList(name string, customerID, variantID int, ps *productService) error
+
+	AddFavesLineRender(name string, customerID, variantID int, page int, ps *productService) (models.FavesListRender, error, error)
+	AddSavesListRender(name string, customerID, variantID int, page int, ps *productService) (models.SavesListRender, error, error)
+	DeleteFavesLineRender(name string, customerID, variantID int, page int, ps *productService) (models.FavesListRender, error, error)
+	DeleteSavesListRender(name string, customerID, variantID int, page int, ps *productService) (models.SavesListRender, error, error)
 
 	UpdateLastOrdersList(customerID int, orderDate time.Time, orderID string, variants map[int]int) error
 
@@ -77,6 +81,30 @@ func (s *listService) DeleteSavesList(name string, customerID, variantID int, ps
 	}
 
 	return s.listRepo.DeleteSavesList(customerID, variantID)
+}
+
+func (s *listService) AddFavesLineRender(name string, customerID, variantID int, page int, ps *productService) (models.FavesListRender, error, error) {
+	modErr := s.AddFavesLine(name, customerID, variantID, ps)
+	l, getErr := s.GetFavesLineByPage(name, customerID, page, ps)
+	return l, getErr, modErr
+}
+
+func (s *listService) AddSavesListRender(name string, customerID, variantID int, page int, ps *productService) (models.SavesListRender, error, error) {
+	modErr := s.AddSavesList(name, customerID, variantID, ps)
+	l, getErr := s.GetSavesListByPage(name, customerID, page, ps)
+	return l, getErr, modErr
+}
+
+func (s *listService) DeleteFavesLineRender(name string, customerID, variantID int, page int, ps *productService) (models.FavesListRender, error, error) {
+	modErr := s.DeleteFavesLine(name, customerID, variantID, ps)
+	l, getErr := s.GetFavesLineByPage(name, customerID, page, ps)
+	return l, getErr, modErr
+}
+
+func (s *listService) DeleteSavesListRender(name string, customerID, variantID int, page int, ps *productService) (models.SavesListRender, error, error) {
+	modErr := s.DeleteSavesList(name, customerID, variantID, ps)
+	l, getErr := s.GetSavesListByPage(name, customerID, page, ps)
+	return l, getErr, modErr
 }
 
 func (s *listService) GetFavesLine(customerID int, variantID int) (bool, *models.FavesLine, error) {
