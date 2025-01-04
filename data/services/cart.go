@@ -22,6 +22,8 @@ type CartService interface {
 	ClearCart(name string, custID int, guestID string, logger eventService) (*models.CartRender, error)
 	AddGiftCard(message, store string, cents int, discService *discountService, tools *config.Tools, custID int, guestID string, logger eventService) (*models.Cart, error)
 	DeleteGiftCard(cartID, lineID string, custID int, guestID string, logger eventService) (*models.CartRender, error)
+
+	SavesListToCart(id, handle, name string, ps *productService, ls *listService, custID int, logger eventService) (*models.CartRender, error)
 }
 
 type cartService struct {
@@ -460,4 +462,23 @@ func (s *cartService) DeleteGiftCard(cartID, lineID string, custID int, guestID 
 
 	logger.SaveEvent(custID, guestID, "Cart", "Deleted Gift Card from Cart", "", "", "", "", "", strconv.Itoa(cart.ID), "", strconv.Itoa(lines[index].VariantID))
 	return &ret, nil
+}
+
+func (s *cartService) SavesListToCart(id, handle, name string, ps *productService, ls *listService, custID int, logger eventService) (*models.CartRender, error) {
+	vid, err := strconv.Atoi(id)
+	if err != nil {
+		return nil, err
+	}
+
+	err = ls.DeleteSavesList(name, custID, vid, ps)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = s.AddToCart(id, handle, name, 1, ps, custID, "", logger)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.GetCart(name, custID, "")
 }

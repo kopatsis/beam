@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"beam/data/models"
+	"errors"
 
 	"gorm.io/gorm"
 )
@@ -21,6 +22,8 @@ type CartRepository interface {
 	AddCartLine(cartLine models.CartLine) (models.CartLine, error)
 	SaveCartLine(cartLine models.CartLine) (models.CartLine, error)
 	DeleteCartWithLines(id int) error
+
+	GetCartLineWithValidation(customerID, cartID, lineID int) (*models.CartLine, error)
 }
 
 type cartRepo struct {
@@ -169,4 +172,22 @@ func (r *cartRepo) DeleteCartWithLines(id int) error {
 		}
 		return nil
 	})
+}
+
+func (r *cartRepo) GetCartLineWithValidation(customerID, cartID, lineID int) (*models.CartLine, error) {
+	var cart models.Cart
+	var cartLine models.CartLine
+
+	if err := r.db.Where("id = ?", cartID).First(&cart).Error; err != nil {
+		return nil, err
+	}
+	if cart.CustomerID != customerID || cart.Status != "Active" {
+		return nil, errors.New("invalid cart for customer or inactive status")
+	}
+
+	if err := r.db.Where("id = ? AND cart_id = ?", lineID, cartID).First(&cartLine).Error; err != nil {
+		return nil, err
+	}
+
+	return &cartLine, nil
 }

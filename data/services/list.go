@@ -4,6 +4,7 @@ import (
 	"beam/data/models"
 	"beam/data/repositories"
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -29,6 +30,8 @@ type ListService interface {
 	GetFavesLineByPage(name string, customerID, page int, ps *productService) (models.FavesListRender, error)
 	GetSavesListByPage(name string, customerID, page int, ps *productService) (models.SavesListRender, error)
 	GetLastOrdersListByPage(name string, customerID, page int, ps *productService) (models.LastOrderListRender, error)
+
+	CartToSavesList(name, cartID, lineID string, ps *productService, cs *cartService, custID int, logger eventService) (models.SavesListRender, error, error)
 }
 
 type listService struct {
@@ -329,4 +332,29 @@ func (s *listService) GetLastOrdersListByPage(name string, customerID, page int,
 	ret.Prev = prev
 	ret.Next = next
 	return ret, nil
+}
+
+func (s *listService) CartToSavesList(name, cartID, lineID string, ps *productService, cs *cartService, custID int, logger eventService) (models.SavesListRender, error, error) {
+
+	cid, err := strconv.Atoi(cartID)
+	if err != nil {
+		return models.SavesListRender{}, nil, err
+	}
+
+	lid, err := strconv.Atoi(lineID)
+	if err != nil {
+		return models.SavesListRender{}, nil, err
+	}
+
+	line, err := cs.cartRepo.GetCartLineWithValidation(custID, cid, lid)
+	if err != nil {
+		return models.SavesListRender{}, nil, err
+	}
+
+	_, err = cs.AdjustQuantity(name, cartID, lineID, 0, ps, custID, "", logger)
+	if err != nil {
+		return models.SavesListRender{}, nil, err
+	}
+
+	return s.AddSavesListRender(name, custID, line.VariantID, 1, ps)
 }
