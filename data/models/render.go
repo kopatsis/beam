@@ -101,3 +101,43 @@ type GiftCardRender struct {
 	GiftCard GiftCard
 	Expired  bool
 }
+
+// List Renders:
+type FavesLineRender struct {
+	Found     bool
+	FavesLine FavesLine
+	Variant   LimitedVariantRedis
+}
+
+type SavesLineRender struct {
+	Found     bool
+	SavesLine SavesList
+	Variant   LimitedVariantRedis
+}
+
+type LastOrderLineRender struct {
+	Found   bool
+	LOLine  LastOrdersList
+	Variant LimitedVariantRedis
+}
+
+type FavesListRender struct {
+	NoData bool
+	Data   []*FavesLineRender
+	Prev   bool
+	Next   bool
+}
+
+type SavesListRender struct {
+	NoData bool
+	Data   []*SavesLineRender
+	Prev   bool
+	Next   bool
+}
+
+type LastOrderListRender struct {
+	NoData bool
+	Data   []*LastOrderLineRender
+	Prev   bool
+	Next   bool
+}

@@ -12,4 +12,6 @@ const ESTREQS int = 199
 
 const SHIPINTERVAL time.Duration = 60 * time.Second
 
-const LIST_LIMIT = 15
+const FAVES_LIMIT = 15
+const SAVES_LIMIT = 50
+const LAST_ORDERED_LIMIT = 50

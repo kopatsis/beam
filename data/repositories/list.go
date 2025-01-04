@@ -10,21 +10,23 @@ import (
 )
 
 type ListRepository interface {
-	Create(list models.List) error
-	Read(id int) (*models.List, error)
-	Update(list models.List) error
-	Delete(id int) error
 	CheckFavesLine(customerID int, variantID int) (bool, *models.FavesLine, error)
 	CheckSavesList(customerID int, variantID int) (bool, *models.SavesList, error)
 	CheckLastOrdersList(customerID int, variantID int) (bool, *models.LastOrdersList, error)
+	CheckLastOrdersListProd(customerID int, productID int) (bool, *models.LastOrdersList, error)
+
 	AddFavesLine(customerID, productID, variantID int) error
 	AddSavesList(customerID, productID, variantID int) error
-	AddLastOrdersList(customerID int, orderDate time.Time, orderID string, variants map[int]int) error
-	CheckLastOrdersListMultiVar(customerID int, variantIDs []int) (map[int]bool, error)
-	DeleteLastOrdersListVariants(customerID int, variantIDs []int) error
+	AddLastOrdersList(customerID int, orderDate time.Time, orderID string, variants map[int]int) error // Internal?
+
+	CheckLastOrdersListMultiVar(customerID int, variantIDs []int) (map[int]bool, error) // Internal?
+
+	DeleteLastOrdersListVariants(customerID int, variantIDs []int) error // Internal?
 	DeleteFavesLine(customerID, variantID int) error
 	DeleteSavesList(customerID, variantID int) error
+
 	UpdateLastOrdersList(customerID int, orderDate time.Time, orderID string, variants map[int]int) error
+
 	GetFavesLineByPage(customerID, page int) ([]*models.FavesLine, bool, bool, error)
 	GetSavesListByPage(customerID, page int) ([]*models.SavesList, bool, bool, error)
 	GetLastOrdersListByPage(customerID, page int) ([]*models.LastOrdersList, bool, bool, error)
@@ -36,24 +38,6 @@ type listRepo struct {
 
 func NewListRepository(db *gorm.DB) ListRepository {
 	return &listRepo{db: db}
-}
-
-func (r *listRepo) Create(list models.List) error {
-	return r.db.Create(&list).Error
-}
-
-func (r *listRepo) Read(id int) (*models.List, error) {
-	var list models.List
-	err := r.db.First(&list, id).Error
-	return &list, err
-}
-
-func (r *listRepo) Update(list models.List) error {
-	return r.db.Save(&list).Error
-}
-
-func (r *listRepo) Delete(id int) error {
-	return r.db.Delete(&models.List{}, id).Error
 }
 
 func (r *listRepo) CheckFavesLine(customerID int, variantID int) (bool, *models.FavesLine, error) {
@@ -210,7 +194,7 @@ func (r *listRepo) UpdateLastOrdersList(customerID int, orderDate time.Time, ord
 }
 
 func (r *listRepo) GetFavesLineByPage(customerID, page int) ([]*models.FavesLine, bool, bool, error) {
-	limit := config.LIST_LIMIT
+	limit := config.FAVES_LIMIT
 	offset := (page - 1)
 	if offset < 0 {
 		offset = 0
@@ -236,7 +220,7 @@ func (r *listRepo) GetFavesLineByPage(customerID, page int) ([]*models.FavesLine
 }
 
 func (r *listRepo) GetSavesListByPage(customerID, page int) ([]*models.SavesList, bool, bool, error) {
-	limit := config.LIST_LIMIT
+	limit := config.SAVES_LIMIT
 	offset := (page - 1)
 	if offset < 0 {
 		offset = 0
@@ -262,7 +246,7 @@ func (r *listRepo) GetSavesListByPage(customerID, page int) ([]*models.SavesList
 }
 
 func (r *listRepo) GetLastOrdersListByPage(customerID, page int) ([]*models.LastOrdersList, bool, bool, error) {
-	limit := config.LIST_LIMIT
+	limit := config.LAST_ORDERED_LIMIT
 	offset := (page - 1)
 	if offset < 0 {
 		offset = 0
