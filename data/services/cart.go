@@ -7,7 +7,7 @@ import (
 	"beam/data/services/carthelp"
 	"beam/data/services/product"
 	"errors"
-	"os"
+	"fmt"
 	"strconv"
 )
 
@@ -17,11 +17,11 @@ type CartService interface {
 	UpdateCart(cart models.Cart) error
 	DeleteCart(id int) error
 	AddToCart(id, handle, name string, quant int, prodServ *productService, custID int, guestID string, logger eventService) (*models.Cart, error)
-	GetCart(name string, custID int, guestID string) (*models.CartRender, error)
+	GetCart(name string, custID int, guestID string, prodServ *productService) (*models.CartRender, error)
 	AdjustQuantity(id, cartID, lineID string, quant int, prodServ *productService, custID int, guestID string, logger eventService) (*models.CartRender, error)
 	ClearCart(name string, custID int, guestID string, logger eventService) (*models.CartRender, error)
 	AddGiftCard(message, store string, cents int, discService *discountService, tools *config.Tools, custID int, guestID string, logger eventService) (*models.Cart, error)
-	DeleteGiftCard(cartID, lineID string, custID int, guestID string, logger eventService) (*models.CartRender, error)
+	DeleteGiftCard(name, cartID, lineID string, custID int, guestID string, prodServ *productService, logger eventService) (*models.CartRender, error)
 
 	SavesListToCart(id, handle, name string, ps *productService, ls *listService, custID int, logger eventService) (models.SavesListRender, *models.CartRender, error)
 }
@@ -107,22 +107,9 @@ func (s *cartService) AddToCart(id, handle, name string, quant int, prodServ *pr
 
 	if line.ID == 0 {
 		line = models.CartLine{
-			ProductHandle: p.Handle,
-			ProductID:     p.PK,
-			VariantID:     vid,
-			ImageURL:      p.ImageURL,
-			ProductTitle:  p.Title,
-			Variant1Key:   p.Var1Key,
-			Variant1Value: p.Variants[index].Var1Value,
-			NonDiscPrice:  p.Variants[index].Price,
-		}
-		if p.Var2Key != "" {
-			line.Variant2Key = &p.Var2Key
-			line.Variant2Value = &p.Variants[index].Var2Value
-		}
-		if p.Var3Key != "" {
-			line.Variant3Key = &p.Var3Key
-			line.Variant3Value = &p.Variants[index].Var3Value
+			ProductID:    p.PK,
+			VariantID:    vid,
+			NonDiscPrice: p.Variants[index].Price,
 		}
 	}
 
@@ -151,7 +138,7 @@ func (s *cartService) AddToCart(id, handle, name string, quant int, prodServ *pr
 	return &cart, nil
 }
 
-func (s *cartService) GetCart(name string, custID int, guestID string) (*models.CartRender, error) {
+func (s *cartService) GetCart(name string, custID int, guestID string, prodServ *productService) (*models.CartRender, error) {
 	ret := models.CartRender{}
 
 	var err error
@@ -181,7 +168,9 @@ func (s *cartService) GetCart(name string, custID int, guestID string) (*models.
 	}
 
 	ret.Cart = cart
-	carthelp.UpdateCartSub(&ret)
+	if err := s.UpdateRender(name, &ret, prodServ); err != nil {
+		return nil, err
+	}
 
 	return &ret, nil
 }
@@ -234,11 +223,13 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 
 	if index == -1 {
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
-		carthelp.UpdateCartSub(&ret)
+		if err := s.UpdateRender(name, &ret, prodServ); err != nil {
+			return nil, err
+		}
 		return &ret, nil
 	}
 
-	prod, redir, err := prodServ.productRepo.GetFullProduct(name, lines[index].ProductHandle)
+	prod, redir, err := prodServ.GetProductByVariantID(name, lines[index].VariantID)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +240,9 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 			return nil, err
 		}
 		ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
-		carthelp.UpdateCartSub(&ret)
+		if err := s.UpdateRender(name, &ret, prodServ); err != nil {
+			return nil, err
+		}
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
 	}
 
@@ -266,7 +259,9 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 			return nil, err
 		}
 		ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
-		carthelp.UpdateCartSub(&ret)
+		if err := s.UpdateRender(name, &ret, prodServ); err != nil {
+			return nil, err
+		}
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
 	}
 
@@ -286,12 +281,16 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 	if err != nil {
 		ret.CartLines[index].ActualLine.Quantity = oldQuant
 		ret.CartLines[index].ActualLine.Price = product.VolumeDiscPrice(prod.Variants[varIndex].Price, oldQuant, prod.VolumeDisc)
-		carthelp.UpdateCartSub(&ret)
+		if err := s.UpdateRender(name, &ret, prodServ); err != nil {
+			return nil, err
+		}
 		ret.CartError = "Unable to update cart :/ Please refresh and try again"
 		return &ret, nil
 	}
 
-	carthelp.UpdateCartSub(&ret)
+	if err := s.UpdateRender(name, &ret, prodServ); err != nil {
+		return nil, err
+	}
 
 	return &ret, nil
 }
@@ -365,21 +364,17 @@ func (s *cartService) AddGiftCard(message, store string, cents int, discService 
 
 	var line models.CartLine
 
-	idDB, _, err := discService.CreateGiftCard(cents, message, store, tools)
+	idDB, gccode, err := discService.CreateGiftCard(cents, message, store, tools)
 
-	gcHandle, gcImg := os.Getenv("GC_HANDLE"), os.Getenv("GC_IMG")
 	if line.ID == 0 {
 		line = models.CartLine{
-			IsGiftCard:    true,
-			ProductHandle: gcHandle,
-			ProductID:     -1,
-			VariantID:     idDB,
-			ImageURL:      gcImg,
-			ProductTitle:  "GIFT CARD",
-			Variant1Key:   "Message",
-			Variant1Value: message,
-			Price:         cents,
-			Quantity:      1,
+			IsGiftCard:      true,
+			ProductID:       -1,
+			VariantID:       idDB,
+			GiftCardCode:    gccode,
+			GiftCardMessage: message,
+			Price:           cents,
+			Quantity:        1,
 		}
 	}
 
@@ -401,7 +396,7 @@ func (s *cartService) AddGiftCard(message, store string, cents int, discService 
 	return &cart, nil
 }
 
-func (s *cartService) DeleteGiftCard(cartID, lineID string, custID int, guestID string, logger eventService) (*models.CartRender, error) {
+func (s *cartService) DeleteGiftCard(name, cartID, lineID string, custID int, guestID string, prodServ *productService, logger eventService) (*models.CartRender, error) {
 	ret := models.CartRender{}
 
 	cid, err := strconv.Atoi(cartID)
@@ -449,7 +444,9 @@ func (s *cartService) DeleteGiftCard(cartID, lineID string, custID int, guestID 
 
 	if index == -1 {
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
-		carthelp.UpdateCartSub(&ret)
+		if err := s.UpdateRender(name, &ret, prodServ); err != nil {
+			return nil, err
+		}
 		return &ret, nil
 	}
 
@@ -458,7 +455,9 @@ func (s *cartService) DeleteGiftCard(cartID, lineID string, custID int, guestID 
 	}
 	ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
 
-	carthelp.UpdateCartSub(&ret)
+	if err := s.UpdateRender(name, &ret, prodServ); err != nil {
+		return nil, err
+	}
 
 	logger.SaveEvent(custID, guestID, "Cart", "Deleted Gift Card from Cart", "", "", "", "", "", strconv.Itoa(cart.ID), "", strconv.Itoa(lines[index].VariantID))
 	return &ret, nil
@@ -480,10 +479,47 @@ func (s *cartService) SavesListToCart(id, handle, name string, ps *productServic
 		return models.SavesListRender{}, nil, err
 	}
 
-	cr, err := s.GetCart(name, custID, "")
+	cr, err := s.GetCart(name, custID, "", ps)
 	if err != nil {
 		return models.SavesListRender{}, nil, err
 	}
 
 	return sl, cr, nil
+}
+
+func (s *cartService) UpdateRender(name string, cart *models.CartRender, ps *productService) error {
+	carthelp.UpdateCartSub(cart)
+	vids := []int{}
+
+	for _, cl := range cart.CartLines {
+		if !cl.ActualLine.IsGiftCard {
+			vids = append(vids, cl.ActualLine.VariantID)
+		}
+	}
+
+	lvs, err := ps.GetLimitedVariants(name, vids)
+	if err != nil {
+		return err
+	} else if len(lvs) != len(vids) {
+		return errors.New("variants returned incorrect length equal to variant IDs")
+	}
+
+	for i, cl := range cart.CartLines {
+		if !cl.ActualLine.IsGiftCard {
+			found := false
+			for _, lv := range lvs {
+				if lv.VariantID == cl.ActualLine.VariantID {
+					cl.Variant = *lv
+					found = true
+					cart.CartLines[i] = cl
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("could not find single lim var for id: %d", cl.ActualLine.VariantID)
+			}
+		}
+	}
+
+	return nil
 }

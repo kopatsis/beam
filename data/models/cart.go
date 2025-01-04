@@ -13,33 +13,35 @@ type Cart struct {
 	EverCheckedOut bool
 }
 
-type CartLine struct {
-	ID            int `gorm:"primaryKey"`
-	CartID        int `gorm:"index"`
-	ProductID     int `gorm:"index"`
-	VariantID     int `gorm:"index"`
-	IsGiftCard    bool
-	ProductHandle string
-	ImageURL      string
-	ProductTitle  string
-	Variant1Key   string
-	Variant1Value string
-	Variant2Key   *string
-	Variant2Value *string
-	Variant3Key   *string
-	Variant3Value *string
-	Quantity      int
-	NonDiscPrice  int
-	Price         int
-}
+// type CartLine struct {
+// 	ID            int `gorm:"primaryKey"`
+// 	CartID        int `gorm:"index"`
+// 	ProductID     int `gorm:"index"`
+// 	VariantID     int `gorm:"index"`
+// 	IsGiftCard    bool
+// 	ProductHandle string
+// 	ImageURL      string
+// 	ProductTitle  string
+// 	Variant1Key   string
+// 	Variant1Value string
+// 	Variant2Key   *string
+// 	Variant2Value *string
+// 	Variant3Key   *string
+// 	Variant3Value *string
+// 	Quantity      int
+// 	NonDiscPrice  int
+// 	Price         int
+// }
 
-type CartLineNew struct {
-	ID           int `gorm:"primaryKey"`
-	CartID       int `gorm:"index"`
-	VariantID    int `gorm:"index"`
-	ProductID    int `gorm:"index"`
-	IsGiftCard   bool
-	Quantity     int
-	NonDiscPrice int
-	Price        int
+type CartLine struct {
+	ID              int `gorm:"primaryKey"`
+	CartID          int `gorm:"index"`
+	VariantID       int `gorm:"index"`
+	ProductID       int `gorm:"index"`
+	Quantity        int
+	NonDiscPrice    int
+	Price           int
+	IsGiftCard      bool
+	GiftCardCode    string
+	GiftCardMessage string
 }

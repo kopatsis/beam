@@ -1,6 +1,8 @@
 package carthelp
 
-import "beam/data/models"
+import (
+	"beam/data/models"
+)
 
 func UpdateCartSub(cart *models.CartRender) {
 	quant, subtotal := 0, 0

@@ -19,6 +19,7 @@ type ProductService interface {
 	GetProductAndProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRedis, models.ProductRender, string, error)
 	GetProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRender, string, error)
 	GetLimitedVariants(name string, vids []int) ([]*models.LimitedVariantRedis, error)
+	GetProductByVariantID(name string, vid int) (models.ProductRedis, string, error)
 }
 
 type productService struct {
@@ -178,4 +179,15 @@ func (s *productService) GetProductRender(Mutex *config.AllMutexes, name, handle
 
 func (s *productService) GetLimitedVariants(name string, vids []int) ([]*models.LimitedVariantRedis, error) {
 	return s.productRepo.GetLimVars(name, vids)
+}
+
+func (s *productService) GetProductByVariantID(name string, vid int) (models.ProductRedis, string, error) {
+	vs, err := s.productRepo.GetLimVars(name, []int{vid})
+	if err != nil {
+		return models.ProductRedis{}, "", err
+	} else if len(vs) != 1 {
+		return models.ProductRedis{}, "", fmt.Errorf("differen than 1 returned for variant ID: %d", vid)
+	}
+
+	return s.productRepo.GetFullProduct(name, vs[0].Handle)
 }

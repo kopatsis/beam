@@ -206,6 +206,7 @@ func (s *listService) UpdateLastOrdersList(name string, customerID int, orderDat
 			if v.VariantID == vid {
 				use[vid] = v.ProductID
 				found = true
+				break
 			}
 		}
 		if !found {
@@ -249,6 +250,7 @@ func (s *listService) GetFavesLineByPage(name string, customerID, page int, ps *
 		for _, v := range lvs {
 			data[len(data)-1].Variant = *v
 			data[len(data)-1].Found = true
+			break
 		}
 	}
 
@@ -291,6 +293,7 @@ func (s *listService) GetSavesListByPage(name string, customerID, page int, ps *
 		for _, v := range lvs {
 			data[len(data)-1].Variant = *v
 			data[len(data)-1].Found = true
+			break
 		}
 	}
 
@@ -333,6 +336,7 @@ func (s *listService) GetLastOrdersListByPage(name string, customerID, page int,
 		for _, v := range lvs {
 			data[len(data)-1].Variant = *v
 			data[len(data)-1].Found = true
+			break
 		}
 	}
 

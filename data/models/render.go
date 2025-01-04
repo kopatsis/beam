@@ -83,6 +83,7 @@ type CartRender struct {
 
 type CartLineRender struct {
 	ActualLine    CartLine
+	Variant       LimitedVariantRedis
 	QuantityMaxed bool
 	Subtotal      int
 }
