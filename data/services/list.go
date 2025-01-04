@@ -8,11 +8,11 @@ import (
 )
 
 type ListService interface {
-	GetFavesLine(customerID int, variantID int) (bool, *models.FavesLine, error)
-	GetSavesList(customerID int, variantID int) (bool, *models.SavesList, error)
+	GetFavesLine(name string, customerID int, variantID int, ps *productService) (bool, error)
+	GetSavesList(name string, customerID int, variantID int, ps *productService) (bool, error)
 
-	GetLastOrdersList(customerID int, variantID int) (bool, *models.LastOrdersList, error)
-	GetLastOrdersListProd(customerID int, productID int) (bool, *models.LastOrdersList, error)
+	GetLastOrdersList(name string, customerID int, variantID int, ps *productService) (bool, *models.LastOrdersList, error)
+	GetLastOrdersListProd(name string, customerID int, productID int, ps *productService) (bool, *models.LastOrdersList, error)
 
 	AddFavesLine(name string, customerID, variantID int, ps *productService) error
 	AddSavesList(name string, customerID, variantID int, ps *productService) error
@@ -24,7 +24,7 @@ type ListService interface {
 	DeleteFavesLineRender(name string, customerID, variantID int, page int, ps *productService) (models.FavesListRender, error, error)
 	DeleteSavesListRender(name string, customerID, variantID int, page int, ps *productService) (models.SavesListRender, error, error)
 
-	UpdateLastOrdersList(customerID int, orderDate time.Time, orderID string, variants map[int]int) error
+	UpdateLastOrdersList(name string, customerID int, orderDate time.Time, orderID string, vids []int, ps *productService) error
 
 	GetFavesLineByPage(name string, customerID, page int, ps *productService) (models.FavesListRender, error)
 	GetSavesListByPage(name string, customerID, page int, ps *productService) (models.SavesListRender, error)
@@ -107,24 +107,102 @@ func (s *listService) DeleteSavesListRender(name string, customerID, variantID i
 	return l, getErr, modErr
 }
 
-func (s *listService) GetFavesLine(customerID int, variantID int) (bool, *models.FavesLine, error) {
-	panic("not implemented")
+func (s *listService) GetFavesLine(name string, customerID int, variantID int, ps *productService) (bool, error) {
+	lvs, err := ps.GetLimitedVariants(name, []int{variantID})
+	if err != nil {
+		return false, err
+	} else if len(lvs) != 1 {
+		return false, fmt.Errorf("could not find single lim var for id: %d", variantID)
+	}
+
+	in, _, err := s.listRepo.CheckFavesLine(customerID, variantID)
+	if err != nil {
+		return false, err
+	}
+
+	return in, nil
 }
 
-func (s *listService) GetSavesList(customerID int, variantID int) (bool, *models.SavesList, error) {
-	panic("not implemented")
+func (s *listService) GetSavesList(name string, customerID int, variantID int, ps *productService) (bool, error) {
+	lvs, err := ps.GetLimitedVariants(name, []int{variantID})
+	if err != nil {
+		return false, err
+	} else if len(lvs) != 1 {
+		return false, fmt.Errorf("could not find single lim var for id: %d", variantID)
+	}
+
+	in, _, err := s.listRepo.CheckSavesList(customerID, variantID)
+	if err != nil {
+		return false, err
+	}
+
+	return in, nil
 }
 
-func (s *listService) GetLastOrdersList(customerID int, variantID int) (bool, *models.LastOrdersList, error) {
-	panic("not implemented")
+func (s *listService) GetLastOrdersList(name string, customerID int, variantID int, ps *productService) (bool, *models.LastOrdersList, error) {
+	lvs, err := ps.GetLimitedVariants(name, []int{variantID})
+	if err != nil {
+		return false, nil, err
+	} else if len(lvs) != 1 {
+		return false, nil, fmt.Errorf("could not find single lim var for id: %d", variantID)
+	}
+
+	in, v, err := s.listRepo.CheckLastOrdersList(customerID, variantID)
+	if err != nil {
+		return false, nil, err
+	} else if !in {
+		return false, nil, nil
+	}
+
+	return true, v, nil
 }
 
-func (s *listService) GetLastOrdersListProd(customerID int, productID int) (bool, *models.LastOrdersList, error) {
-	panic("not implemented")
+func (s *listService) GetLastOrdersListProd(name string, customerID int, productID int, ps *productService) (bool, *models.LastOrdersList, error) {
+
+	in, v, err := s.listRepo.CheckLastOrdersList(customerID, productID)
+	if err != nil {
+		return false, nil, err
+	} else if !in {
+		return false, nil, nil
+	}
+
+	lvs, err := ps.GetLimitedVariants(name, []int{v.ProductID})
+	if err != nil {
+		return false, nil, err
+	} else if len(lvs) != 1 {
+		return false, nil, fmt.Errorf("could not find single lim var for id: %d", v.ProductID)
+	}
+
+	return true, v, nil
 }
 
-func (s *listService) UpdateLastOrdersList(customerID int, orderDate time.Time, orderID string, variants map[int]int) error {
-	panic("not implemented")
+func (s *listService) UpdateLastOrdersList(name string, customerID int, orderDate time.Time, orderID string, vids []int, ps *productService) error {
+	if len(vids) == 0 {
+		return nil
+	}
+
+	lvs, err := ps.GetLimitedVariants(name, vids)
+	if err != nil {
+		return err
+	} else if len(lvs) != len(vids) {
+		return fmt.Errorf("incorrect length match for fetching limited variants")
+	}
+
+	use := map[int]int{}
+	for _, vid := range vids {
+		found := false
+		for _, v := range lvs {
+			if v.VariantID == vid {
+				use[vid] = v.ProductID
+				found = true
+			}
+		}
+		if !found {
+			return fmt.Errorf("could not locate specific variant in limited variants: %d", vid)
+		}
+	}
+
+	return s.listRepo.UpdateLastOrdersList(customerID, orderDate, orderID, use)
 }
 
 func (s *listService) GetFavesLineByPage(name string, customerID, page int, ps *productService) (models.FavesListRender, error) {
