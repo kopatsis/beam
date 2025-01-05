@@ -292,11 +292,16 @@ func CompareCostsOfDraftOrder(draftOrder *models.DraftOrder, name string, tools 
 	}
 
 	cost := int(math.Round(draftOrder.OrderEstimate.Total * 100))
+	price := draftOrder.PreGiftCardTotal
 
-	if cost >= draftOrder.PreGiftCardTotal {
-		go emails.AlertEstimateTooHigh(name, draftOrder.ID.Hex(), tools, true, cost, draftOrder.PreGiftCardTotal)
-	} else if cost*6/5 >= draftOrder.PreGiftCardTotal {
-		go emails.AlertEstimateTooHigh(name, draftOrder.ID.Hex(), tools, false, cost, draftOrder.PreGiftCardTotal)
+	if draftOrder.CATax {
+		price -= draftOrder.Tax
+	}
+
+	if cost >= price {
+		go emails.AlertEstimateTooHigh(name, draftOrder.ID.Hex(), tools, true, cost, price)
+	} else if cost*6/5 >= price {
+		go emails.AlertEstimateTooHigh(name, draftOrder.ID.Hex(), tools, false, cost, price)
 	}
 
 	return nil
