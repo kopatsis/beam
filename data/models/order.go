@@ -59,7 +59,7 @@ type DraftOrder struct {
 	ID                    primitive.ObjectID           `bson:"_id,omitempty" json:"id"`
 	PrintfulID            string                       `bson:"printful_id" json:"printful_id"`
 	CustomerID            int                          `bson:"customer_id" json:"customer_id"`
-	Status                string                       `bson:"status" json:"status"`
+	Status                string                       `bson:"status" json:"status"` // Created (default), Modified, Expired, Abandoned, Attempted, Failed, Submitted
 	Email                 string                       `bson:"email" json:"email"`
 	FirstName             string                       `bson:"fname" json:"fname"`
 	LastName              string                       `bson:"lname" json:"lname"`

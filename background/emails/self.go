@@ -15,7 +15,7 @@ import (
 func AlertEmailRateDanger(store string, wait time.Duration, tools *config.Tools, completed bool) {
 	fromEmail := os.Getenv("ADMIN_EMAIL")
 	if fromEmail == "" {
-		log.Fatal("ADMIN_EMAIL is not set")
+		log.Println("ADMIN_EMAIL is not set")
 	}
 
 	toEmail := fromEmail
@@ -41,7 +41,7 @@ func AlertEmailRateDanger(store string, wait time.Duration, tools *config.Tools,
 func AlertIPRateDanger(ip string, wait time.Duration, tools *config.Tools, completed bool) {
 	fromEmail := os.Getenv("ADMIN_EMAIL")
 	if fromEmail == "" {
-		log.Fatal("ADMIN_EMAIL is not set")
+		log.Println("ADMIN_EMAIL is not set")
 	}
 
 	toEmail := fromEmail
@@ -67,7 +67,7 @@ func AlertIPRateDanger(ip string, wait time.Duration, tools *config.Tools, compl
 func AlertGiftCardID(id string, iter int, store string, tools *config.Tools) {
 	fromEmail := os.Getenv("ADMIN_EMAIL")
 	if fromEmail == "" {
-		log.Fatal("ADMIN_EMAIL is not set")
+		log.Println("ADMIN_EMAIL is not set")
 	}
 
 	toEmail := fromEmail
@@ -141,7 +141,7 @@ func HandleWebhook(tools *config.Tools, payload map[string]any) {
 func AlertEmailEstRateDanger(store string, wait time.Duration, tools *config.Tools, completed bool) {
 	fromEmail := os.Getenv("ADMIN_EMAIL")
 	if fromEmail == "" {
-		log.Fatal("ADMIN_EMAIL is not set")
+		log.Println("ADMIN_EMAIL is not set")
 	}
 
 	toEmail := fromEmail
@@ -167,7 +167,7 @@ func AlertEmailEstRateDanger(store string, wait time.Duration, tools *config.Too
 func AlertIPEstRateDanger(ip string, wait time.Duration, tools *config.Tools, completed bool) {
 	fromEmail := os.Getenv("ADMIN_EMAIL")
 	if fromEmail == "" {
-		log.Fatal("ADMIN_EMAIL is not set")
+		log.Println("ADMIN_EMAIL is not set")
 	}
 
 	toEmail := fromEmail
@@ -178,6 +178,32 @@ func AlertIPEstRateDanger(ip string, wait time.Duration, tools *config.Tools, co
 	}
 
 	message := fmt.Sprintf("The wait time for the rder Estimate API from IP is very high.\n\nIP: %s\nWait Time: %v\n\nPlease investigate.", ip, wait)
+
+	from := mail.NewEmail("Admin", fromEmail)
+	to := mail.NewEmail("Admin", toEmail)
+	content := mail.NewContent("text/plain", message)
+	mailMessage := mail.NewV3MailInit(from, subject, to, content)
+
+	_, err := tools.SendGrid.Send(mailMessage)
+	if err != nil {
+		log.Printf("Error sending email: %v", err)
+	}
+}
+
+func AlertEstimateTooHigh(store string, draftID string, tools *config.Tools, noProfit bool, cost, price int) {
+	fromEmail := os.Getenv("ADMIN_EMAIL")
+	if fromEmail == "" {
+		log.Println("ADMIN_EMAIL is not set")
+	}
+
+	toEmail := fromEmail
+	subject := "SERIOUS Alert: Order Estimate Too HIgh"
+
+	if noProfit {
+		subject += " + ZERO OR NEGATIVE PROFIT"
+	}
+
+	message := fmt.Sprintf("The order estimate is too high for this current cost.\n\nStore: %s\nDraft Order ID: %s\nOrder Estimate in cents: %d\nPre Gift Card Total in cents: %d\n\nCHECK NOW.", store, draftID, cost, price)
 
 	from := mail.NewEmail("Admin", fromEmail)
 	to := mail.NewEmail("Admin", toEmail)

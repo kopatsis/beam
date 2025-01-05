@@ -1,10 +1,10 @@
 package draftorderhelp
 
 import (
+	"beam/config"
 	"beam/data/models"
 	"beam/data/services/product"
 	"errors"
-	"os"
 	"strconv"
 	"time"
 )
@@ -33,9 +33,9 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Car
 
 		if line.IsGiftCard {
 			orderLine = models.OrderLine{
-				ImageURL:          os.Getenv("GC_IMG"),
-				ProductTitle:      os.Getenv("GC_NAME"),
-				Handle:            os.Getenv("GC_HANDLE"),
+				ImageURL:          config.GC_IMG,
+				ProductTitle:      config.GC_NAME,
+				Handle:            config.GC_HANDLE,
 				Variant1Key:       "Message",
 				Variant1Value:     line.GiftCardMessage,
 				ProductID:         strconv.Itoa(line.ProductID),

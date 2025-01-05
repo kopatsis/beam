@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"strconv"
@@ -276,6 +277,26 @@ func DraftOrderEstimateUpdate(draftOrder *models.DraftOrder, newContact models.O
 			draftOrder.AllOrderEstimates[address] = *newEst
 			draftOrder.OrderEstimate = *newEst
 		}
+	}
+
+	return CompareCostsOfDraftOrder(draftOrder, name, tools)
+}
+
+func CompareCostsOfDraftOrder(draftOrder *models.DraftOrder, name string, tools *config.Tools) error {
+	if draftOrder.OrderEstimate.Total <= 0 {
+		return errors.New("no pending order estiamte")
+	}
+
+	if draftOrder.PreGiftCardTotal <= 0 {
+		return errors.New("no pending order price")
+	}
+
+	cost := int(math.Round(draftOrder.OrderEstimate.Total * 100))
+
+	if cost >= draftOrder.PreGiftCardTotal {
+		go emails.AlertEstimateTooHigh(name, draftOrder.ID.Hex(), tools, true, cost, draftOrder.PreGiftCardTotal)
+	} else if cost*6/5 >= draftOrder.PreGiftCardTotal {
+		go emails.AlertEstimateTooHigh(name, draftOrder.ID.Hex(), tools, false, cost, draftOrder.PreGiftCardTotal)
 	}
 
 	return nil

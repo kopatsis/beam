@@ -15,3 +15,7 @@ const SHIPINTERVAL time.Duration = 60 * time.Second
 const FAVES_LIMIT = 15
 const SAVES_LIMIT = 50
 const LAST_ORDERED_LIMIT = 50
+
+const GC_HANDLE string = "/giftcard"
+const GC_IMG string = "https://cdn.com/gc_"
+const GC_NAME string = "Gift Card"
