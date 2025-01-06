@@ -284,7 +284,7 @@ func DraftOrderEstimateUpdate(draftOrder *models.DraftOrder, newContact *models.
 
 func CompareCostsOfDraftOrder(draftOrder *models.DraftOrder, name string, tools *config.Tools) error {
 	if draftOrder.OrderEstimate.Total <= 0 {
-		return errors.New("no pending order estiamte")
+		return errors.New("no pending order estimate")
 	}
 
 	if draftOrder.PreGiftCardTotal <= 0 {

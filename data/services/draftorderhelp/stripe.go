@@ -93,3 +93,21 @@ func updateStripePaymentIntent(paymentIntentID string, total int) error {
 
 	return nil
 }
+
+func DetachPaymentMethod(customerID, paymentMethodID string) error {
+	pm, err := paymentmethod.Get(paymentMethodID, nil)
+	if err != nil {
+		return fmt.Errorf("error fetching payment method: %w", err)
+	}
+
+	if pm.Customer == nil || pm.Customer.ID != customerID {
+		return fmt.Errorf("payment method %s does not belong to customer %s", paymentMethodID, customerID)
+	}
+
+	_, err = paymentmethod.Detach(paymentMethodID, nil)
+	if err != nil {
+		return fmt.Errorf("error detaching payment method: %w", err)
+	}
+
+	return nil
+}
