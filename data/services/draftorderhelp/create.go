@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Cart, cartLines []models.CartLine, products map[int]models.ProductRedis, contacts []*models.Contact) (*models.DraftOrder, error) {
+func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Cart, cartLines []models.CartLine, products map[int]*models.ProductRedis, contacts []*models.Contact) (*models.DraftOrder, error) {
 
 	orderLines := []models.OrderLine{}
 	subtotal := 0

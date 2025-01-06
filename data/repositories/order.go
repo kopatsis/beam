@@ -10,10 +10,10 @@ import (
 )
 
 type OrderRepository interface {
-	Create(order models.Order) error
-	Read(id string) (*models.Order, error)
-	Update(order models.Order) error
-	Delete(id string) error
+	CreateDraft(order *models.DraftOrder) error
+	ReadDraft(id string) (*models.DraftOrder, error)
+	UpdateDraft(order *models.DraftOrder) error
+	DeleteDraft(id string) error
 }
 
 type orderRepo struct {
@@ -21,26 +21,26 @@ type orderRepo struct {
 }
 
 func NewOrderRepository(mdb *mongo.Database) OrderRepository {
-	collection := mdb.Collection("Order")
+	collection := mdb.Collection("Draft_Order")
 	return &orderRepo{coll: collection}
 }
 
-func (r *orderRepo) Create(order models.Order) error {
+func (r *orderRepo) CreateDraft(order *models.DraftOrder) error {
 	_, err := r.coll.InsertOne(context.Background(), order)
 	return err
 }
 
-func (r *orderRepo) Read(id string) (*models.Order, error) {
+func (r *orderRepo) ReadDraft(id string) (*models.DraftOrder, error) {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, err
 	}
-	var order models.Order
+	var order models.DraftOrder
 	err = r.coll.FindOne(context.Background(), bson.M{"_id": objID}).Decode(&order)
 	return &order, err
 }
 
-func (r *orderRepo) Update(order models.Order) error {
+func (r *orderRepo) UpdateDraft(order *models.DraftOrder) error {
 	_, err := r.coll.UpdateOne(
 		context.Background(),
 		bson.M{"_id": order.ID},
@@ -49,7 +49,7 @@ func (r *orderRepo) Update(order models.Order) error {
 	return err
 }
 
-func (r *orderRepo) Delete(id string) error {
+func (r *orderRepo) DeleteDraft(id string) error {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return err

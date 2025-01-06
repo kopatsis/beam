@@ -324,7 +324,7 @@ func createItemsArray(orderLines []models.OrderLine) []map[string]any {
 	return items
 }
 
-func EvaluateFreeShip(draftOrder *models.DraftOrder, customer *models.Customer, products map[int]models.ProductRedis) bool {
+func EvaluateFreeShip(draftOrder *models.DraftOrder, customer *models.Customer, products map[int]*models.ProductRedis) bool {
 	freeShipSubtotal, err := strconv.Atoi(os.Getenv("FREESHIP_SUBTOTAL"))
 	if err != nil {
 		return false
