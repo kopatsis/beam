@@ -5,6 +5,7 @@ import (
 	"beam/data/repositories"
 	"beam/data/services/draftorderhelp"
 	"errors"
+	"fmt"
 	"sync"
 )
 
@@ -22,45 +23,56 @@ func NewDraftOrderService(draftRepo repositories.DraftOrderRepository) DraftOrde
 }
 
 func (s *draftOrderService) CreateDraftOrder(name string, customerID int, guestID string, crs *cartService, pds *productService, cts *customerService) (*models.DraftOrder, error) {
-	var cart models.Cart
-	var cartLines []models.CartLine
-	var contacts []*models.Contact
-	var cust *models.Customer
-	var pMap map[int]*models.ProductRedis
-	var err error
-	var exists bool
 	var wg sync.WaitGroup
+
+	cart := models.Cart{}
+	cartLines := []models.CartLine{}
+	contacts := []*models.Contact{}
+	cust := &models.Customer{}
+	pMap := map[int]*models.ProductRedis{}
+	exists := false
+
+	cartErr, customerErr, contactsErr, productErr := error(nil), error(nil), error(nil), error(nil)
 
 	wg.Add(4)
 
 	go func() {
 		defer wg.Done()
 		if customerID == 0 && guestID != "" {
-			cart, cartLines, exists, err = crs.cartRepo.GetCartWithLinesByGuestID(guestID)
+			cart, cartLines, exists, cartErr = crs.cartRepo.GetCartWithLinesByGuestID(guestID)
 		} else {
-			cart, cartLines, exists, err = crs.cartRepo.GetCartWithLinesByCustomerID(customerID)
+			cart, cartLines, exists, cartErr = crs.cartRepo.GetCartWithLinesByCustomerID(customerID)
 		}
 	}()
 
 	go func() {
 		defer wg.Done()
-		cust, err = cts.GetCustomerByID(customerID)
+		cust, customerErr = cts.GetCustomerByID(customerID)
 	}()
 
 	go func() {
 		defer wg.Done()
-		contacts, err = cts.customerRepo.GetContactsWithDefault(customerID)
+		contacts, contactsErr = cts.customerRepo.GetContactsWithDefault(customerID)
 	}()
 
 	go func() {
 		defer wg.Done()
-		pMap, err = pds.GetProductsMapFromCartLine(name, cartLines)
+		pMap, productErr = pds.GetProductsMapFromCartLine(name, cartLines)
 	}()
 
 	wg.Wait()
 
-	if err != nil {
-		return nil, err
+	if cartErr != nil {
+		return nil, cartErr
+	}
+	if customerErr != nil {
+		return nil, customerErr
+	}
+	if contactsErr != nil {
+		return nil, contactsErr
+	}
+	if productErr != nil {
+		return nil, productErr
 	}
 	if !exists {
 		return nil, errors.New("no existing cart")
@@ -113,4 +125,59 @@ func (s *draftOrderService) GetDraftOrder(name, draftID, guestID string, custome
 	}
 
 	return draft, "", nil
+}
+
+func (s *draftOrderService) PostRenderUpdate(draftID string, customerID int, cts *customerService) (*models.DraftOrder, error) {
+
+	var wg sync.WaitGroup
+
+	var draft *models.DraftOrder
+	var cust *models.Customer
+	draftErr, customerErr := error(nil), error(nil)
+
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		draft, draftErr = s.draftOrderRepo.Read(draftID)
+		if draftErr == nil && (draft.Status == "Failed" || draft.Status == "Submitted" || draft.Status == "Expired" || draft.Status == "Abandoned") {
+			draftErr = fmt.Errorf("incorrect status for actions with draft: %s", draft.Status)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		cust, customerErr = cts.GetCustomerByID(customerID)
+	}()
+
+	wg.Wait()
+
+	if draftErr != nil {
+		return nil, draftErr
+	}
+
+	if customerErr != nil {
+		return nil, customerErr
+	}
+
+	pms, err := draftorderhelp.GetAllPaymentMethods(cust.StripeID)
+	if err != nil {
+		return nil, err
+	}
+
+	draft.AllPaymentMethods = pms
+
+	in := false
+	for _, pm := range pms {
+		if pm.ID == draft.ExistingPaymentMethod.ID {
+			in = true
+		}
+	}
+
+	if !in {
+		draft.ExistingPaymentMethod = models.PaymentMethodStripe{}
+	}
+
+	return draft, nil
+
 }
