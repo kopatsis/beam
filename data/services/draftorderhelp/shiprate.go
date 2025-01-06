@@ -139,7 +139,7 @@ func applyRateLimitsConcurrently(storeName, ip string, tools *config.Tools) erro
 	return nil
 }
 
-func UpdateShippingRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name, ip string, tools *config.Tools) error {
+func UpdateShippingRates(draft *models.DraftOrder, newContact *models.Contact, mutexes *config.AllMutexes, name, ip string, tools *config.Tools) error {
 	address := newContact.StreetAddress1 + ", " + newContact.City + ", " + newContact.ProvinceState + ", " + newContact.ZipCode + ", " + newContact.Country
 
 	freeship := slices.Contains(draft.Tags, "FREESHIP_O")
@@ -213,7 +213,7 @@ func convertRateToCents(rate string) (int, error) {
 	return rateInt, nil
 }
 
-func getApiShipRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name, ip string, freeship bool, tools *config.Tools) ([]models.ShippingRate, error) {
+func getApiShipRates(draft *models.DraftOrder, newContact *models.Contact, mutexes *config.AllMutexes, name, ip string, freeship bool, tools *config.Tools) ([]models.ShippingRate, error) {
 
 	mutexes.Api.Mu.RLock()
 	apiKey := mutexes.Api.KeyMap[name]

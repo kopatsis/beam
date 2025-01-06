@@ -9,22 +9,7 @@ import (
 	"time"
 )
 
-func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Cart, cartLines []models.CartLine, products map[int]models.ProductRedis, contact *models.Contact) (*models.DraftOrder, error) {
-	var shippingContact *models.OrderContact
-	if contact != nil {
-		shippingContact = &models.OrderContact{
-			FirstName:      contact.FirstName,
-			LastName:       *contact.LastName,
-			CompanyName:    *contact.Company,
-			PhoneNumber:    *contact.PhoneNumber,
-			StreetAddress1: contact.StreetAddress1,
-			StreetAddress2: *contact.StreetAddress2,
-			City:           contact.City,
-			ProvinceState:  contact.ProvinceState,
-			ZipCode:        contact.ZipCode,
-			Country:        contact.Country,
-		}
-	}
+func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Cart, cartLines []models.CartLine, products map[int]models.ProductRedis, contacts []*models.Contact) (*models.DraftOrder, error) {
 
 	orderLines := []models.OrderLine{}
 	subtotal := 0
@@ -90,10 +75,6 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Car
 		orderLines = append(orderLines, orderLine)
 	}
 
-	if customer != nil {
-
-	}
-
 	draftOrder := &models.DraftOrder{
 		Status:             "Created",
 		LastName:           "",
@@ -107,9 +88,13 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Car
 		PostTaxTotal:       subtotal,
 		GiftCardSum:        0,
 		Total:              subtotal,
-		ShippingContact:    *shippingContact,
 		Lines:              orderLines,
 		Guest:              false,
+	}
+
+	if len(contacts) > 0 {
+		draftOrder.ShippingContact = contacts[0]
+		draftOrder.ListedContacts = contacts
 	}
 
 	if customer != nil {

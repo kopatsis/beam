@@ -34,7 +34,7 @@ type Order struct {
 	GiftCardSum            int                `bson:"gc_sum" json:"gc_sum"`
 	Total                  int                `bson:"total" json:"total"`
 	OrderDiscount          OrderDiscount      `bson:"non_stacking_discount_code" json:"non_stacking_discount_code"`
-	ShippingContact        OrderContact       `bson:"shipping_contact" json:"shipping_contact"`
+	ShippingContact        *Contact           `bson:"shipping_contact" json:"shipping_contact"`
 	Lines                  []OrderLine        `bson:"lines" json:"lines"`
 	Tags                   []string           `bson:"tags" json:"tags"`
 	DeliveryNote           string             `bson:"delivery_note" json:"delivery_note"`
@@ -53,6 +53,7 @@ type Order struct {
 	GiftMessage            string             `bson:"gift_mess" json:"gift_mess"`
 	CATax                  bool               `bson:"ca_tax" json:"ca_tax"`
 	CATaxRate              float64            `bson:"ca_tax_rate" json:"ca_tax_rate"`
+	PaymentMethodID        string             `bson:"pm_id" json:"pm_id"`
 }
 
 type DraftOrder struct {
@@ -78,7 +79,7 @@ type DraftOrder struct {
 	GiftCardSum           int                          `bson:"gc_sum" json:"gc_sum"`
 	Total                 int                          `bson:"total" json:"total"`
 	OrderDiscount         OrderDiscount                `bson:"non_stacking_discount_code" json:"non_stacking_discount_code"`
-	ShippingContact       OrderContact                 `bson:"shipping_contact" json:"shipping_contact"`
+	ShippingContact       *Contact                     `bson:"shipping_contact" json:"shipping_contact"`
 	Lines                 []OrderLine                  `bson:"lines" json:"lines"`
 	GiftCards             []OrderGiftCard              `bson:"gift_cards" json:"gift_cards"`
 	Tags                  []string                     `bson:"tags" json:"tags"`
@@ -94,6 +95,10 @@ type DraftOrder struct {
 	GiftMessage           string                       `bson:"gift_mess" json:"gift_mess"`
 	CATax                 bool                         `bson:"ca_tax" json:"ca_tax"`
 	CATaxRate             float64                      `bson:"ca_tax_rate" json:"ca_tax_rate"`
+	NewPaymentMethodID    string                       `bson:"new_pm_id" json:"new_pm_id"`
+	ExistingPaymentMethod PaymentMethodStripe          `bson:"ex_pm" json:"ex_pm"`
+	AllPaymentMethods     []PaymentMethodStripe        `bson:"all_pm" json:"all_pm"`
+	ListedContacts        []*Contact                   `bson:"all_contacts" json:"all_contacts"`
 }
 
 type OrderGiftCard struct {
@@ -140,18 +145,18 @@ type OrderLine struct {
 	LineTotal         int                    `bson:"line_total" json:"line_total"`
 }
 
-type OrderContact struct {
-	FirstName      string `bson:"first_name" json:"first_name"`
-	LastName       string `bson:"last_name" json:"last_name"`
-	CompanyName    string `bson:"comp_name" json:"comp_name"`
-	PhoneNumber    string `bson:"phone_number" json:"phone_number"`
-	StreetAddress1 string `bson:"street_address_1" json:"street_address_1"`
-	StreetAddress2 string `bson:"street_address_2" json:"street_address_2"`
-	City           string `bson:"city" json:"city"`
-	ProvinceState  string `bson:"province_state" json:"province_state"`
-	ZipCode        string `bson:"zip_code" json:"zip_code"`
-	Country        string `bson:"country" json:"country"`
-}
+// type OrderContact struct {
+// 	FirstName      string `bson:"first_name" json:"first_name"`
+// 	LastName       string `bson:"last_name" json:"last_name"`
+// 	CompanyName    string `bson:"comp_name" json:"comp_name"`
+// 	PhoneNumber    string `bson:"phone_number" json:"phone_number"`
+// 	StreetAddress1 string `bson:"street_address_1" json:"street_address_1"`
+// 	StreetAddress2 string `bson:"street_address_2" json:"street_address_2"`
+// 	City           string `bson:"city" json:"city"`
+// 	ProvinceState  string `bson:"province_state" json:"province_state"`
+// 	ZipCode        string `bson:"zip_code" json:"zip_code"`
+// 	Country        string `bson:"country" json:"country"`
+// }
 
 type ShippingRate struct {
 	ID              string    `json:"id" bson:"id"`

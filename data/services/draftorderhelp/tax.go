@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-func GetTaxRate(client *http.Client, contact models.OrderContact) (float64, error) {
+func GetTaxRate(client *http.Client, contact *models.Contact) (float64, error) {
 	if client == nil {
 		return 0, errors.New("http client is required")
 	}
@@ -49,7 +49,7 @@ func GetTaxRate(client *http.Client, contact models.OrderContact) (float64, erro
 	return 0, errors.New("no tax rate information found")
 }
 
-func GetRateWithFallback(client *http.Client, contact models.OrderContact, taxData *config.TaxMutex) (float64, error) {
+func GetRateWithFallback(client *http.Client, contact *models.Contact, taxData *config.TaxMutex) (float64, error) {
 	if client == nil || taxData == nil {
 		return 0, errors.New("client, contact, and taxData are required")
 	}

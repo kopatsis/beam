@@ -140,7 +140,7 @@ func applyEstRateLimitsConcurrently(storeName, ip string, tools *config.Tools) e
 	return nil
 }
 
-func getEstApiShipRates(draft *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name, ip, rateName string, tools *config.Tools) (*models.OrderEstimateCost, error) {
+func getEstApiShipRates(draft *models.DraftOrder, newContact *models.Contact, mutexes *config.AllMutexes, name, ip, rateName string, tools *config.Tools) (*models.OrderEstimateCost, error) {
 
 	if rateName == "" {
 		rateName = "STANDARD"
@@ -260,7 +260,7 @@ func createEstItemsArray(orderLines []models.OrderLine) ([]apidata.Items, error)
 	return items, nil
 }
 
-func DraftOrderEstimateUpdate(draftOrder *models.DraftOrder, newContact models.OrderContact, mutexes *config.AllMutexes, name, ip, shipRate string, tools *config.Tools) error {
+func DraftOrderEstimateUpdate(draftOrder *models.DraftOrder, newContact *models.Contact, mutexes *config.AllMutexes, name, ip, shipRate string, tools *config.Tools) error {
 	if shipRate == "" {
 		shipRate = "STANDARD"
 	}

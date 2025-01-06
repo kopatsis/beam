@@ -7,6 +7,7 @@ import (
 	"beam/data/services/product"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 )
 
@@ -20,6 +21,7 @@ type ProductService interface {
 	GetProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRender, string, error)
 	GetLimitedVariants(name string, vids []int) ([]*models.LimitedVariantRedis, error)
 	GetProductByVariantID(name string, vid int) (models.ProductRedis, string, error)
+	GetProductsByVariantIDs(name string, vids []int) (map[int]*models.ProductRedis, error)
 }
 
 type productService struct {
@@ -186,8 +188,37 @@ func (s *productService) GetProductByVariantID(name string, vid int) (models.Pro
 	if err != nil {
 		return models.ProductRedis{}, "", err
 	} else if len(vs) != 1 {
-		return models.ProductRedis{}, "", fmt.Errorf("differen than 1 returned for variant ID: %d", vid)
+		return models.ProductRedis{}, "", fmt.Errorf("different than 1 returned for variant ID: %d", vid)
 	}
 
 	return s.productRepo.GetFullProduct(name, vs[0].Handle)
+}
+
+func (s *productService) GetProductsByVariantIDs(name string, vids []int) (map[int]*models.ProductRedis, error) {
+	vs, err := s.productRepo.GetLimVars(name, vids)
+	if err != nil {
+		return nil, err
+	} else if len(vs) != len(vids) {
+		return nil, fmt.Errorf("incorrect limited variant count for supplied variant IDs ")
+	}
+
+	handles := []string{}
+	for _, v := range vs {
+		if !slices.Contains(handles, v.Handle) {
+			handles = append(handles, v.Handle)
+		}
+	}
+
+	sl, err := s.productRepo.GetFullProducts(name, handles)
+	if err != nil {
+		return nil, err
+	}
+
+	ret := map[int]*models.ProductRedis{}
+
+	for _, l := range sl {
+		ret[l.PK] = l
+	}
+
+	return ret, nil
 }

@@ -21,16 +21,16 @@ type Customer struct {
 }
 
 type Contact struct {
-	ID             int `gorm:"primaryKey"`
-	CustomerID     int `gorm:"index"`
-	FirstName      string
-	LastName       *string
-	Company        *string
-	PhoneNumber    *string
-	StreetAddress1 string
-	StreetAddress2 *string
-	City           string
-	ProvinceState  string
-	ZipCode        string
-	Country        string
+	ID             int     `gorm:"primaryKey" json:"id" bson:"_id"`
+	CustomerID     int     `gorm:"index" json:"customer_id" bson:"customer_id"`
+	FirstName      string  `json:"first_name" bson:"first_name"`
+	LastName       *string `json:"last_name,omitempty" bson:"last_name,omitempty"`
+	Company        *string `json:"company,omitempty" bson:"company,omitempty"`
+	PhoneNumber    *string `json:"phone_number,omitempty" bson:"phone_number,omitempty"`
+	StreetAddress1 string  `json:"street_address_1" bson:"street_address_1"`
+	StreetAddress2 *string `json:"street_address_2,omitempty" bson:"street_address_2,omitempty"`
+	City           string  `json:"city" bson:"city"`
+	ProvinceState  string  `json:"province_state" bson:"province_state"`
+	ZipCode        string  `json:"zip_code" bson:"zip_code"`
+	Country        string  `json:"country" bson:"country"`
 }

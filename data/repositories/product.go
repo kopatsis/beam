@@ -20,6 +20,7 @@ type ProductRepository interface {
 	GetAllProductInfo(name string) ([]models.ProductInfo, error)
 	GetFullProduct(name, handle string) (models.ProductRedis, string, error)
 	GetLimVars(name string, vids []int) ([]*models.LimitedVariantRedis, error)
+	GetFullProducts(name string, handles []string) ([]*models.ProductRedis, error)
 }
 
 type productRepo struct {
@@ -115,4 +116,33 @@ func (r *productRepo) GetLimVars(name string, vids []int) ([]*models.LimitedVari
 	}
 
 	return limitedVariants, nil
+}
+
+func (r *productRepo) GetFullProducts(name string, handles []string) ([]*models.ProductRedis, error) {
+	var products []*models.ProductRedis
+	keys := make([]string, len(handles))
+
+	for i, handle := range handles {
+		keys[i] = name + "::PRO::" + handle
+	}
+
+	data, err := r.rdb.MGet(context.Background(), keys...).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, d := range data {
+		var product models.ProductRedis
+
+		if str, ok := d.(string); ok && strings.HasPrefix(str, "RDR::") {
+			continue
+		}
+
+		if err := json.Unmarshal([]byte(d.(string)), &product); err != nil {
+			return nil, err
+		}
+		products = append(products, &product)
+	}
+
+	return products, nil
 }

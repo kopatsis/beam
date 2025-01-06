@@ -10,9 +10,9 @@ import (
 )
 
 type DraftOrderRepository interface {
-	Create(draftOrder models.DraftOrder) error
+	Create(draftOrder *models.DraftOrder) error
 	Read(id string) (*models.DraftOrder, error)
-	Update(draftOrder models.DraftOrder) error
+	Update(draftOrder *models.DraftOrder) error
 	Delete(id string) error
 }
 
@@ -25,7 +25,7 @@ func NewDraftOrderRepository(mdb *mongo.Database) DraftOrderRepository {
 	return &draftOrderRepo{coll: collection}
 }
 
-func (r *draftOrderRepo) Create(draftOrder models.DraftOrder) error {
+func (r *draftOrderRepo) Create(draftOrder *models.DraftOrder) error {
 	_, err := r.coll.InsertOne(context.Background(), draftOrder)
 	return err
 }
@@ -40,7 +40,7 @@ func (r *draftOrderRepo) Read(id string) (*models.DraftOrder, error) {
 	return &draftOrder, err
 }
 
-func (r *draftOrderRepo) Update(draftOrder models.DraftOrder) error {
+func (r *draftOrderRepo) Update(draftOrder *models.DraftOrder) error {
 	_, err := r.coll.UpdateOne(
 		context.Background(),
 		bson.M{"_id": draftOrder.ID},
