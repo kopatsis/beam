@@ -104,29 +104,16 @@ func (s *draftOrderService) GetDraftOrder(name, draftID, guestID string, custome
 	if customerID > 0 {
 		contacts, err := cts.customerRepo.GetContactsWithDefault(customerID)
 		if err == nil {
-			if len(contacts) < 1 {
-				draft.ShippingContact = nil
-				draft.ListedContacts = nil
-			} else {
-				found := false
-				for _, c := range contacts {
-					if c.ID == draft.ShippingContact.ID {
-						found = true
-						break
-					}
-				}
-				if !found {
-					draft.ShippingContact = contacts[0]
-				}
-				draft.ListedContacts = contacts
+			if draftorderhelp.MergeAddresses(draft, contacts) {
+				go s.draftOrderRepo.Update(draft)
 			}
-			go s.draftOrderRepo.Update(draft)
 		}
 	}
 
 	return draft, "", nil
 }
 
+// Re-updates the payment methods, the shipping options, the order estimates, and the CA tax if done that way -> check payment intent/update w/ new $, OR create new one
 func (s *draftOrderService) PostRenderUpdate(draftID string, customerID int, cts *customerService) (*models.DraftOrder, error) {
 
 	var wg sync.WaitGroup
