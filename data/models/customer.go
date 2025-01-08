@@ -21,7 +21,7 @@ type Customer struct {
 }
 
 type Contact struct {
-	ID             int     `gorm:"primaryKey" json:"id" bson:"_id"`
+	ID             int     `gorm:"primaryKey" json:"id" bson:"id"`
 	CustomerID     int     `gorm:"index" json:"customer_id" bson:"customer_id"`
 	FirstName      string  `json:"first_name" bson:"first_name"`
 	LastName       *string `json:"last_name,omitempty" bson:"last_name,omitempty"`
