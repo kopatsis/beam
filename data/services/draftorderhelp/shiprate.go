@@ -144,10 +144,12 @@ func UpdateShippingRates(draft *models.DraftOrder, newContact *models.Contact, m
 
 	freeship := slices.Contains(draft.Tags, "FREESHIP_O")
 
+	currentRateID := draft.ActualRate.ID
+
 	if rates, exists := draft.AllShippingRates[address]; exists && len(rates) > 1 {
 		if time.Since(rates[0].Timestamp) < time.Hour {
 			draft.CurrentShipping = rates
-			return UpdateActualShippingRate(draft, rates[0].ID)
+			return UpdateActualShippingRate(draft, currentRateID)
 		}
 	}
 
@@ -158,21 +160,26 @@ func UpdateShippingRates(draft *models.DraftOrder, newContact *models.Contact, m
 	draft.AllShippingRates[address] = newRates
 	draft.CurrentShipping = newRates
 
-	return UpdateActualShippingRate(draft, newRates[0].ID)
+	return UpdateActualShippingRate(draft, currentRateID)
 }
 
 func UpdateActualShippingRate(order *models.DraftOrder, shipID string) error {
 	var selectedRate *models.ShippingRate
 
-	for _, rate := range order.CurrentShipping {
-		if rate.ID == shipID {
-			selectedRate = &rate
-			break
+	if shipID != "" {
+		for _, rate := range order.CurrentShipping {
+			if rate.ID == shipID {
+				selectedRate = &rate
+				break
+			}
 		}
 	}
 
 	if selectedRate == nil {
-		return errors.New("shipping rate not found")
+		if len(order.CurrentShipping) == 0 {
+			return errors.New("no ship rate to find")
+		}
+		selectedRate = &order.CurrentShipping[0]
 	}
 
 	if time.Since(selectedRate.Timestamp) > time.Hour {
