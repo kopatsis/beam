@@ -197,11 +197,7 @@ func UpdateActualShippingRate(order *models.DraftOrder, shipID string) error {
 		order.Shipping = rateInt
 		order.Total += (rateInt - order.Shipping)
 
-		if err := EnsureGiftCardSum(order, 0, order.Total, false); err != nil {
-			return err
-		}
-
-		return updateStripePaymentIntent(order.StripePaymentIntentID, order.Total)
+		return EnsureGiftCardSum(order, 0, order.Total, false)
 	}
 
 	return nil

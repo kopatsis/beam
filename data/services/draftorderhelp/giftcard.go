@@ -64,11 +64,11 @@ func ApplyGiftCardToOrder(gcID, cents int, fullAmount bool, draftOrder *models.D
 		return err
 	}
 
-	if draftOrder.Total+delta > 0 {
-		if err := updateStripePaymentIntent(draftOrder.StripePaymentIntentID, draftOrder.Total+delta); err != nil {
-			return err
-		}
-	}
+	// if draftOrder.Total+delta > 0 {
+	// 	if err := updateStripePaymentIntent(draftOrder.StripePaymentIntentID, draftOrder.Total+delta); err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	return nil
 }
@@ -96,9 +96,9 @@ func RemoveGiftCardFromOrder(gcID int, draftOrder *models.DraftOrder) error {
 			return err
 		}
 
-		if err := updateStripePaymentIntent(draftOrder.StripePaymentIntentID, draftOrder.Total+gc.Charged); err != nil {
-			return err
-		}
+		// if err := updateStripePaymentIntent(draftOrder.StripePaymentIntentID, draftOrder.Total+gc.Charged); err != nil {
+		// 	return err
+		// }
 	}
 
 	return nil
@@ -190,7 +190,7 @@ func EnsureGiftCardSum(draftOrder *models.DraftOrder, newGiftCardSum, newPreGift
 	draftOrder.GiftCardSum = usedGiftCardSum
 	draftOrder.Total = newTotal
 
-	return nil
+	return updateStripePaymentIntent(draftOrder.StripePaymentIntentID, draftOrder.Total)
 }
 
 func checkIfUnappliedMaxedGC(draftOrder *models.DraftOrder) bool {

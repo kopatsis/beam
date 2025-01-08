@@ -11,7 +11,7 @@ func AddTipToOrder(draftOrder *models.DraftOrder, cents int) error {
 		return errors.New("negative tip not allowed")
 	}
 
-	oldTotal := draftOrder.Total
+	// oldTotal := draftOrder.Total
 
 	newPGTotal := draftOrder.PostTaxTotal + cents
 
@@ -21,11 +21,11 @@ func AddTipToOrder(draftOrder *models.DraftOrder, cents int) error {
 
 	newTotal := newPGTotal - draftOrder.GiftCardSum
 
-	if newTotal != oldTotal {
-		if err := updateStripePaymentIntent(draftOrder.StripePaymentIntentID, newTotal); err != nil {
-			return err
-		}
-	}
+	// if newTotal != oldTotal {
+	// 	if err := updateStripePaymentIntent(draftOrder.StripePaymentIntentID, newTotal); err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	draftOrder.Tip = cents
 	draftOrder.PreGiftCardTotal = newPGTotal
@@ -35,7 +35,7 @@ func AddTipToOrder(draftOrder *models.DraftOrder, cents int) error {
 }
 
 func DeleteTipFromOrder(draftOrder *models.DraftOrder) error {
-	oldTotal := draftOrder.Total
+	// oldTotal := draftOrder.Total
 
 	newPGTotal := draftOrder.PostTaxTotal
 
@@ -45,11 +45,11 @@ func DeleteTipFromOrder(draftOrder *models.DraftOrder) error {
 
 	newTotal := newPGTotal - draftOrder.GiftCardSum
 
-	if newTotal != oldTotal {
-		if err := updateStripePaymentIntent(draftOrder.StripePaymentIntentID, newTotal); err != nil {
-			return err
-		}
-	}
+	// if newTotal != oldTotal {
+	// 	if err := updateStripePaymentIntent(draftOrder.StripePaymentIntentID, newTotal); err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	draftOrder.Tip = 0
 	draftOrder.PreGiftCardTotal = newPGTotal
