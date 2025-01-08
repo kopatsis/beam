@@ -52,25 +52,15 @@ func ApplyGiftCardToOrder(gcID, cents int, fullAmount bool, draftOrder *models.D
 		return nil
 	}
 
-	if draftOrder.Total+delta < 0 {
-		delta = -1 * draftOrder.Total
-		cents = gc.Charged - delta
-	}
+	// if draftOrder.Total+delta < 0 {
+	// 	delta = -1 * draftOrder.Total
+	// 	cents = gc.Charged - delta
+	// }
 
 	draftOrder.GiftCards[ind].Charged = cents
 	draftOrder.GiftCards[ind].UseFullAmount = fullAmount
 
-	if err := EnsureGiftCardSum(draftOrder, draftOrder.GiftCardSum-delta, 0, true); err != nil {
-		return err
-	}
-
-	// if draftOrder.Total+delta > 0 {
-	// 	if err := updateStripePaymentIntent(draftOrder.StripePaymentIntentID, draftOrder.Total+delta); err != nil {
-	// 		return err
-	// 	}
-	// }
-
-	return nil
+	return EnsureGiftCardSum(draftOrder, draftOrder.GiftCardSum-delta, 0, true)
 }
 
 func RemoveGiftCardFromOrder(gcID int, draftOrder *models.DraftOrder) error {
@@ -91,29 +81,31 @@ func RemoveGiftCardFromOrder(gcID int, draftOrder *models.DraftOrder) error {
 	draftOrder.GiftCards = append(draftOrder.GiftCards[:ind], draftOrder.GiftCards[ind+1:]...)
 
 	if gc.Charged != 0 {
-
-		if err := EnsureGiftCardSum(draftOrder, draftOrder.GiftCardSum-gc.Charged, 0, true); err != nil {
-			return err
-		}
-
-		// if err := updateStripePaymentIntent(draftOrder.StripePaymentIntentID, draftOrder.Total+gc.Charged); err != nil {
-		// 	return err
-		// }
+		return EnsureGiftCardSum(draftOrder, draftOrder.GiftCardSum-gc.Charged, 0, true)
 	}
 
 	return nil
 }
 
 func EnsureGiftCardSum(draftOrder *models.DraftOrder, newGiftCardSum, newPreGiftCardTotal int, fromGiftCardChange bool) error {
-	if draftOrder.GiftCardSum == 0 || len(draftOrder.GiftCards) == 0 {
-		return nil
-	}
 
 	if newGiftCardSum < 0 && fromGiftCardChange {
 		return errors.New("gift card sum must be positive or 0")
 	} else if newPreGiftCardTotal <= 0 && !fromGiftCardChange {
 		return errors.New("gift card sum must be positive")
 	}
+
+	if len(draftOrder.GiftCards) == 0 {
+		if fromGiftCardChange && newGiftCardSum > 0 {
+			return errors.New("no gift cards to work with")
+		}
+		draftOrder.PreGiftCardTotal = newPreGiftCardTotal
+		draftOrder.GiftCardSum = 0
+		draftOrder.Total = newPreGiftCardTotal
+		return nil
+	}
+
+	oldTotal := draftOrder.Total
 
 	newTotal, usedGiftCardSum, usedPreGiftCardTotal := 0, 0, 0
 	if fromGiftCardChange {
@@ -190,7 +182,10 @@ func EnsureGiftCardSum(draftOrder *models.DraftOrder, newGiftCardSum, newPreGift
 	draftOrder.GiftCardSum = usedGiftCardSum
 	draftOrder.Total = newTotal
 
-	return updateStripePaymentIntent(draftOrder.StripePaymentIntentID, draftOrder.Total)
+	if draftOrder.Total != oldTotal {
+		return updateStripePaymentIntent(draftOrder.StripePaymentIntentID, draftOrder.Total)
+	}
+	return nil
 }
 
 func checkIfUnappliedMaxedGC(draftOrder *models.DraftOrder) bool {

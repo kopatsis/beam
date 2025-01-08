@@ -54,16 +54,10 @@ func applyPercentOffToDraft(draftOrder *models.DraftOrder, percentageOff, oldDis
 	newPostTaxTotal := newPostDiscountTotal + newTax + draftOrder.Shipping
 	newPreGiftCardTotal := draftOrder.PostTaxTotal + draftOrder.Tip
 
-	err := EnsureGiftCardSum(draftOrder, 0, newPreGiftCardTotal, false)
-	if err != nil {
-		return err
-	}
-
 	draftOrder.OrderLevelDiscount = newPostDiscountTotal
 	draftOrder.PostDiscountTotal = newPostDiscountTotal
 	draftOrder.PostTaxTotal = newPostTaxTotal
-	draftOrder.PreGiftCardTotal = newPreGiftCardTotal
 	draftOrder.Tax = newTax
 
-	return nil
+	return EnsureGiftCardSum(draftOrder, 0, newPreGiftCardTotal, false)
 }
