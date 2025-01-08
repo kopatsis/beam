@@ -1,6 +1,7 @@
 package services
 
 import (
+	"beam/config"
 	"beam/data/models"
 	"beam/data/repositories"
 	"beam/data/services/draftorderhelp"
@@ -12,6 +13,7 @@ import (
 type DraftOrderService interface {
 	CreateDraftOrder(name string, customerID int, guestID string, crs *cartService, pds *productService, cts *customerService) (*models.DraftOrder, error)
 	GetDraftOrder(name, draftID, guestID string, customerID int, cts *customerService) (*models.DraftOrder, string, error)
+	AddAddressToDraft(name, draftID, guestID, ip string, customerID int, cts *customerService, contact *models.Contact, addToCust bool, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
 }
 
 type draftOrderService struct {
@@ -166,5 +168,29 @@ func (s *draftOrderService) PostRenderUpdate(draftID string, customerID int, cts
 	}
 
 	return draft, nil
+}
 
+func (s *draftOrderService) AddAddressToDraft(name, draftID, guestID, ip string, customerID int, cts *customerService, contact *models.Contact, addToCust bool, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error) {
+	draft, err := s.draftOrderRepo.Read(draftID)
+	if err == nil && (draft.Status == "Failed" || draft.Status == "Submitted" || draft.Status == "Expired" || draft.Status == "Abandoned") {
+		err = fmt.Errorf("incorrect status for actions with draft: %s", draft.Status)
+	}
+	if err != nil {
+		return draft, err
+	}
+
+	var custErr error = nil
+	if addToCust && customerID > 0 {
+		custErr = cts.customerRepo.AddContactToCustomer(customerID, contact)
+	}
+
+	draft.ShippingContact = contact
+	draft.ListedContacts = append([]*models.Contact{contact}, draft.ListedContacts...)
+
+	if err := draftorderhelp.UpdateShippingRates(draft, contact, mutexes, name, ip, tools); err != nil {
+		return draft, err
+	}
+
+	go s.draftOrderRepo.Update(draft)
+	return draft, custErr
 }

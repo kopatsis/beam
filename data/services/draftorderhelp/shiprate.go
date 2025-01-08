@@ -147,8 +147,7 @@ func UpdateShippingRates(draft *models.DraftOrder, newContact *models.Contact, m
 	if rates, exists := draft.AllShippingRates[address]; exists && len(rates) > 1 {
 		if time.Since(rates[0].Timestamp) < time.Hour {
 			draft.CurrentShipping = rates
-			draft.ActualRate = rates[0]
-			return nil
+			return UpdateActualShippingRate(draft, rates[0].ID)
 		}
 	}
 
@@ -159,11 +158,7 @@ func UpdateShippingRates(draft *models.DraftOrder, newContact *models.Contact, m
 	draft.AllShippingRates[address] = newRates
 	draft.CurrentShipping = newRates
 
-	if err := UpdateActualShippingRate(draft, newRates[0].ID); err != nil {
-		return err
-	}
-
-	return nil
+	return UpdateActualShippingRate(draft, newRates[0].ID)
 }
 
 func UpdateActualShippingRate(order *models.DraftOrder, shipID string) error {
@@ -195,10 +190,11 @@ func UpdateActualShippingRate(order *models.DraftOrder, shipID string) error {
 		order.Shipping = rateInt
 		order.Total += (rateInt - order.Shipping)
 
-		err = updateStripePaymentIntent(order.StripePaymentIntentID, order.Total)
-		if err != nil {
+		if err := EnsureGiftCardSum(order, 0, order.Total, false); err != nil {
 			return err
 		}
+
+		return updateStripePaymentIntent(order.StripePaymentIntentID, order.Total)
 	}
 
 	return nil

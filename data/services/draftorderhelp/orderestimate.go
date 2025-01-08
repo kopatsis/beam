@@ -229,17 +229,17 @@ func createEstItemsArray(orderLines []models.OrderLine) ([]apidata.Items, error)
 		if pfProd, exists := pfOGMap[variantID]; exists {
 			syncVarID, err := strconv.Atoi(pfProd.VariantID)
 			if err != nil {
-				return nil, fmt.Errorf("Error converting variant ID to int: %v", err)
+				return nil, fmt.Errorf("error converting variant ID to int: %v", err)
 			}
 
 			originalProdID, err := strconv.Atoi(pfProd.OriginalProductID)
 			if err != nil {
-				return nil, fmt.Errorf("Error converting og product ID to int: %v", err)
+				return nil, fmt.Errorf("error converting og product ID to int: %v", err)
 			}
 
 			originalVarID, err := strconv.Atoi(pfProd.OriginalVariantID)
 			if err != nil {
-				return nil, fmt.Errorf("Error converting og variant ID to int: %v", err)
+				return nil, fmt.Errorf("error converting og variant ID to int: %v", err)
 			}
 
 			items = append(items, apidata.Items{

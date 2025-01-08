@@ -13,6 +13,7 @@ type CustomerRepository interface {
 	Update(customer models.Customer) error
 	Delete(id int) error
 	GetContactsWithDefault(customerID int) ([]*models.Contact, error)
+	AddContactToCustomer(customerID int, contact *models.Contact) error
 }
 
 type customerRepo struct {
@@ -75,4 +76,9 @@ func (r *customerRepo) GetContactsWithDefault(customerID int) ([]*models.Contact
 	}
 
 	return contacts, nil
+}
+
+func (r *customerRepo) AddContactToCustomer(customerID int, contact *models.Contact) error {
+	contact.CustomerID = customerID
+	return r.db.Create(contact).Error
 }

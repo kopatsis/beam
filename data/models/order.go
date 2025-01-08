@@ -86,6 +86,7 @@ type DraftOrder struct {
 	DeliveryNote          string                       `bson:"delivery_note" json:"delivery_note"`
 	Guest                 bool                         `bson:"guest" json:"guest"`
 	GuestID               *string                      `bson:"guest_id,omitempty" json:"guest_id,omitempty"`
+	GuestStripeID         *string                      `bson:"guest_stripe,omitempty" json:"guest_stripe,omitempty"`
 	ActualRate            ShippingRate                 `bson:"ship_actual" json:"ship_actual"`
 	CurrentShipping       []ShippingRate               `bson:"ship_current" json:"ship_current"`
 	AllShippingRates      map[string][]ShippingRate    `bson:"ship_all" json:"ship_all"`

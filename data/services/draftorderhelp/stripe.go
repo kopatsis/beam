@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/stripe/stripe-go/v81"
+	"github.com/stripe/stripe-go/v81/customer"
 	"github.com/stripe/stripe-go/v81/paymentintent"
 	"github.com/stripe/stripe-go/v81/paymentmethod"
 )
@@ -17,6 +18,7 @@ func CreatePaymentIntent(customerID string, amount int64, currency string) (stri
 	if customerID != "" {
 		params.Customer = stripe.String(customerID)
 	}
+	params.SetupFutureUsage = stripe.String("off_session")
 	pi, err := paymentintent.New(params)
 	if err != nil {
 		return "", err
@@ -110,4 +112,50 @@ func DetachPaymentMethod(customerID, paymentMethodID string) error {
 	}
 
 	return nil
+}
+
+func ChargePaymentIntent(intentID, methodID string, save bool, customerID string) (*stripe.PaymentIntent, error) {
+	params := &stripe.PaymentIntentConfirmParams{
+		PaymentMethod: stripe.String(methodID),
+	}
+	intent, err := paymentintent.Confirm(intentID, params)
+	if err != nil {
+		return nil, err
+	}
+	if save {
+		if err := AttachPaymentMethodToCustomer(methodID, customerID); err != nil {
+			return nil, err
+		}
+	}
+	return intent, nil
+}
+
+func AttachPaymentMethodToCustomer(methodID, customerID string) error {
+	params := &stripe.PaymentMethodAttachParams{
+		Customer: stripe.String(customerID),
+	}
+	_, err := paymentmethod.Attach(methodID, params)
+	return err
+}
+
+func CreateCustomer(email, name string) (*stripe.Customer, error) {
+	params := &stripe.CustomerParams{}
+	if email != "" {
+		params.Email = stripe.String(email)
+	}
+	if name != "" {
+		params.Name = stripe.String(name)
+	}
+	return customer.New(params)
+}
+
+func CreateAndChargePaymentIntent(methodID, customerID string, amount int) (*stripe.PaymentIntent, error) {
+	params := &stripe.PaymentIntentParams{
+		Amount:        stripe.Int64(int64(amount)),
+		Currency:      stripe.String("usd"),
+		Customer:      stripe.String(customerID),
+		PaymentMethod: stripe.String(methodID),
+		Confirm:       stripe.Bool(true),
+	}
+	return paymentintent.New(params)
 }
