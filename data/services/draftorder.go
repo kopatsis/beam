@@ -94,22 +94,55 @@ func (s *draftOrderService) CreateDraftOrder(name string, customerID int, guestI
 
 func (s *draftOrderService) GetDraftOrder(name, draftID, guestID string, customerID int, cts *customerService) (*models.DraftOrder, string, error) {
 
-	draft, err := s.draftOrderRepo.Read(draftID)
+	var wg sync.WaitGroup
+
+	var draft *models.DraftOrder
+	var cust *models.Customer
+	err, customerErr := error(nil), error(nil)
+
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		draft, err = s.draftOrderRepo.Read(draftID)
+	}()
+
+	go func() {
+		defer wg.Done()
+		cust, customerErr = cts.GetCustomerByID(customerID)
+	}()
+
+	wg.Wait()
+
 	if err != nil {
 		return nil, "", err
-	}
-
-	if draft.Status == "Failed" || draft.Status == "Submitted" || draft.Status == "Expired" || draft.Status == "Abandoned" {
+	} else if draft.Status == "Failed" || draft.Status == "Submitted" || draft.Status == "Expired" || draft.Status == "Abandoned" {
 		return nil, draft.Status, nil
+	} else if customerErr != nil {
+		return draft, "", customerErr
 	}
 
+	draftUpdate, custUpdate := false, false
 	if customerID > 0 {
 		contacts, err := cts.customerRepo.GetContactsWithDefault(customerID)
 		if err == nil {
 			if draftorderhelp.MergeAddresses(draft, contacts) {
-				go s.draftOrderRepo.Update(draft)
+				draftUpdate = true
 			}
 		}
+	}
+
+	draftUpdate, custUpdate, err = draftorderhelp.ConfirmPaymentIntentDraft(draft, cust, guestID)
+	if err != nil {
+		return draft, "", err
+	}
+
+	if draftUpdate {
+		go s.draftOrderRepo.Update(draft)
+	}
+
+	if custUpdate {
+		go cts.customerRepo.Update(*cust)
 	}
 
 	return draft, "", nil

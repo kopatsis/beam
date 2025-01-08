@@ -2,6 +2,7 @@ package draftorderhelp
 
 import (
 	"beam/data/models"
+	"errors"
 	"fmt"
 
 	"github.com/stripe/stripe-go/v81"
@@ -12,18 +13,88 @@ import (
 
 func CreatePaymentIntent(customerID string, amount int64, currency string) (string, error) {
 	params := &stripe.PaymentIntentParams{
-		Amount:   stripe.Int64(amount),
-		Currency: stripe.String(currency),
+		Amount:           stripe.Int64(amount),
+		Currency:         stripe.String(currency),
+		Customer:         stripe.String(customerID),
+		SetupFutureUsage: stripe.String("on_session"),
 	}
-	if customerID != "" {
-		params.Customer = stripe.String(customerID)
-	}
-	params.SetupFutureUsage = stripe.String("off_session")
 	pi, err := paymentintent.New(params)
 	if err != nil {
 		return "", err
 	}
 	return pi.ID, nil
+}
+
+func CheckPaymentIntent(paymentIntentID, customerID string, amt int64) error {
+	pi, err := paymentintent.Get(paymentIntentID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve payment intent: %v", err)
+	}
+
+	if pi.Status != stripe.PaymentIntentStatusRequiresConfirmation && pi.Status != stripe.PaymentIntentStatusProcessing && pi.Status != stripe.PaymentIntentStatusSucceeded {
+		return fmt.Errorf("payment intent status is not chargeable: %s", pi.Status)
+	}
+
+	if pi.Customer == nil || pi.Customer.ID != customerID {
+		return fmt.Errorf("customer ID does not match payment intent's customer")
+	}
+
+	if pi.Amount != amt {
+		return updateStripePaymentIntent(paymentIntentID, int(amt))
+	}
+
+	return nil
+}
+
+func ConfirmPaymentIntentDraft(draftOrder *models.DraftOrder, customer *models.Customer, guestID string) (custChange bool, draftChange bool, err error) {
+	custChange, draftChange = false, false
+	if customer == nil {
+		if guestID == "" {
+			return custChange, draftChange, errors.New("no guest and no customer")
+		}
+		if *draftOrder.GuestStripeID == "" {
+			c, err := CreateCustomer("", "")
+			if err != nil {
+				return custChange, draftChange, err
+			}
+			draftOrder.GuestStripeID = &c.ID
+			draftChange = true
+		}
+	} else if customer.StripeID == "" {
+		c, err := CreateCustomer(customer.Email, customer.DefaultName)
+		if err != nil {
+			return custChange, draftChange, err
+		}
+		customer.StripeID = c.ID
+		custChange = true
+	}
+
+	useID := ""
+	if customer == nil {
+		useID = *draftOrder.GuestStripeID
+	} else {
+		useID = customer.StripeID
+	}
+
+	needsNew := false
+	if draftOrder.StripePaymentIntentID != "" {
+		if err := CheckPaymentIntent(draftOrder.StripePaymentIntentID, useID, int64(draftOrder.Total)); err != nil {
+			needsNew = true
+		}
+	} else {
+		needsNew = true
+	}
+
+	if needsNew {
+		id, err := CreatePaymentIntent(useID, int64(draftOrder.Total), "usd")
+		if err != nil {
+			return custChange, draftChange, err
+		}
+		draftOrder.StripePaymentIntentID = id
+		draftChange = true
+	}
+
+	return custChange, draftChange, nil
 }
 
 func ValidatePaymentMethod(draftOrder *models.DraftOrder, stripeID, paymentMethodID string) error {
