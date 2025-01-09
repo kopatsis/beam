@@ -17,6 +17,9 @@ type DraftOrderService interface {
 	SaveAndUpdatePtl(draft *models.DraftOrder) error
 	AddAddressToDraft(name, draftID, guestID, ip string, customerID int, cts *customerService, contact *models.Contact, addToCust bool, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
 	ChooseAddress(name, draftID, guestID, ip string, addrID, index, customerID int, cts *customerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
+	ChooseShipRate(draftID, guestID, rateName string, customerID int) (*models.DraftOrder, error)
+	ChoosePaymentMethod(draftID, guestID, paymentMethodID string, customerID int, cts *customerService) (*models.DraftOrder, error)
+	RemovePaymentMethod(draftID, guestID string, customerID int) (*models.DraftOrder, error)
 }
 
 type draftOrderService struct {
@@ -248,6 +251,7 @@ func (s *draftOrderService) PostRenderUpdate(ip, name, guestID, draftID string, 
 	return draft, err
 }
 
+// For use by other methods
 func (s *draftOrderService) SaveAndUpdatePtl(draft *models.DraftOrder) error {
 	if err := draftorderhelp.UpdateTaxFromRate(draft); err != nil {
 		return err
@@ -260,11 +264,29 @@ func (s *draftOrderService) SaveAndUpdatePtl(draft *models.DraftOrder) error {
 	return s.draftOrderRepo.Update(draft)
 }
 
-func (s *draftOrderService) AddAddressToDraft(name, draftID, guestID, ip string, customerID int, cts *customerService, contact *models.Contact, addToCust bool, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error) {
+// For use by other methods
+func (s *draftOrderService) GetDraftPtl(draftID, guestID string, custID int) (*models.DraftOrder, error) {
 	draft, err := s.draftOrderRepo.Read(draftID)
 	if err == nil && (draft.Status == "Failed" || draft.Status == "Submitted" || draft.Status == "Expired" || draft.Status == "Abandoned") {
 		err = fmt.Errorf("incorrect status for actions with draft: %s", draft.Status)
 	}
+	if err != nil {
+		return draft, err
+	}
+	if custID > 0 {
+		if draft.CustomerID != custID {
+			return draft, errors.New("draft does not belong to customer")
+		}
+	} else {
+		if draft.GuestID != &guestID {
+			return draft, errors.New("draft does not belong to customer")
+		}
+	}
+	return draft, nil
+}
+
+func (s *draftOrderService) AddAddressToDraft(name, draftID, guestID, ip string, customerID int, cts *customerService, contact *models.Contact, addToCust bool, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error) {
+	draft, err := s.GetDraftPtl(draftID, guestID, customerID)
 	if err != nil {
 		return draft, err
 	}
@@ -289,10 +311,7 @@ func (s *draftOrderService) AddAddressToDraft(name, draftID, guestID, ip string,
 }
 
 func (s *draftOrderService) ChooseAddress(name, draftID, guestID, ip string, addrID, index, customerID int, cts *customerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error) {
-	draft, err := s.draftOrderRepo.Read(draftID)
-	if err == nil && (draft.Status == "Failed" || draft.Status == "Submitted" || draft.Status == "Expired" || draft.Status == "Abandoned") {
-		err = fmt.Errorf("incorrect status for actions with draft: %s", draft.Status)
-	}
+	draft, err := s.GetDraftPtl(draftID, guestID, customerID)
 	if err != nil {
 		return draft, err
 	}
@@ -316,6 +335,85 @@ func (s *draftOrderService) ChooseAddress(name, draftID, guestID, ip string, add
 	if err := draftorderhelp.UpdateShippingRates(draft, draft.ShippingContact, mutexes, name, ip, tools); err != nil {
 		return draft, err
 	}
+
+	err = s.SaveAndUpdatePtl(draft)
+
+	return draft, err
+}
+
+func (s *draftOrderService) ChooseShipRate(draftID, guestID, rateName string, customerID int) (*models.DraftOrder, error) {
+	draft, err := s.GetDraftPtl(draftID, guestID, customerID)
+	if err != nil {
+		return draft, err
+	}
+
+	if err := draftorderhelp.UpdateActualShippingRate(draft, rateName); err != nil {
+		return draft, err
+	}
+
+	err = s.SaveAndUpdatePtl(draft)
+
+	return draft, err
+}
+
+func (s *draftOrderService) ChoosePaymentMethod(draftID, guestID, paymentMethodID string, customerID int, cts *customerService) (*models.DraftOrder, error) {
+	if customerID <= 0 {
+		return nil, errors.New("unable to do action for nonexistent customer id")
+	}
+
+	var wg sync.WaitGroup
+
+	var draft *models.DraftOrder
+	var cust *models.Customer
+	err, customerErr := error(nil), error(nil)
+
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		draft, err = s.draftOrderRepo.Read(draftID)
+	}()
+
+	go func() {
+		defer wg.Done()
+		cust, customerErr = cts.GetCustomerByID(customerID)
+	}()
+
+	wg.Wait()
+	if err != nil {
+		return draft, err
+	} else if customerErr != nil {
+		return draft, customerErr
+	}
+
+	found := false
+	for _, pm := range draft.AllPaymentMethods {
+		if pm.ID == paymentMethodID {
+			if e := draftorderhelp.ValidatePaymentMethod(cust.StripeID, paymentMethodID); e != nil {
+				return draft, e
+			}
+			draft.ExistingPaymentMethod = pm
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return draft, errors.New("no payment method with that id listed")
+	}
+
+	err = s.SaveAndUpdatePtl(draft)
+
+	return draft, err
+}
+
+func (s *draftOrderService) RemovePaymentMethod(draftID, guestID string, customerID int) (*models.DraftOrder, error) {
+	draft, err := s.GetDraftPtl(draftID, guestID, customerID)
+	if err != nil {
+		return draft, err
+	}
+
+	draft.ExistingPaymentMethod = models.PaymentMethodStripe{}
 
 	err = s.SaveAndUpdatePtl(draft)
 

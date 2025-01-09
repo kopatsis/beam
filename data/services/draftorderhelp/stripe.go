@@ -97,7 +97,7 @@ func ConfirmPaymentIntentDraft(draftOrder *models.DraftOrder, customer *models.C
 	return custChange, draftChange, nil
 }
 
-func ValidatePaymentMethod(draftOrder *models.DraftOrder, stripeID, paymentMethodID string) error {
+func ValidatePaymentMethod(stripeID, paymentMethodID string) error {
 	paymentMethod, err := paymentmethod.Get(paymentMethodID, nil)
 	if err != nil {
 		return fmt.Errorf("failed to fetch payment method: %w", err)
