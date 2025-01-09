@@ -155,6 +155,30 @@ func GetAllPaymentMethods(stripeID string) ([]models.PaymentMethodStripe, error)
 	return paymentMethods, nil
 }
 
+func DraftPaymentMethodUpdate(draft *models.DraftOrder, stripeID string) error {
+	pms, err := GetAllPaymentMethods(stripeID)
+	if err != nil {
+		return err
+	}
+
+	draft.AllPaymentMethods = pms
+
+	if draft.ExistingPaymentMethod.ID != "" {
+		found := false
+		for _, pm := range pms {
+			if pm.ID == draft.ExistingPaymentMethod.ID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			draft.ExistingPaymentMethod = models.PaymentMethodStripe{}
+		}
+	}
+
+	return nil
+}
+
 func updateStripePaymentIntent(paymentIntentID string, total int) error {
 	params := &stripe.PaymentIntentParams{
 		Amount: stripe.Int64(int64(total)),

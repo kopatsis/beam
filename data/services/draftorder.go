@@ -14,6 +14,7 @@ type DraftOrderService interface {
 	CreateDraftOrder(name string, customerID int, guestID string, crs *cartService, pds *productService, cts *customerService) (*models.DraftOrder, error)
 	GetDraftOrder(name, draftID, guestID string, customerID int, cts *customerService) (*models.DraftOrder, string, error)
 	AddAddressToDraft(name, draftID, guestID, ip string, customerID int, cts *customerService, contact *models.Contact, addToCust bool, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
+	PostRenderUpdate(ip, name, guestID, draftID string, customerID int, cts *customerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
 }
 
 type draftOrderService struct {
@@ -162,7 +163,7 @@ func (s *draftOrderService) GetDraftOrder(name, draftID, guestID string, custome
 }
 
 // Re-updates the payment methods, the shipping options, the order estimates, and the CA tax if done that way -> check payment intent/update w/ new $, OR create new one
-func (s *draftOrderService) PostRenderUpdate(draftID string, customerID int, cts *customerService) (*models.DraftOrder, error) {
+func (s *draftOrderService) PostRenderUpdate(ip, name, guestID, draftID string, customerID int, cts *customerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error) {
 
 	var wg sync.WaitGroup
 
@@ -185,32 +186,71 @@ func (s *draftOrderService) PostRenderUpdate(draftID string, customerID int, cts
 		cust, customerErr = cts.GetCustomerByID(customerID)
 	}()
 
+	paymentMethodErr, shipRateErr, taxRateErr, orderEstErr, paymentIntentErr := error(nil), error(nil), error(nil), error(nil), error(nil)
+
 	wg.Wait()
 
 	if draftErr != nil {
 		return nil, draftErr
+	} else if customerErr != nil {
+		return draft, customerErr
 	}
 
-	if customerErr != nil {
-		return nil, customerErr
-	}
+	wg.Add(5)
 
-	pms, err := draftorderhelp.GetAllPaymentMethods(cust.StripeID)
-	if err != nil {
-		return nil, err
-	}
+	go func() {
+		defer wg.Done()
+		paymentMethodErr = draftorderhelp.DraftPaymentMethodUpdate(draft, cust.StripeID)
+	}()
 
-	draft.AllPaymentMethods = pms
+	go func() {
+		defer wg.Done()
+		shipRateErr = draftorderhelp.UpdateShippingRates(draft, draft.ShippingContact, mutexes, name, ip, tools)
+	}()
 
-	in := false
-	for _, pm := range pms {
-		if pm.ID == draft.ExistingPaymentMethod.ID {
-			in = true
+	go func() {
+		defer wg.Done()
+		taxRateErr = draftorderhelp.ModifyTaxRate(draft, tools, mutexes)
+	}()
+
+	go func() {
+		defer wg.Done()
+		orderEstErr = draftorderhelp.DraftOrderEstimateUpdate(draft, draft.ShippingContact, mutexes, name, ip, tools)
+	}()
+
+	go func() {
+		defer wg.Done()
+		custUpd := false
+		_, custUpd, paymentIntentErr = draftorderhelp.ConfirmPaymentIntentDraft(draft, cust, guestID)
+		if custUpd {
+			go cts.customerRepo.Update(*cust)
 		}
+	}()
+
+	wg.Wait()
+
+	if paymentMethodErr != nil {
+		return nil, paymentMethodErr
+	} else if shipRateErr != nil {
+		return draft, shipRateErr
+	} else if taxRateErr != nil {
+		return draft, taxRateErr
+	} else if orderEstErr != nil {
+		return draft, orderEstErr
+	} else if paymentIntentErr != nil {
+		return draft, paymentIntentErr
 	}
 
-	if !in {
-		draft.ExistingPaymentMethod = models.PaymentMethodStripe{}
+	if err := draftorderhelp.UpdateTaxFromRate(draft); err != nil {
+		return draft, err
+	}
+
+	if err := draftorderhelp.SetTotalsAndEnsure(draft); err != nil {
+		return draft, err
+	}
+
+	if err := s.draftOrderRepo.Update(draft); err != nil {
+		return draft, err
 	}
 
 	return draft, nil

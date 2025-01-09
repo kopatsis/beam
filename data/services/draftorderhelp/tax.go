@@ -77,7 +77,7 @@ func GetRateWithFallback(client *http.Client, contact *models.Contact, taxData *
 	return rate, nil
 }
 
-func ModifyTaxRate(draft *models.DraftOrder, tools *config.Tools, mutex *config.AllMutexes, name string, ip string) error {
+func ModifyTaxRate(draft *models.DraftOrder, tools *config.Tools, mutex *config.AllMutexes) error {
 	if draft.ShippingContact.StreetAddress1 == "" || draft.ShippingContact.City == "" || draft.ShippingContact.ZipCode == "" {
 		return errors.New("contact is required")
 	}
@@ -102,7 +102,7 @@ func ModifyTaxRate(draft *models.DraftOrder, tools *config.Tools, mutex *config.
 	return nil
 }
 
-func UpdateTaxToRate(draft *models.DraftOrder) error {
+func UpdateTaxFromRate(draft *models.DraftOrder) error {
 	if draft.ShippingContact.StreetAddress1 == "" || draft.ShippingContact.City == "" || draft.ShippingContact.ZipCode == "" {
 		return errors.New("contact is required")
 	}

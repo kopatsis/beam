@@ -260,7 +260,9 @@ func createEstItemsArray(orderLines []models.OrderLine) ([]apidata.Items, error)
 	return items, nil
 }
 
-func DraftOrderEstimateUpdate(draftOrder *models.DraftOrder, newContact *models.Contact, mutexes *config.AllMutexes, name, ip, shipRate string, tools *config.Tools) error {
+func DraftOrderEstimateUpdate(draftOrder *models.DraftOrder, newContact *models.Contact, mutexes *config.AllMutexes, name, ip string, tools *config.Tools) error {
+	shipRate := draftOrder.OrderEstimate.ShipRate
+
 	if shipRate == "" {
 		shipRate = "STANDARD"
 	}
