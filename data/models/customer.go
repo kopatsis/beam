@@ -14,7 +14,7 @@ type Customer struct {
 	DefaultShippingContactID int            `gorm:"index"`
 	Tags                     pq.StringArray `gorm:"type:text[]"`
 	PhoneNumber              *string
-	Status                   string
+	Status                   string // Active, Archived
 	OrderCount               int
 	AutodiscountPctOff       float64
 	Notes                    string

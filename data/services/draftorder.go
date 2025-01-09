@@ -85,6 +85,15 @@ func (s *draftOrderService) CreateDraftOrder(name string, customerID int, guestI
 		return nil, err
 	}
 
+	_, custUpdate, err := draftorderhelp.ConfirmPaymentIntentDraft(draft, cust, guestID)
+	if err != nil {
+		return nil, err
+	}
+
+	if custUpdate {
+		go cts.customerRepo.Update(*cust)
+	}
+
 	if err := s.draftOrderRepo.Create(draft); err != nil {
 		return nil, err
 	}
@@ -98,9 +107,10 @@ func (s *draftOrderService) GetDraftOrder(name, draftID, guestID string, custome
 
 	var draft *models.DraftOrder
 	var cust *models.Customer
-	err, customerErr := error(nil), error(nil)
+	var contacts []*models.Contact
+	err, customerErr, contactErr := error(nil), error(nil), error(nil)
 
-	wg.Add(2)
+	wg.Add(3)
 
 	go func() {
 		defer wg.Done()
@@ -109,7 +119,17 @@ func (s *draftOrderService) GetDraftOrder(name, draftID, guestID string, custome
 
 	go func() {
 		defer wg.Done()
-		cust, customerErr = cts.GetCustomerByID(customerID)
+		if customerID > 0 {
+			cust, customerErr = cts.GetCustomerByID(customerID)
+		}
+
+	}()
+
+	go func() {
+		defer wg.Done()
+		if customerID > 0 {
+			contacts, contactErr = cts.customerRepo.GetContactsWithDefault(customerID)
+		}
 	}()
 
 	wg.Wait()
@@ -120,29 +140,22 @@ func (s *draftOrderService) GetDraftOrder(name, draftID, guestID string, custome
 		return nil, draft.Status, nil
 	} else if customerErr != nil {
 		return draft, "", customerErr
+	} else if contactErr != nil {
+		return draft, "", contactErr
 	}
 
-	draftUpdate, custUpdate := false, false
 	if customerID > 0 {
-		contacts, err := cts.customerRepo.GetContactsWithDefault(customerID)
-		if err == nil {
-			if draftorderhelp.MergeAddresses(draft, contacts) {
-				draftUpdate = true
-			}
+		if draft.CustomerID != customerID || draft.CustomerID != cust.ID {
+			return draft, "", errors.New("incorrect id for customer")
+		} else if cust.Status != "Active" {
+			return draft, "", errors.New("draft order for inactive customer")
+		} else if draftorderhelp.MergeAddresses(draft, contacts) {
+			go s.draftOrderRepo.Update(draft)
 		}
-	}
-
-	draftUpdate, custUpdate, err = draftorderhelp.ConfirmPaymentIntentDraft(draft, cust, guestID)
-	if err != nil {
-		return draft, "", err
-	}
-
-	if draftUpdate {
-		go s.draftOrderRepo.Update(draft)
-	}
-
-	if custUpdate {
-		go cts.customerRepo.Update(*cust)
+	} else {
+		if draft.GuestID != &guestID {
+			return draft, "", errors.New("incorrect id for guest customer")
+		}
 	}
 
 	return draft, "", nil
