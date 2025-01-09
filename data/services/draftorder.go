@@ -13,8 +13,10 @@ import (
 type DraftOrderService interface {
 	CreateDraftOrder(name string, customerID int, guestID string, crs *cartService, pds *productService, cts *customerService) (*models.DraftOrder, error)
 	GetDraftOrder(name, draftID, guestID string, customerID int, cts *customerService) (*models.DraftOrder, string, error)
-	AddAddressToDraft(name, draftID, guestID, ip string, customerID int, cts *customerService, contact *models.Contact, addToCust bool, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
 	PostRenderUpdate(ip, name, guestID, draftID string, customerID int, cts *customerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
+	SaveAndUpdatePtl(draft *models.DraftOrder) error
+	AddAddressToDraft(name, draftID, guestID, ip string, customerID int, cts *customerService, contact *models.Contact, addToCust bool, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
+	ChooseAddress(name, draftID, guestID, ip string, addrID, index, customerID int, cts *customerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
 }
 
 type draftOrderService struct {
@@ -241,19 +243,21 @@ func (s *draftOrderService) PostRenderUpdate(ip, name, guestID, draftID string, 
 		return draft, paymentIntentErr
 	}
 
+	err := s.SaveAndUpdatePtl(draft)
+
+	return draft, err
+}
+
+func (s *draftOrderService) SaveAndUpdatePtl(draft *models.DraftOrder) error {
 	if err := draftorderhelp.UpdateTaxFromRate(draft); err != nil {
-		return draft, err
+		return err
 	}
 
 	if err := draftorderhelp.SetTotalsAndEnsure(draft); err != nil {
-		return draft, err
+		return err
 	}
 
-	if err := s.draftOrderRepo.Update(draft); err != nil {
-		return draft, err
-	}
-
-	return draft, nil
+	return s.draftOrderRepo.Update(draft)
 }
 
 func (s *draftOrderService) AddAddressToDraft(name, draftID, guestID, ip string, customerID int, cts *customerService, contact *models.Contact, addToCust bool, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error) {
@@ -277,6 +281,43 @@ func (s *draftOrderService) AddAddressToDraft(name, draftID, guestID, ip string,
 		return draft, err
 	}
 
-	go s.draftOrderRepo.Update(draft)
+	err = s.SaveAndUpdatePtl(draft)
+	if err != nil {
+		return draft, err
+	}
 	return draft, custErr
+}
+
+func (s *draftOrderService) ChooseAddress(name, draftID, guestID, ip string, addrID, index, customerID int, cts *customerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error) {
+	draft, err := s.draftOrderRepo.Read(draftID)
+	if err == nil && (draft.Status == "Failed" || draft.Status == "Submitted" || draft.Status == "Expired" || draft.Status == "Abandoned") {
+		err = fmt.Errorf("incorrect status for actions with draft: %s", draft.Status)
+	}
+	if err != nil {
+		return draft, err
+	}
+
+	if addrID == 0 {
+		for _, c := range draft.ListedContacts {
+			if c.ID == addrID {
+				draft.ShippingContact = c
+				break
+			}
+		}
+	} else {
+		if index < 0 {
+			return draft, errors.New("choice of address without id must have index > 0")
+		} else if index >= len(draft.ListedContacts) {
+			return draft, errors.New("choice of address without id must have index < length of list")
+		}
+		draft.ShippingContact = draft.ListedContacts[index]
+	}
+
+	if err := draftorderhelp.UpdateShippingRates(draft, draft.ShippingContact, mutexes, name, ip, tools); err != nil {
+		return draft, err
+	}
+
+	err = s.SaveAndUpdatePtl(draft)
+
+	return draft, err
 }
