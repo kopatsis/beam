@@ -193,13 +193,7 @@ func UpdateActualShippingRate(order *models.DraftOrder, shipID string) error {
 		return err
 	}
 
-	if rateInt != order.Shipping {
-		order.Shipping = rateInt
-		order.PostTaxTotal = order.PostDiscountTotal + order.Tax + order.Shipping
-
-		return EnsureGiftCardSum(order, 0, order.PostTaxTotal+order.Tip, false)
-	}
-
+	order.Shipping = rateInt
 	return nil
 }
 

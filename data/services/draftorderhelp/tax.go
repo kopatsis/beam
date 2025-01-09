@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -91,10 +92,30 @@ func ModifyTaxRate(draft *models.DraftOrder, tools *config.Tools, mutex *config.
 			return err
 		}
 		draft.CATaxRate = rate
+	}
+	// else {
+	// 	err := DraftOrderEstimateUpdate(draft, draft.ShippingContact, mutex, name, ip, draft.OrderEstimate.ShipRate, tools)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
+	return nil
+}
+
+func UpdateTaxToRate(draft *models.DraftOrder) error {
+	if draft.ShippingContact.StreetAddress1 == "" || draft.ShippingContact.City == "" || draft.ShippingContact.ZipCode == "" {
+		return errors.New("contact is required")
+	}
+
+	isCalifornia := strings.EqualFold(draft.ShippingContact.ProvinceState, "ca") || strings.EqualFold(draft.ShippingContact.ProvinceState, "california")
+	isUS := strings.EqualFold(draft.ShippingContact.Country, "US")
+
+	if isCalifornia && isUS {
+		draft.Tax = int(math.Round(float64(draft.Subtotal) * draft.CATaxRate))
 	} else {
-		err := DraftOrderEstimateUpdate(draft, draft.ShippingContact, mutex, name, ip, draft.OrderEstimate.ShipRate, tools)
-		if err != nil {
-			return err
+		draft.Tax = int(draft.OrderEstimate.Tax * 100)
+		if draft.OrderDiscount.PercentageOff > 0 {
+			draft.Tax = int(math.Round(float64(draft.Tax) * (1 - draft.OrderDiscount.PercentageOff)))
 		}
 	}
 

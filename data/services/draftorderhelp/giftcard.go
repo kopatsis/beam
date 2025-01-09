@@ -230,3 +230,11 @@ func between0And50Fix(draftOrder *models.DraftOrder, newTotal, usedGiftCardSum, 
 
 	return newTotal, usedGiftCardSum, usedPreGiftCardTotal
 }
+
+func SetTotalsAndEnsure(draftOrder *models.DraftOrder) error {
+	draftOrder.PostDiscountTotal = draftOrder.Subtotal - draftOrder.OrderLevelDiscount
+	draftOrder.PostTaxTotal = draftOrder.PostDiscountTotal + draftOrder.Shipping + draftOrder.Tax
+	newPreGiftCardTotal := draftOrder.PostTaxTotal + draftOrder.Tip
+
+	return EnsureGiftCardSum(draftOrder, 0, newPreGiftCardTotal, false)
+}

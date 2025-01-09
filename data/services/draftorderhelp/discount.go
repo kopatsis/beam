@@ -54,7 +54,7 @@ func applyPercentOffToDraft(draftOrder *models.DraftOrder, percentageOff, oldDis
 	newPostTaxTotal := newPostDiscountTotal + newTax + draftOrder.Shipping
 	newPreGiftCardTotal := draftOrder.PostTaxTotal + draftOrder.Tip
 
-	draftOrder.OrderLevelDiscount = newPostDiscountTotal
+	draftOrder.OrderLevelDiscount = discOff
 	draftOrder.PostDiscountTotal = newPostDiscountTotal
 	draftOrder.PostTaxTotal = newPostTaxTotal
 	draftOrder.Tax = newTax
