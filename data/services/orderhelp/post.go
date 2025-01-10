@@ -1,7 +1,9 @@
 package orderhelp
 
 import (
+	"beam/background/apidata"
 	"beam/data/models"
+	"strconv"
 	"time"
 )
 
@@ -56,4 +58,75 @@ func CreateOrderFromDraft(draft *models.DraftOrder) *models.Order {
 		CATax:              draft.CATax,
 		CATaxRate:          draft.CATaxRate,
 	}
+}
+
+func CreatePrintfulOrder(order *models.Order) (*apidata.Order, error) {
+	ret := &apidata.Order{
+		ExternalID: order.ID.Hex(),
+		Shipping:   order.ActualRate.ID,
+		Gift: apidata.OrderGift{
+			Subject: order.GiftSubject,
+			Message: order.GiftMessage,
+		},
+		Recipient: apidata.OrderRecipient{
+			Name:     order.ShippingContact.FirstName,
+			Address1: order.ShippingContact.StreetAddress1,
+			City:     order.ShippingContact.City,
+			Zip:      order.ShippingContact.ZipCode,
+			Email:    order.Email,
+		},
+		Items: []apidata.OrderItems{},
+	}
+
+	if order.ShippingContact.LastName != nil {
+		ret.Recipient.Name += " " + *order.ShippingContact.LastName
+	}
+
+	if order.ShippingContact.Company != nil {
+		ret.Recipient.Company = *order.ShippingContact.Company
+	}
+
+	if order.ShippingContact.StreetAddress2 != nil {
+		ret.Recipient.Address2 = *order.ShippingContact.StreetAddress2
+	}
+
+	if order.ShippingContact.PhoneNumber != nil {
+		ret.Recipient.Phone = *order.ShippingContact.PhoneNumber
+	}
+
+	itemMap := map[string]models.OriginalProductRedis{}
+
+	for _, line := range order.Lines {
+		for _, o := range line.PrintfulID {
+			if l, ok := itemMap[o.VariantID]; ok {
+				l.Quantity += o.Quantity
+				itemMap[o.VariantID] = l
+			} else {
+				itemMap[o.VariantID] = o
+			}
+		}
+	}
+
+	i := 0
+	for vid, line := range itemMap {
+		i++
+
+		varID, err := strconv.Atoi(vid)
+		if err != nil {
+			return ret, err
+		}
+
+		syncVarID, err := strconv.Atoi(line.OriginalVariantID)
+		if err != nil {
+			return ret, err
+		}
+
+		ret.Items = append(ret.Items, apidata.OrderItems{
+			ID:            i,
+			VariantID:     varID,
+			SyncVariantID: syncVarID,
+		})
+	}
+
+	return ret, nil
 }
