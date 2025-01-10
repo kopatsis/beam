@@ -25,6 +25,7 @@ type DraftOrderService interface {
 	SetTip(draftID, guestID string, customerID, tip int) (*models.DraftOrder, error)
 	RemoveTip(draftID, guestID string, customerID int) (*models.DraftOrder, error)
 	AddGiftSubjectAndMessage(draftID, guestID, subject, message string, customerID int) (*models.DraftOrder, error)
+	CheckDiscountsAndGiftCards(draftID, guestID string, customerID int, ds *discountService) (error, error, error, bool)
 }
 
 type draftOrderService struct {
@@ -566,4 +567,53 @@ func (s *draftOrderService) RemoveGiftCard(draftID, guestID string, gcID, custom
 	err = s.SaveAndUpdatePtl(draft)
 
 	return draft, err
+}
+
+// draftErr error, gcErr error, draftErr error, passes bool
+func (s *draftOrderService) CheckDiscountsAndGiftCards(draftID, guestID string, customerID int, ds *discountService) (error, error, error, bool) {
+	draft, err := s.GetDraftPtl(draftID, guestID, customerID)
+	if err != nil {
+		return err, nil, nil, false
+	}
+
+	if draft.OrderDiscount.DiscountCode != "" && len(draft.GiftCards) != 0 {
+
+		gcsAndAmounts := map[string]int{}
+		for _, gc := range draft.GiftCards {
+			gcsAndAmounts[gc.Code] = gc.Charged
+		}
+
+		gcErr, draftErr := ds.CheckGiftCardsAndDiscountCodes(gcsAndAmounts, draft.OrderDiscount.DiscountCode, draft.Subtotal, customerID, draft.Guest)
+		if gcErr == nil && draftErr == nil {
+			return nil, nil, nil, true
+		}
+
+		return nil, gcErr, draftErr, false
+
+	} else if len(draft.GiftCards) != 0 {
+
+		gcsAndAmounts := map[string]int{}
+		for _, gc := range draft.GiftCards {
+			gcsAndAmounts[gc.Code] = gc.Charged
+		}
+
+		gcErr := ds.CheckMultipleGiftCards(gcsAndAmounts)
+		if gcErr == nil {
+			return nil, nil, nil, true
+		}
+
+		return nil, gcErr, nil, false
+
+	} else if draft.OrderDiscount.DiscountCode != "" {
+
+		draftErr := ds.CheckDiscountCode(draft.OrderDiscount.DiscountCode, draft.Subtotal, customerID, draft.Guest)
+		if draftErr == nil {
+			return nil, nil, nil, true
+		}
+
+		return nil, nil, draftErr, false
+
+	}
+
+	return nil, nil, nil, true
 }

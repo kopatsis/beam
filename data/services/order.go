@@ -5,6 +5,7 @@ import (
 )
 
 type OrderService interface {
+	SubmitOrder(draftID, guestID string, customerID int, ds *draftOrderService)
 }
 
 type orderService struct {
@@ -13,4 +14,8 @@ type orderService struct {
 
 func NewOrderService(orderRepo repositories.OrderRepository) OrderService {
 	return &orderService{orderRepo: orderRepo}
+}
+
+func (s *orderService) SubmitOrder(draftID, guestID string, customerID int, ds *draftOrderService) {
+	panic("reee")
 }
