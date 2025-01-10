@@ -44,6 +44,7 @@ func CreateOrderFromDraft(draft *models.DraftOrder) *models.Order {
 		OrderDiscount:      draft.OrderDiscount,
 		ShippingContact:    CopyContact(draft.ShippingContact),
 		Lines:              draft.Lines,
+		GiftCards:          draft.GiftCards,
 		Tags:               draft.Tags,
 		DeliveryNote:       draft.DeliveryNote,
 		Guest:              draft.Guest,

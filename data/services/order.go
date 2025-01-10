@@ -10,7 +10,7 @@ import (
 
 type OrderService interface {
 	SubmitOrder(draftID, guestID, newPaymentMethod string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService) error
-	UseDiscountsAndGiftCards(draft *models.DraftOrder, guestID string, customerID int, ds *discountService) (error, error, bool)
+	UseDiscountsAndGiftCards(order *models.Order, guestID string, customerID int, ds *discountService) (error, error, bool)
 }
 
 type orderService struct {
@@ -71,7 +71,7 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod string, cu
 		order.StripePaymentIntentID = intent.ID
 	}
 
-	gcErr, discErr, worked := s.UseDiscountsAndGiftCards(draft, guestID, customerID, dts)
+	gcErr, discErr, worked := s.UseDiscountsAndGiftCards(order, guestID, customerID, dts)
 	if !worked {
 		if gcErr != nil {
 			return gcErr
@@ -84,14 +84,14 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod string, cu
 }
 
 // Giftcard error, discount error, both worked
-func (s *orderService) UseDiscountsAndGiftCards(draft *models.DraftOrder, guestID string, customerID int, ds *discountService) (error, error, bool) {
+func (s *orderService) UseDiscountsAndGiftCards(order *models.Order, guestID string, customerID int, ds *discountService) (error, error, bool) {
 
 	gcErr, discErr := error(nil), error(nil)
 
-	if len(draft.GiftCards) != 0 {
+	if len(order.GiftCards) != 0 {
 
 		gcsAndAmounts := map[string]int{}
-		for _, gc := range draft.GiftCards {
+		for _, gc := range order.GiftCards {
 			gcsAndAmounts[gc.Code] = gc.Charged
 		}
 
@@ -103,9 +103,9 @@ func (s *orderService) UseDiscountsAndGiftCards(draft *models.DraftOrder, guestI
 
 	}
 
-	if draft.OrderDiscount.DiscountCode != "" {
+	if order.OrderDiscount.DiscountCode != "" {
 
-		discErr = ds.CheckDiscountCode(draft.OrderDiscount.DiscountCode, draft.Subtotal, customerID, draft.Guest)
+		discErr = ds.CheckDiscountCode(order.OrderDiscount.DiscountCode, order.Subtotal, customerID, order.Guest)
 
 		if discErr != nil {
 			return nil, discErr, false

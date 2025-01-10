@@ -36,6 +36,7 @@ type Order struct {
 	OrderDiscount          OrderDiscount      `bson:"non_stacking_discount_code" json:"non_stacking_discount_code"`
 	ShippingContact        *Contact           `bson:"shipping_contact" json:"shipping_contact"`
 	Lines                  []OrderLine        `bson:"lines" json:"lines"`
+	GiftCards              []OrderGiftCard    `bson:"gift_cards" json:"gift_cards"`
 	Tags                   []string           `bson:"tags" json:"tags"`
 	DeliveryNote           string             `bson:"delivery_note" json:"delivery_note"`
 	ShippingIdentification string             `bson:"shipping_identification" json:"shipping_identification"`
