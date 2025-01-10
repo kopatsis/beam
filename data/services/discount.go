@@ -20,6 +20,7 @@ type DiscountService interface {
 	DeleteDiscount(id int) error
 	CreateGiftCard(cents int, message string, store string, tools *config.Tools) (int, string, error)
 	RenderGiftCard(code string) (*models.GiftCardRender, error)
+	RetrieveGiftCard(code string) (*models.GiftCard, error)
 	CheckMultipleGiftCards(codesAndAmounts map[string]int) error
 	CheckDiscountCode(code string, subtotal int, cust int, noCustomer bool) error
 	CheckGiftCardsAndDiscountCodes(codesAndAmounts map[string]int, code string, subtotal int, cust int, noCustomer bool) (error, error)
@@ -88,7 +89,7 @@ func (s *discountService) CreateGiftCard(cents int, message string, store string
 	return idDB, idSt, nil
 }
 
-func (s *discountService) RetrieveGiftCard(code string, store string) (*models.GiftCard, error) {
+func (s *discountService) RetrieveGiftCard(code string) (*models.GiftCard, error) {
 	code = strings.ToLower(code)
 
 	if !discount.CheckID(code) {

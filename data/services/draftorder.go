@@ -502,3 +502,68 @@ func (s *draftOrderService) AddGiftSubjectAndMessage(draftID, guestID, subject, 
 
 	return draft, err
 }
+
+func (s *draftOrderService) AddGiftCard(draftID, guestID, gcCode string, customerID int, ds *discountService) (*models.DraftOrder, error) {
+	draft, err := s.GetDraftPtl(draftID, guestID, customerID)
+	if err != nil {
+		return draft, err
+	}
+
+	gc, err := ds.RetrieveGiftCard(gcCode)
+	if err != nil {
+		return draft, err
+	}
+
+	if err := draftorderhelp.AddGiftCardToOrder(gc, draft); err != nil {
+		return draft, err
+	}
+
+	err = s.SaveAndUpdatePtl(draft)
+
+	return draft, err
+}
+
+func (s *draftOrderService) ApplyGiftCard(draftID, guestID string, gcID, customerID, amount int, useMax bool) (*models.DraftOrder, error) {
+	draft, err := s.GetDraftPtl(draftID, guestID, customerID)
+	if err != nil {
+		return draft, err
+	}
+
+	if err := draftorderhelp.ApplyGiftCardToOrder(gcID, amount, useMax, draft); err != nil {
+		return draft, err
+	}
+
+	err = s.SaveAndUpdatePtl(draft)
+
+	return draft, err
+}
+
+func (s *draftOrderService) DeApplyGiftCard(draftID, guestID string, gcID, customerID int) (*models.DraftOrder, error) {
+	draft, err := s.GetDraftPtl(draftID, guestID, customerID)
+	if err != nil {
+		return draft, err
+	}
+
+	if err := draftorderhelp.ApplyGiftCardToOrder(gcID, 0, false, draft); err != nil {
+		return draft, err
+	}
+
+	err = s.SaveAndUpdatePtl(draft)
+
+	return draft, err
+}
+
+func (s *draftOrderService) RemoveGiftCard(draftID, guestID string, gcID, customerID int) (*models.DraftOrder, error) {
+	draft, err := s.GetDraftPtl(draftID, guestID, customerID)
+	if err != nil {
+		return draft, err
+	}
+
+	if err := draftorderhelp.RemoveGiftCardFromOrder(gcID, draft); err != nil {
+		return draft, err
+	}
+
+	err = s.SaveAndUpdatePtl(draft)
+
+	return draft, err
+}
