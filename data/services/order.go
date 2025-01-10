@@ -10,6 +10,7 @@ import (
 
 type OrderService interface {
 	SubmitOrder(draftID, guestID, newPaymentMethod string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService) error
+	UseDiscountsAndGiftCards(draft *models.DraftOrder, guestID string, customerID int, ds *discountService) (error, error, bool)
 }
 
 type orderService struct {
@@ -70,5 +71,46 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod string, cu
 		order.StripePaymentIntentID = intent.ID
 	}
 
+	gcErr, discErr, worked := s.UseDiscountsAndGiftCards(draft, guestID, customerID, dts)
+	if !worked {
+		if gcErr != nil {
+			return gcErr
+		} else if discErr != nil {
+			return discErr
+		}
+	}
+
 	return nil
+}
+
+// Giftcard error, discount error, both worked
+func (s *orderService) UseDiscountsAndGiftCards(draft *models.DraftOrder, guestID string, customerID int, ds *discountService) (error, error, bool) {
+
+	gcErr, discErr := error(nil), error(nil)
+
+	if len(draft.GiftCards) != 0 {
+
+		gcsAndAmounts := map[string]int{}
+		for _, gc := range draft.GiftCards {
+			gcsAndAmounts[gc.Code] = gc.Charged
+		}
+
+		gcErr = ds.UseMultipleGiftCards(gcsAndAmounts)
+
+		if gcErr != nil {
+			return gcErr, nil, false
+		}
+
+	}
+
+	if draft.OrderDiscount.DiscountCode != "" {
+
+		discErr = ds.CheckDiscountCode(draft.OrderDiscount.DiscountCode, draft.Subtotal, customerID, draft.Guest)
+
+		if discErr != nil {
+			return nil, discErr, false
+		}
+	}
+
+	return nil, nil, true
 }
