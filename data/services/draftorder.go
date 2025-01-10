@@ -20,6 +20,11 @@ type DraftOrderService interface {
 	ChooseShipRate(draftID, guestID, rateName string, customerID int) (*models.DraftOrder, error)
 	ChoosePaymentMethod(draftID, guestID, paymentMethodID string, customerID int, cts *customerService) (*models.DraftOrder, error)
 	RemovePaymentMethod(draftID, guestID string, customerID int) (*models.DraftOrder, error)
+	AddDiscountCode(draftID, guestID, discCode string, customerID int, ds *discountService) (*models.DraftOrder, error)
+	RemoveDiscountCode(draftID, guestID string, customerID int) (*models.DraftOrder, error)
+	SetTip(draftID, guestID string, customerID, tip int) (*models.DraftOrder, error)
+	RemoveTip(draftID, guestID string, customerID int) (*models.DraftOrder, error)
+	AddGiftSubjectAndMessage(draftID, guestID, subject, message string, customerID int) (*models.DraftOrder, error)
 }
 
 type draftOrderService struct {
@@ -416,6 +421,84 @@ func (s *draftOrderService) RemovePaymentMethod(draftID, guestID string, custome
 	draft.ExistingPaymentMethod = models.PaymentMethodStripe{}
 
 	err = s.SaveAndUpdatePtl(draft)
+
+	return draft, err
+}
+
+func (s *draftOrderService) AddDiscountCode(draftID, guestID, discCode string, customerID int, ds *discountService) (*models.DraftOrder, error) {
+	draft, err := s.GetDraftPtl(draftID, guestID, customerID)
+	if err != nil {
+		return draft, err
+	}
+
+	disc, users, err := ds.GetDiscountCodeForDraft(discCode, draft.Subtotal, customerID, customerID <= 1 && guestID != "")
+	if err != nil {
+		return draft, err
+	}
+
+	if err := draftorderhelp.ApplyDiscountToOrder(disc, users, draft); err != nil {
+		return draft, err
+	}
+
+	err = s.SaveAndUpdatePtl(draft)
+
+	return draft, err
+}
+
+func (s *draftOrderService) RemoveDiscountCode(draftID, guestID string, customerID int) (*models.DraftOrder, error) {
+	draft, err := s.GetDraftPtl(draftID, guestID, customerID)
+	if err != nil {
+		return draft, err
+	}
+
+	if err := draftorderhelp.RemoveDiscountFromOrder(draft); err != nil {
+		return draft, err
+	}
+
+	err = s.SaveAndUpdatePtl(draft)
+
+	return draft, err
+}
+
+func (s *draftOrderService) SetTip(draftID, guestID string, customerID, tip int) (*models.DraftOrder, error) {
+	draft, err := s.GetDraftPtl(draftID, guestID, customerID)
+	if err != nil {
+		return draft, err
+	}
+
+	if err := draftorderhelp.AddTipToOrder(draft, tip); err != nil {
+		return draft, err
+	}
+
+	err = s.SaveAndUpdatePtl(draft)
+
+	return draft, err
+}
+
+func (s *draftOrderService) RemoveTip(draftID, guestID string, customerID int) (*models.DraftOrder, error) {
+	draft, err := s.GetDraftPtl(draftID, guestID, customerID)
+	if err != nil {
+		return draft, err
+	}
+
+	if err := draftorderhelp.DeleteTipFromOrder(draft); err != nil {
+		return draft, err
+	}
+
+	err = s.SaveAndUpdatePtl(draft)
+
+	return draft, err
+}
+
+func (s *draftOrderService) AddGiftSubjectAndMessage(draftID, guestID, subject, message string, customerID int) (*models.DraftOrder, error) {
+	draft, err := s.GetDraftPtl(draftID, guestID, customerID)
+	if err != nil {
+		return draft, err
+	}
+
+	draftorderhelp.SetGiftMessage(draft, subject, message)
+
+	err = s.draftOrderRepo.Update(draft)
 
 	return draft, err
 }
