@@ -257,3 +257,94 @@ type Items struct {
 	Quantity          int     `json:"quantity,omitempty"`
 	Product           Product `json:"product,omitempty"`
 }
+
+type Order struct {
+	ExternalID  string           `json:"external_id"`
+	Shipping    string           `json:"shipping"`
+	Recipient   OrderRecipient   `json:"recipient"`
+	Items       []OrderItems     `json:"items"`
+	RetailCosts OrderRetailCosts `json:"retail_costs"`
+	Gift        OrderGift        `json:"gift"`
+	PackingSlip OrderPackingSlip `json:"packing_slip"`
+}
+type OrderRecipient struct {
+	Name        string `json:"name"`
+	Company     string `json:"company"`
+	Address1    string `json:"address1"`
+	Address2    string `json:"address2"`
+	City        string `json:"city"`
+	StateCode   string `json:"state_code"`
+	StateName   string `json:"state_name"`
+	CountryCode string `json:"country_code"`
+	CountryName string `json:"country_name"`
+	Zip         string `json:"zip"`
+	Phone       string `json:"phone"`
+	Email       string `json:"email"`
+	TaxNumber   string `json:"tax_number"`
+}
+type OrderProduct struct {
+	VariantID int    `json:"variant_id"`
+	ProductID int    `json:"product_id"`
+	Image     string `json:"image"`
+	Name      string `json:"name"`
+}
+type OrderOptions struct {
+	ID    string `json:"id"`
+	Value string `json:"value"`
+}
+type OrderPosition struct {
+	AreaWidth        int  `json:"area_width"`
+	AreaHeight       int  `json:"area_height"`
+	Width            int  `json:"width"`
+	Height           int  `json:"height"`
+	Top              int  `json:"top"`
+	Left             int  `json:"left"`
+	LimitToPrintArea bool `json:"limit_to_print_area"`
+}
+type OrderFiles struct {
+	Type     string         `json:"type"`
+	URL      string         `json:"url"`
+	Options  []OrderOptions `json:"options"`
+	Filename string         `json:"filename"`
+	Visible  bool           `json:"visible"`
+	Position OrderPosition  `json:"position"`
+}
+type OrderItems struct {
+	ID                        int            `json:"id"`
+	ExternalID                string         `json:"external_id"`
+	VariantID                 int            `json:"variant_id"`
+	SyncVariantID             int            `json:"sync_variant_id"`
+	ExternalVariantID         string         `json:"external_variant_id"`
+	WarehouseProductVariantID int            `json:"warehouse_product_variant_id"`
+	ProductTemplateID         int            `json:"product_template_id"`
+	ExternalProductID         string         `json:"external_product_id"`
+	Quantity                  int            `json:"quantity"`
+	Price                     string         `json:"price"`
+	RetailPrice               string         `json:"retail_price"`
+	Name                      string         `json:"name"`
+	Product                   OrderProduct   `json:"product"`
+	Files                     []OrderFiles   `json:"files"`
+	Options                   []OrderOptions `json:"options"`
+	Sku                       any            `json:"sku"`
+	Discontinued              bool           `json:"discontinued"`
+	OutOfStock                bool           `json:"out_of_stock"`
+}
+type OrderRetailCosts struct {
+	Currency string `json:"currency"`
+	Subtotal string `json:"subtotal"`
+	Discount string `json:"discount"`
+	Shipping string `json:"shipping"`
+	Tax      string `json:"tax"`
+}
+type OrderGift struct {
+	Subject string `json:"subject"`
+	Message string `json:"message"`
+}
+type OrderPackingSlip struct {
+	Email         string `json:"email"`
+	Phone         string `json:"phone"`
+	Message       string `json:"message"`
+	LogoURL       string `json:"logo_url"`
+	StoreName     string `json:"store_name"`
+	CustomOrderID string `json:"custom_order_id"`
+}

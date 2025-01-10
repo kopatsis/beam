@@ -41,6 +41,7 @@ type Order struct {
 	ShippingIdentification string             `bson:"shipping_identification" json:"shipping_identification"`
 	Guest                  bool               `bson:"guest" json:"guest"`
 	GuestID                *string            `bson:"guest_id,omitempty" json:"guest_id,omitempty"`
+	GuestStripeID          *string            `bson:"guest_stripe,omitempty" json:"guest_stripe,omitempty"`
 	External               bool               `bson:"external" json:"external"`
 	ExternalPlatform       string             `bson:"external_platform" json:"external_platform"`
 	ExternalID             string             `bson:"external_id" json:"external_id"`

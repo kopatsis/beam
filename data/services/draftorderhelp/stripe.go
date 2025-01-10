@@ -217,6 +217,11 @@ func ChargePaymentIntent(intentID, methodID string, save bool, customerID string
 	if err != nil {
 		return nil, err
 	}
+
+	if intent.Status != stripe.PaymentIntentStatusSucceeded {
+		return nil, fmt.Errorf("payment not successful, status: %s", intent.Status)
+	}
+
 	if save {
 		if err := AttachPaymentMethodToCustomer(methodID, customerID); err != nil {
 			return nil, err
@@ -246,11 +251,21 @@ func CreateCustomer(email, name string) (*stripe.Customer, error) {
 
 func CreateAndChargePaymentIntent(methodID, customerID string, amount int) (*stripe.PaymentIntent, error) {
 	params := &stripe.PaymentIntentParams{
-		Amount:        stripe.Int64(int64(amount)),
-		Currency:      stripe.String("usd"),
-		Customer:      stripe.String(customerID),
-		PaymentMethod: stripe.String(methodID),
-		Confirm:       stripe.Bool(true),
+		Amount:           stripe.Int64(int64(amount)),
+		Currency:         stripe.String("usd"),
+		Customer:         stripe.String(customerID),
+		PaymentMethod:    stripe.String(methodID),
+		Confirm:          stripe.Bool(true),
+		SetupFutureUsage: stripe.String("on_session"),
 	}
-	return paymentintent.New(params)
+	intent, err := paymentintent.New(params)
+	if err != nil {
+		return nil, err
+	}
+
+	if intent.Status != stripe.PaymentIntentStatusSucceeded {
+		return nil, fmt.Errorf("payment not successful, status: %s", intent.Status)
+	}
+
+	return intent, nil
 }

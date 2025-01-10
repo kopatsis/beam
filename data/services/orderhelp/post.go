@@ -48,6 +48,7 @@ func CreateOrderFromDraft(draft *models.DraftOrder) *models.Order {
 		DeliveryNote:       draft.DeliveryNote,
 		Guest:              draft.Guest,
 		GuestID:            CopyString(draft.GuestID),
+		GuestStripeID:      CopyString(draft.GuestStripeID),
 		ActualRate:         draft.ActualRate,
 		GiftSubject:        draft.GiftSubject,
 		GiftMessage:        draft.GiftMessage,

@@ -26,8 +26,14 @@ func NewDraftOrderRepository(mdb *mongo.Database) DraftOrderRepository {
 }
 
 func (r *draftOrderRepo) Create(draftOrder *models.DraftOrder) error {
-	_, err := r.coll.InsertOne(context.Background(), draftOrder)
-	return err
+	ctx := context.Background()
+	res, err := r.coll.InsertOne(ctx, draftOrder)
+	if err != nil {
+		return err
+	}
+
+	draftOrder.ID = res.InsertedID.(primitive.ObjectID)
+	return nil
 }
 
 func (r *draftOrderRepo) Read(id string) (*models.DraftOrder, error) {
