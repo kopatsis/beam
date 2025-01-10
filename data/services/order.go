@@ -5,7 +5,7 @@ import (
 )
 
 type OrderService interface {
-	SubmitOrder(draftID, guestID string, customerID int, ds *draftOrderService)
+	SubmitOrder(draftID, guestID, newPaymentMethod string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService) error
 }
 
 type orderService struct {
@@ -16,6 +16,6 @@ func NewOrderService(orderRepo repositories.OrderRepository) OrderService {
 	return &orderService{orderRepo: orderRepo}
 }
 
-func (s *orderService) SubmitOrder(draftID, guestID string, customerID int, ds *draftOrderService) {
+func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService) error {
 	panic("reee")
 }

@@ -61,10 +61,12 @@ type DraftOrder struct {
 	PrintfulID            string                       `bson:"printful_id" json:"printful_id"`
 	CustomerID            int                          `bson:"customer_id" json:"customer_id"`
 	Status                string                       `bson:"status" json:"status"` // Created (default), Modified, Expired, Abandoned, Attempted, Failed, Submitted
+	OrderID               string                       `bson:"order_id" json:"order_id"`
 	Email                 string                       `bson:"email" json:"email"`
 	FirstName             string                       `bson:"fname" json:"fname"`
 	LastName              string                       `bson:"lname" json:"lname"`
 	DateCreated           time.Time                    `bson:"date_created" json:"date_created"`
+	DateConverted         time.Time                    `bson:"date_converted" json:"date_converted"`
 	DateAbandoned         *time.Time                   `bson:"date_abandoned,omitempty" json:"date_abandoned,omitempty"`
 	StripePaymentIntentID string                       `bson:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
 	StripeMethodID        string                       `bson:"stripe_method_id" json:"stripe_method_id"`
