@@ -2,7 +2,13 @@ package orderhelp
 
 import (
 	"beam/background/apidata"
+	"beam/config"
 	"beam/data/models"
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
@@ -60,14 +66,10 @@ func CreateOrderFromDraft(draft *models.DraftOrder) *models.Order {
 	}
 }
 
-func CreatePrintfulOrder(order *models.Order, store string) (*apidata.Order, error) {
+func CreatePrintfulOrder(order *models.Order) (*apidata.Order, error) {
 	ret := &apidata.Order{
 		ExternalID: order.ID.Hex(),
 		Shipping:   order.ActualRate.ID,
-		Gift: apidata.OrderGift{
-			Subject: order.GiftSubject,
-			Message: order.GiftMessage,
-		},
 		Recipient: apidata.OrderRecipient{
 			Name:     order.ShippingContact.FirstName,
 			Address1: order.ShippingContact.StreetAddress1,
@@ -75,8 +77,7 @@ func CreatePrintfulOrder(order *models.Order, store string) (*apidata.Order, err
 			Zip:      order.ShippingContact.ZipCode,
 			Email:    order.Email,
 		},
-		Items:       []apidata.OrderItems{},
-		PackingSlip: apidata.OrderPackingSlip{},
+		Items: []apidata.OrderItems{},
 	}
 
 	if order.ShippingContact.LastName != nil {
@@ -129,15 +130,65 @@ func CreatePrintfulOrder(order *models.Order, store string) (*apidata.Order, err
 			ExternalVariantID: line.ExternalVariantID,
 			ExternalProductID: line.ExternalProductID,
 			Quantity:          line.Quantity,
+			Sku:               line.SKU,
+			Price:             fmt.Sprintf("%d.%02d", line.RetailPrice/100, line.RetailPrice%100),
+			RetailPrice:       fmt.Sprintf("%d.%02d", line.RetailPrice/100, line.RetailPrice%100),
+			Name:              line.FullVariantName,
 		})
 	}
 
 	if order.GiftSubject != "" || order.GiftMessage != "" {
-		ret.Gift = apidata.OrderGift{
+		ret.Gift = &apidata.OrderGift{
 			Subject: order.GiftSubject,
 			Message: order.GiftMessage,
 		}
 	}
 
 	return ret, nil
+}
+
+func PostOrderToPrintful(order *models.Order, name string, mutexes *config.AllMutexes, tools *config.Tools) (*apidata.OrderResponse, error) {
+	mutexes.Api.Mu.RLock()
+	apiKey := mutexes.Api.KeyMap[name]
+	mutexes.Api.Mu.RUnlock()
+
+	bodyStruct, err := CreatePrintfulOrder(order)
+	if err != nil {
+		return nil, err
+	}
+
+	bodyJSON, err := json.Marshal(bodyStruct)
+	if err != nil {
+		return nil, err
+	}
+
+	base := os.Getenv("PF_URL")
+	req, err := http.NewRequest("POST", base+"/orders?confirm=true", bytes.NewBuffer(bodyJSON))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := tools.Client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Error with response: http status: %d", resp.StatusCode)
+	}
+
+	var apiResponse apidata.OrderResponse
+	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
+		return nil, err
+	}
+
+	return &apiResponse, nil
+}
+
+func ConfirmOrderPostResponse(resp *apidata.OrderResponse) error {
+	return nil
 }

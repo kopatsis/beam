@@ -194,7 +194,7 @@ func getEstApiShipRates(draft *models.DraftOrder, newContact *models.Contact, mu
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, err
+		return nil, fmt.Errorf("Error with response: http status: %d", resp.StatusCode)
 	}
 
 	var apiResponse apidata.FromCostEstimate

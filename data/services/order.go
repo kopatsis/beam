@@ -1,6 +1,7 @@
 package services
 
 import (
+	"beam/config"
 	"beam/data/models"
 	"beam/data/repositories"
 	"beam/data/services/draftorderhelp"
@@ -9,7 +10,7 @@ import (
 )
 
 type OrderService interface {
-	SubmitOrder(draftID, guestID, newPaymentMethod string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService) error
+	SubmitOrder(draftID, guestID, newPaymentMethod, store string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, mutexes *config.AllMutexes, tools *config.Tools) error
 	UseDiscountsAndGiftCards(order *models.Order, guestID string, customerID int, ds *discountService) (error, error, bool)
 }
 
@@ -21,7 +22,7 @@ func NewOrderService(orderRepo repositories.OrderRepository) OrderService {
 	return &orderService{orderRepo: orderRepo}
 }
 
-func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService) error {
+func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, mutexes *config.AllMutexes, tools *config.Tools) error {
 
 	draft, err := ds.GetDraftPtl(draftID, guestID, customerID)
 	if err != nil {
@@ -69,6 +70,15 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod string, cu
 			return err
 		}
 		order.StripePaymentIntentID = intent.ID
+	}
+
+	resp, err := orderhelp.PostOrderToPrintful(order, store, mutexes, tools)
+	if err != nil {
+		return err
+	}
+
+	if err := orderhelp.ConfirmOrderPostResponse(resp); err != nil {
+		return err
 	}
 
 	gcErr, discErr, worked := s.UseDiscountsAndGiftCards(order, guestID, customerID, dts)

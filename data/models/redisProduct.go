@@ -75,6 +75,7 @@ type OriginalProductRedis struct {
 	OriginalProductID string `json:"op"`
 	OriginalVariantID string `json:"ov"`
 	FullVariantName   string `json:"f"`
+	SKU               string `json:"s"`
 	RetailPrice       int    `json:"rp"`
 }
 

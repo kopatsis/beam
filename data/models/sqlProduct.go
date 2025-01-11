@@ -69,4 +69,5 @@ type OriginalProduct struct {
 	RetailPrice       int
 	OriginalProductID string
 	OriginalVariantID string
+	SKU               string
 }
