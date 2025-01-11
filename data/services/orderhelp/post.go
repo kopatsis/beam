@@ -60,7 +60,7 @@ func CreateOrderFromDraft(draft *models.DraftOrder) *models.Order {
 	}
 }
 
-func CreatePrintfulOrder(order *models.Order) (*apidata.Order, error) {
+func CreatePrintfulOrder(order *models.Order, store string) (*apidata.Order, error) {
 	ret := &apidata.Order{
 		ExternalID: order.ID.Hex(),
 		Shipping:   order.ActualRate.ID,
@@ -75,23 +75,24 @@ func CreatePrintfulOrder(order *models.Order) (*apidata.Order, error) {
 			Zip:      order.ShippingContact.ZipCode,
 			Email:    order.Email,
 		},
-		Items: []apidata.OrderItems{},
+		Items:       []apidata.OrderItems{},
+		PackingSlip: apidata.OrderPackingSlip{},
 	}
 
 	if order.ShippingContact.LastName != nil {
-		ret.Recipient.Name += " " + *order.ShippingContact.LastName
+		ret.Recipient.Name += " " + *CopyString(order.ShippingContact.LastName)
 	}
 
 	if order.ShippingContact.Company != nil {
-		ret.Recipient.Company = *order.ShippingContact.Company
+		ret.Recipient.Company = *CopyString(order.ShippingContact.Company)
 	}
 
 	if order.ShippingContact.StreetAddress2 != nil {
-		ret.Recipient.Address2 = *order.ShippingContact.StreetAddress2
+		ret.Recipient.Address2 = *CopyString(order.ShippingContact.StreetAddress2)
 	}
 
 	if order.ShippingContact.PhoneNumber != nil {
-		ret.Recipient.Phone = *order.ShippingContact.PhoneNumber
+		ret.Recipient.Phone = *CopyString(order.ShippingContact.PhoneNumber)
 	}
 
 	itemMap := map[string]models.OriginalProductRedis{}
@@ -122,10 +123,20 @@ func CreatePrintfulOrder(order *models.Order) (*apidata.Order, error) {
 		}
 
 		ret.Items = append(ret.Items, apidata.OrderItems{
-			ID:            i,
-			VariantID:     varID,
-			SyncVariantID: syncVarID,
+			ID:                i,
+			VariantID:         varID,
+			SyncVariantID:     syncVarID,
+			ExternalVariantID: line.ExternalVariantID,
+			ExternalProductID: line.ExternalProductID,
+			Quantity:          line.Quantity,
 		})
+	}
+
+	if order.GiftSubject != "" || order.GiftMessage != "" {
+		ret.Gift = apidata.OrderGift{
+			Subject: order.GiftSubject,
+			Message: order.GiftMessage,
+		}
 	}
 
 	return ret, nil
