@@ -7,6 +7,7 @@ import (
 	"beam/data/services/draftorderhelp"
 	"beam/data/services/orderhelp"
 	"errors"
+	"time"
 )
 
 type OrderService interface {
@@ -51,6 +52,13 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store str
 		return err
 	}
 
+	draft.Status = "Submitted"
+	draft.DateConverted = time.Now()
+
+	if err := ds.draftOrderRepo.Update(draft); err != nil {
+		return err
+	}
+
 	if useExisting && order.Total > 0 {
 		intent, err := draftorderhelp.CreateAndChargePaymentIntent(draft.ExistingPaymentMethod.ID, cust.StripeID, order.Total)
 		if err != nil {
@@ -90,7 +98,7 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store str
 		}
 	}
 
-	return nil
+	return s.MarkOrderAndDraftAsSuccess(order, draft, ds)
 }
 
 // Giftcard error, discount error, both worked
@@ -123,4 +131,24 @@ func (s *orderService) UseDiscountsAndGiftCards(order *models.Order, guestID str
 	}
 
 	return nil, nil, true
+}
+
+func (s *orderService) MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds *draftOrderService) error {
+	now := time.Now()
+
+	order.Status = "Procesed"
+	order.DateProcessedPrintful = now
+
+	draft.Status = "Succeeded"
+	draft.DateSucceeded = now
+
+	if err := s.orderRepo.Update(order); err != nil {
+		return err
+	}
+
+	if err := ds.draftOrderRepo.Update(draft); err != nil {
+		return err
+	}
+
+	return nil
 }

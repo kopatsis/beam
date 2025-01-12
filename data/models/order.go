@@ -11,17 +11,17 @@ type Order struct {
 	PrintfulID             string             `bson:"printful_id" json:"printful_id"`
 	CustomerID             int                `bson:"customer_id" json:"customer_id"`
 	DraftOrderID           string             `bson:"draft_order_id" json:"draft_order_id"`
-	Status                 string             `bson:"status" json:"status"`
+	Status                 string             `bson:"status" json:"status"` // Created, Cancelled, Processed, Shipped, Delivered, ReturnedInit, ReturnedComp
 	Email                  string             `bson:"email" json:"email"`
 	FirstName              string             `bson:"fname" json:"fname"`
 	LastName               string             `bson:"lname" json:"lname"`
 	DateCreated            time.Time          `bson:"date_created" json:"date_created"`
-	DateCancelled          *time.Time         `bson:"date_cancelled,omitempty" json:"date_cancelled,omitempty"`
-	DateProcessedPrintful  *time.Time         `bson:"date_processed_printful,omitempty" json:"date_processed_printful,omitempty"`
-	DateShipped            *time.Time         `bson:"date_shipped,omitempty" json:"date_shipped,omitempty"`
-	DateDelivered          *time.Time         `bson:"date_delivered,omitempty" json:"date_delivered,omitempty"`
-	DateReturnInitiated    *time.Time         `bson:"date_return_initiated,omitempty" json:"date_return_initiated,omitempty"`
-	DateReturnCompleted    *time.Time         `bson:"date_return_completed,omitempty" json:"date_return_completed,omitempty"`
+	DateCancelled          time.Time          `bson:"date_cancelled" json:"date_cancelled"`
+	DateProcessedPrintful  time.Time          `bson:"date_processed_printful" json:"date_processed_printful"`
+	DateShipped            time.Time          `bson:"date_shipped" json:"date_shipped"`
+	DateDelivered          time.Time          `bson:"date_delivered" json:"date_delivered"`
+	DateReturnInitiated    time.Time          `bson:"date_return_initiated" json:"date_return_initiated"`
+	DateReturnCompleted    time.Time          `bson:"date_return_completed" json:"date_return_completed"`
 	StripePaymentIntentID  string             `bson:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
 	Subtotal               int                `bson:"subtotal" json:"subtotal"`
 	OrderLevelDiscount     int                `bson:"order_level_discount" json:"order_level_discount"`
@@ -62,13 +62,14 @@ type DraftOrder struct {
 	ID                    primitive.ObjectID           `bson:"_id,omitempty" json:"id"`
 	PrintfulID            string                       `bson:"printful_id" json:"printful_id"`
 	CustomerID            int                          `bson:"customer_id" json:"customer_id"`
-	Status                string                       `bson:"status" json:"status"` // Created (default), Modified, Expired, Abandoned, Attempted, Failed, Submitted
+	Status                string                       `bson:"status" json:"status"` // Created (default), Modified, Expired, Abandoned, Attempted, Failed, Submitted, Succceeded
 	OrderID               string                       `bson:"order_id" json:"order_id"`
 	Email                 string                       `bson:"email" json:"email"`
 	FirstName             string                       `bson:"fname" json:"fname"`
 	LastName              string                       `bson:"lname" json:"lname"`
 	DateCreated           time.Time                    `bson:"date_created" json:"date_created"`
 	DateConverted         time.Time                    `bson:"date_converted" json:"date_converted"`
+	DateSucceeded         time.Time                    `bson:"date_succeeded" json:"date_succeeded"`
 	DateAbandoned         *time.Time                   `bson:"date_abandoned,omitempty" json:"date_abandoned,omitempty"`
 	StripePaymentIntentID string                       `bson:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
 	StripeMethodID        string                       `bson:"stripe_method_id" json:"stripe_method_id"`
