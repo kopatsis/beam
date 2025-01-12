@@ -12,6 +12,7 @@ import (
 type OrderRepository interface {
 	CreateOrder(order *models.Order) error
 	Update(order *models.Order) error
+	Read(id string) (*models.Order, error)
 }
 
 type orderRepo struct {
@@ -41,4 +42,14 @@ func (r *orderRepo) Update(order *models.Order) error {
 		bson.M{"$set": order},
 	)
 	return err
+}
+
+func (r *orderRepo) Read(id string) (*models.Order, error) {
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
+	var order models.Order
+	err = r.coll.FindOne(context.Background(), bson.M{"_id": objID}).Decode(&order)
+	return &order, err
 }

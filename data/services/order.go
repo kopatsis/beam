@@ -152,3 +152,25 @@ func (s *orderService) MarkOrderAndDraftAsSuccess(order *models.Order, draft *mo
 
 	return nil
 }
+
+// Actual order, display order doesn't belong to this account (guest), error
+func (s *orderService) RenderOrder(orderID, guestID string, customerID int) (*models.Order, bool, error) {
+	o, err := s.orderRepo.Read(orderID)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !o.Guest && o.CustomerID != customerID {
+		return nil, false, errors.New("order does not belong to customer")
+	}
+
+	if o.Status == "Created" {
+		return nil, false, errors.New("order does not exist yet")
+	}
+
+	if o.Guest && customerID > 0 {
+		return o, true, nil
+	}
+
+	return o, false, nil
+}

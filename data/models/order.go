@@ -11,7 +11,7 @@ type Order struct {
 	PrintfulID             string             `bson:"printful_id" json:"printful_id"`
 	CustomerID             int                `bson:"customer_id" json:"customer_id"`
 	DraftOrderID           string             `bson:"draft_order_id" json:"draft_order_id"`
-	Status                 string             `bson:"status" json:"status"` // Created, Cancelled, Processed, Shipped, Delivered, ReturnedInit, ReturnedComp
+	Status                 string             `bson:"status" json:"status"` // Created, Cancelled, Processed, Shipped, Delivered, ReturnedInit, ReturnedComp, AdminError
 	Email                  string             `bson:"email" json:"email"`
 	FirstName              string             `bson:"fname" json:"fname"`
 	LastName               string             `bson:"lname" json:"lname"`
