@@ -197,13 +197,39 @@ func AlertEstimateTooHigh(store string, draftID string, tools *config.Tools, noP
 	}
 
 	toEmail := fromEmail
-	subject := "SERIOUS Alert: Order Estimate Too HIgh"
+	subject := "SERIOUS Alert: Order Estimate Too High"
 
 	if noProfit {
 		subject += " + ZERO OR NEGATIVE PROFIT"
 	}
 
 	message := fmt.Sprintf("The order estimate is too high for this current cost.\n\nStore: %s\nDraft Order ID: %s\nOrder Estimate in cents: %d\nPre Gift Card Total in cents: %d\n\nCHECK NOW.", store, draftID, cost, price)
+
+	from := mail.NewEmail("Admin", fromEmail)
+	to := mail.NewEmail("Admin", toEmail)
+	content := mail.NewContent("text/plain", message)
+	mailMessage := mail.NewV3MailInit(from, subject, to, content)
+
+	_, err := tools.SendGrid.Send(mailMessage)
+	if err != nil {
+		log.Printf("Error sending email: %v", err)
+	}
+}
+
+func OrderSuccessWithProfit(store string, orderID, printfulID string, tools *config.Tools, cost, price int) {
+	fromEmail := os.Getenv("ADMIN_EMAIL")
+	if fromEmail == "" {
+		log.Println("ADMIN_EMAIL is not set")
+	}
+
+	toEmail := fromEmail
+	subject := store + ": Order Went Through"
+
+	if price <= cost {
+		subject = "NO OR NEGATIVE PROFIT ALERT -- "
+	}
+
+	message := fmt.Sprintf("An order successfully went through with this information.\n\nStore: %s\nOrder ID: %s\nPrintful ID: %s\nOrder Cost in cents: %d\nPre Gift Card Total in cents: %d.", store, orderID, printfulID, cost, price)
 
 	from := mail.NewEmail("Admin", fromEmail)
 	to := mail.NewEmail("Admin", toEmail)

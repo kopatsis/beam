@@ -85,7 +85,7 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store str
 		return err
 	}
 
-	if err := orderhelp.ConfirmOrderPostResponse(resp); err != nil {
+	if err := orderhelp.ConfirmOrderPostResponse(resp, order); err != nil {
 		return err
 	}
 
@@ -98,7 +98,11 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store str
 		}
 	}
 
-	return s.MarkOrderAndDraftAsSuccess(order, draft, ds)
+	if err := s.MarkOrderAndDraftAsSuccess(order, draft, ds); err != nil {
+		return err
+	}
+
+	return orderhelp.OrderEmailWithProfit(resp, order, tools, store)
 }
 
 // Giftcard error, discount error, both worked

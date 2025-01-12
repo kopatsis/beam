@@ -2,6 +2,7 @@ package orderhelp
 
 import (
 	"beam/background/apidata"
+	"beam/background/emails"
 	"beam/config"
 	"beam/data/models"
 	"bytes"
@@ -189,6 +190,40 @@ func PostOrderToPrintful(order *models.Order, name string, mutexes *config.AllMu
 	return &apiResponse, nil
 }
 
-func ConfirmOrderPostResponse(resp *apidata.OrderResponse) error {
+func ConfirmOrderPostResponse(resp *apidata.OrderResponse, order *models.Order) error {
+
+	if resp.Code != 200 {
+		return fmt.Errorf("response code not okay, should be 200, is : %d", resp.Code)
+	}
+
+	order.PrintfulID = strconv.Itoa(resp.Result.ID)
+
 	return nil
+}
+
+func OrderEmailWithProfit(resp *apidata.OrderResponse, order *models.Order, tools *config.Tools, name string) error {
+
+	cost, err := convertRateToCents(resp.Result.Costs.Total)
+	if err != nil {
+		return err
+	}
+
+	price := order.PreGiftCardTotal
+
+	if order.CATax {
+		price -= order.Tax
+	}
+
+	emails.OrderSuccessWithProfit(name, order.ID.Hex(), order.PrintfulID, tools, cost, price)
+
+	return nil
+}
+
+func convertRateToCents(rate string) (int, error) {
+	var rateInt int
+	_, err := fmt.Sscanf(rate, "%f", &rateInt)
+	if err != nil {
+		return 0, fmt.Errorf("invalid rate format: %v", err)
+	}
+	return rateInt, nil
 }
