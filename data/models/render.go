@@ -1,6 +1,11 @@
 package models
 
-import "net/url"
+import (
+	"net/url"
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 // Full collection equivalent info
 type CollectionRender struct {
@@ -141,4 +146,23 @@ type LastOrderListRender struct {
 	Data   []*LastOrderLineRender
 	Prev   bool
 	Next   bool
+}
+
+type OrderSummary struct {
+	ID          primitive.ObjectID `bson:"_id" json:"id"`
+	CustomerID  int                `bson:"customer_id" json:"customer_id"`
+	Status      string             `bson:"status" json:"status"`
+	DateCreated time.Time          `bson:"date_created" json:"date_created"`
+	Subtotal    int                `bson:"subtotal" json:"subtotal"`
+	Total       int                `bson:"total" json:"total"`
+	Tags        []string           `bson:"tags" json:"tags"`
+}
+
+type OrderRender struct {
+	Orders     []*Order
+	Previous   bool
+	Next       bool
+	Page       int
+	SortColumn string
+	Descending bool
 }

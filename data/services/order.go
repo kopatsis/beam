@@ -7,6 +7,7 @@ import (
 	"beam/data/services/draftorderhelp"
 	"beam/data/services/orderhelp"
 	"errors"
+	"net/url"
 	"time"
 )
 
@@ -177,4 +178,33 @@ func (s *orderService) RenderOrder(orderID, guestID string, customerID int) (*mo
 	}
 
 	return o, false, nil
+}
+
+func (s *orderService) GetOrdersList(customerID int, fromURL url.Values) (models.OrderRender, error) {
+	ret := models.OrderRender{}
+
+	sort, desc, page := orderhelp.ParseQueryParams(fromURL)
+
+	perPage := config.ORDERLEN
+
+	offset := (perPage * page) - perPage
+
+	orders, err := s.orderRepo.GetOrders(customerID, perPage+1, offset, sort, desc)
+	if err != nil {
+		return ret, err
+	}
+
+	more := false
+	if len(orders) > perPage {
+		orders = orders[:perPage]
+		more = true
+	}
+
+	ret.Orders = orders
+	ret.Descending = desc
+	ret.SortColumn = sort
+	ret.Next = more
+	ret.Previous = page > 1
+
+	return ret, nil
 }
