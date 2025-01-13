@@ -1,6 +1,7 @@
 package services
 
 import (
+	"beam/background/emails"
 	"beam/config"
 	"beam/data/models"
 	"beam/data/repositories"
@@ -12,8 +13,11 @@ import (
 )
 
 type OrderService interface {
-	SubmitOrder(draftID, guestID, newPaymentMethod, store string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, mutexes *config.AllMutexes, tools *config.Tools) error
+	SubmitOrder(draftID, guestID, newPaymentMethod, store string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, mutexes *config.AllMutexes, tools *config.Tools) (error, error)
 	UseDiscountsAndGiftCards(order *models.Order, guestID string, customerID int, ds *discountService) (error, error, bool)
+	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds *draftOrderService) error
+	RenderOrder(orderID, guestID string, customerID int) (*models.Order, bool, error)
+	GetOrdersList(customerID int, fromURL url.Values) (models.OrderRender, error)
 }
 
 type orderService struct {
@@ -24,86 +28,92 @@ func NewOrderService(orderRepo repositories.OrderRepository) OrderService {
 	return &orderService{orderRepo: orderRepo}
 }
 
-func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, mutexes *config.AllMutexes, tools *config.Tools) error {
+// Charging error, internal error
+func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, mutexes *config.AllMutexes, tools *config.Tools) (error, error) {
 
 	draft, err := ds.GetDraftPtl(draftID, guestID, customerID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var cust *models.Customer
 	if customerID > 0 && !draft.Guest {
 		cust, err = cs.GetCustomerByID(customerID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	if useExisting {
 		if draft.ExistingPaymentMethod.ID == "" {
-			return errors.New("requires a chosen payment method if using existing payment method")
+			return errors.New("requires a chosen payment method if using existing payment method"), nil
 		} else if !(customerID > 0 && !draft.Guest) {
-			return errors.New("requires non guest order if using existing payment method")
+			return errors.New("requires non guest order if using existing payment method"), nil
 		}
 	}
 
 	order := orderhelp.CreateOrderFromDraft(draft)
 
 	if err := s.orderRepo.CreateOrder(order); err != nil {
-		return err
+		return nil, err
 	}
 
 	draft.Status = "Submitted"
 	draft.DateConverted = time.Now()
 
 	if err := ds.draftOrderRepo.Update(draft); err != nil {
-		return err
+		go emails.AlertRecoverableOrderSubmitError(store, draftID, order.ID.Hex(), "Error when updating draft for order on mongodb", tools, order, draft, nil, false, err)
 	}
 
 	if useExisting && order.Total > 0 {
 		intent, err := draftorderhelp.CreateAndChargePaymentIntent(draft.ExistingPaymentMethod.ID, cust.StripeID, order.Total)
 		if err != nil {
-			return err
+			return err, nil
 		}
 		draft.StripePaymentIntentID = intent.ID
 		order.StripePaymentIntentID = intent.ID
 	} else if order.Guest && order.Total > 0 {
 		intent, err := draftorderhelp.ChargePaymentIntent(order.StripePaymentIntentID, newPaymentMethod, false, *order.GuestStripeID)
 		if err != nil {
-			return err
+			return err, nil
 		}
 		order.StripePaymentIntentID = intent.ID
 	} else if order.Total > 0 {
 		intent, err := draftorderhelp.ChargePaymentIntent(order.StripePaymentIntentID, newPaymentMethod, saveMethod, cust.StripeID)
 		if err != nil {
-			return err
+			return err, nil
 		}
 		order.StripePaymentIntentID = intent.ID
 	}
 
 	resp, err := orderhelp.PostOrderToPrintful(order, store, mutexes, tools)
 	if err != nil {
-		return err
+		go emails.AlertRecoverableOrderSubmitError(store, draftID, order.ID.Hex(), "Unable to post order to printful after charging", tools, order, draft, resp, true, err)
 	}
 
 	if err := orderhelp.ConfirmOrderPostResponse(resp, order); err != nil {
-		return err
+		go emails.AlertRecoverableOrderSubmitError(store, draftID, order.ID.Hex(), "Bad response from posting order to printful after charging", tools, order, draft, resp, false, err)
 	}
 
 	gcErr, discErr, worked := s.UseDiscountsAndGiftCards(order, guestID, customerID, dts)
 	if !worked {
 		if gcErr != nil {
-			return gcErr
-		} else if discErr != nil {
-			return discErr
+			go emails.AlertRecoverableOrderSubmitError(store, draftID, order.ID.Hex(), "Unable to post order to mark charging of gift cards after using", tools, order, draft, nil, true, gcErr)
+		}
+		if discErr != nil {
+			go emails.AlertRecoverableOrderSubmitError(store, draftID, order.ID.Hex(), "Unable to post order to mark use of of discount after using", tools, order, draft, nil, false, discErr)
 		}
 	}
 
 	if err := s.MarkOrderAndDraftAsSuccess(order, draft, ds); err != nil {
-		return err
+		go emails.AlertRecoverableOrderSubmitError(store, draftID, order.ID.Hex(), "Unable to save order and draft order after successful creation", tools, order, draft, nil, false, err)
 	}
 
-	return orderhelp.OrderEmailWithProfit(resp, order, tools, store)
+	if err := orderhelp.OrderEmailWithProfit(resp, order, tools, store); err != nil {
+		go emails.AlertRecoverableOrderSubmitError(store, draftID, order.ID.Hex(), "Unable to send email of success to creat the order", tools, order, draft, nil, false, err)
+	}
+
+	return nil, nil
 }
 
 // Giftcard error, discount error, both worked

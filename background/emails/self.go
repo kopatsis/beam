@@ -1,7 +1,9 @@
 package emails
 
 import (
+	"beam/background/apidata"
 	"beam/config"
+	"beam/data/models"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,6 +18,7 @@ func AlertEmailRateDanger(store string, wait time.Duration, tools *config.Tools,
 	fromEmail := os.Getenv("ADMIN_EMAIL")
 	if fromEmail == "" {
 		log.Println("ADMIN_EMAIL is not set")
+		return
 	}
 
 	toEmail := fromEmail
@@ -42,6 +45,7 @@ func AlertIPRateDanger(ip string, wait time.Duration, tools *config.Tools, compl
 	fromEmail := os.Getenv("ADMIN_EMAIL")
 	if fromEmail == "" {
 		log.Println("ADMIN_EMAIL is not set")
+		return
 	}
 
 	toEmail := fromEmail
@@ -68,6 +72,7 @@ func AlertGiftCardID(id string, iter int, store string, tools *config.Tools) {
 	fromEmail := os.Getenv("ADMIN_EMAIL")
 	if fromEmail == "" {
 		log.Println("ADMIN_EMAIL is not set")
+		return
 	}
 
 	toEmail := fromEmail
@@ -142,6 +147,7 @@ func AlertEmailEstRateDanger(store string, wait time.Duration, tools *config.Too
 	fromEmail := os.Getenv("ADMIN_EMAIL")
 	if fromEmail == "" {
 		log.Println("ADMIN_EMAIL is not set")
+		return
 	}
 
 	toEmail := fromEmail
@@ -168,6 +174,7 @@ func AlertIPEstRateDanger(ip string, wait time.Duration, tools *config.Tools, co
 	fromEmail := os.Getenv("ADMIN_EMAIL")
 	if fromEmail == "" {
 		log.Println("ADMIN_EMAIL is not set")
+		return
 	}
 
 	toEmail := fromEmail
@@ -213,6 +220,7 @@ func AlertEstimateTooHigh(store string, draftID string, tools *config.Tools, noP
 	_, err := tools.SendGrid.Send(mailMessage)
 	if err != nil {
 		log.Printf("Error sending email: %v", err)
+		return
 	}
 }
 
@@ -230,6 +238,78 @@ func OrderSuccessWithProfit(store string, orderID, printfulID string, tools *con
 	}
 
 	message := fmt.Sprintf("An order successfully went through with this information.\n\nStore: %s\nOrder ID: %s\nPrintful ID: %s\nOrder Cost in cents: %d\nPre Gift Card Total in cents: %d.", store, orderID, printfulID, cost, price)
+
+	from := mail.NewEmail("Admin", fromEmail)
+	to := mail.NewEmail("Admin", toEmail)
+	content := mail.NewContent("text/plain", message)
+	mailMessage := mail.NewV3MailInit(from, subject, to, content)
+
+	_, err := tools.SendGrid.Send(mailMessage)
+	if err != nil {
+		log.Printf("Error sending email: %v", err)
+	}
+}
+
+func AlertRecoverableOrderSubmitError(store string, draftID, orderID, explain string, tools *config.Tools, order *models.Order, draft *models.DraftOrder, pfresponse *apidata.OrderResponse, isExtreme bool, providedErr error) {
+	fromEmail := os.Getenv("ADMIN_EMAIL")
+	if isExtreme {
+		fromEmail = os.Getenv("ADMIN_EMAIL_CATAS")
+	}
+
+	if fromEmail == "" {
+		log.Println("ADMIN_EMAIL is not set")
+		return
+	}
+
+	toEmail := fromEmail
+	subject := "ALERT -- " + store + ": Error Submitting Order = " + explain
+
+	if isExtreme {
+		subject = "EXTREME " + subject
+	}
+
+	var message string
+	if isExtreme {
+		message = fmt.Sprintf("UNRECOVERABLE error when submitting an order.\n\nGiven Error: %v\nDetails: %s\nStore: %s\nDraft Order ID: %s\nOrder ID: %s", providedErr, explain, store, draftID, orderID)
+	} else {
+		message = fmt.Sprintf("There was a recoverable error when submitting an order.\n\nGiven Error: %v\nDetails: %s\nStore: %s\nDraft Order ID: %s\nOrder ID: %s", providedErr, explain, store, draftID, orderID)
+	}
+
+	if draft != nil {
+
+		message += "\n\nJSON of present Draft Order struct:\n\n"
+
+		payloadJSON, err := json.MarshalIndent(draft, "", "  ")
+		if err == nil {
+			message += string(payloadJSON)
+		} else {
+			message += "Unable to be marshaled: " + err.Error()
+		}
+	}
+
+	if order != nil {
+
+		message += "\n\nJSON of present Order struct:\n\n"
+
+		payloadJSON, err := json.MarshalIndent(order, "", "  ")
+		if err == nil {
+			message += string(payloadJSON)
+		} else {
+			message += "Unable to be marshaled: " + err.Error()
+		}
+	}
+
+	if pfresponse != nil {
+
+		message += "\n\nJSON of present Printful Reponse struct:\n\n"
+
+		payloadJSON, err := json.MarshalIndent(pfresponse, "", "  ")
+		if err == nil {
+			message += string(payloadJSON)
+		} else {
+			message += "Unable to be marshaled: " + err.Error()
+		}
+	}
 
 	from := mail.NewEmail("Admin", fromEmail)
 	to := mail.NewEmail("Admin", toEmail)
