@@ -20,6 +20,7 @@ type Product struct {
 	DateAdded      time.Time      `gorm:"type:timestamp"`
 	Tags           pq.StringArray `gorm:"type:text[]"`
 	Rating         float64        `gorm:"type:float8"`
+	RatingCt       int            `gorm:"type:int"`
 	Redirect       *string        `gorm:"type:varchar(512)"`
 	Variant1Key    string         `gorm:"type:varchar(256)"`
 	Variant2Key    *string        `gorm:"type:varchar(256)"`

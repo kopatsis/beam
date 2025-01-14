@@ -15,6 +15,7 @@ type ProductRedis struct {
 	DateAdded      time.Time         `json:"da"`
 	Tags           []string          `json:"tg"`
 	Rating         float64           `json:"r"`
+	RatingCt       int               `json:"a"`
 	Var1Key        string            `json:"vk1"`
 	Var2Key        string            `json:"vk2,omitempty"` // Optional
 	Var3Key        string            `json:"vk3,omitempty"` // Optional
@@ -55,7 +56,8 @@ type ProductInfo struct {
 	Sales      int       `json:"s"`
 	Price      int       `json:"p"`
 	Inventory  int       `json:"i"`
-	AvgRate    float64   `json:"ar"`
+	AvgRate    float64   `json:"r"`
+	RateCt     int       `json:"a"`
 	Tags       []string  `json:"tg"`
 	Var1Key    string    `json:"vk1"`
 	Var2Key    string    `json:"vk2,omitempty"` // Optional
