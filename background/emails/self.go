@@ -367,3 +367,31 @@ func AlertProductNotInInfo(pid int, handle string, store string, tools *config.T
 		log.Printf("Error sending email: %v", err)
 	}
 }
+
+func AlertGeneralRatingsError(pid int, handle string, store string, logistics bool, providedErr error, expl string, tools *config.Tools) {
+	fromEmail := os.Getenv("ADMIN_EMAIL")
+	if fromEmail == "" {
+		log.Println("ADMIN_EMAIL is not set")
+		return
+	}
+
+	subjAdd := "Logistics based"
+	if !logistics {
+		subjAdd = "Database based"
+	}
+
+	toEmail := fromEmail
+	subject := "Alert: " + subjAdd + " Error Saving RATING for store " + store
+
+	message := fmt.Sprintf("Issue with updating ratings for product.\n\nID: %d\nHandle: %s\n\nExplained action: %s\nError: %v.", pid, handle, expl, providedErr)
+
+	from := mail.NewEmail("Admin", fromEmail)
+	to := mail.NewEmail("Admin", toEmail)
+	content := mail.NewContent("text/plain", message)
+	mailMessage := mail.NewV3MailInit(from, subject, to, content)
+
+	_, err := tools.SendGrid.Send(mailMessage)
+	if err != nil {
+		log.Printf("Error sending email: %v", err)
+	}
+}

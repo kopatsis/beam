@@ -25,7 +25,7 @@ type ProductService interface {
 	GetProductByVariantID(name string, vid int) (models.ProductRedis, string, error)
 	GetProductsByVariantIDs(name string, vids []int) (map[int]*models.ProductRedis, error)
 	GetProductsMapFromCartLine(name string, cartLines []models.CartLine) (map[int]*models.ProductRedis, error)
-	UpdateRatings(pid int, name string, newRate, oldRate, plusMinus int, tools *config.Tools) (error, error)
+	UpdateRatings(pid int, name string, newRate, oldRate, plusMinus int, tools *config.Tools)
 }
 
 type productService struct {
@@ -240,34 +240,40 @@ func (s *productService) GetProductsMapFromCartLine(name string, cartLines []mod
 }
 
 // Logistics error, DB error
-func (s *productService) UpdateRatings(pid int, name string, newRate, oldRate, plusMinus int, tools *config.Tools) (error, error) {
+func (s *productService) UpdateRatings(pid int, name string, newRate, oldRate, plusMinus int, tools *config.Tools) {
 	if plusMinus != -1 && plusMinus != 0 && plusMinus != 1 {
-		return errors.New("plusMinus must be -1 (delete), 0 (update), 1 (new)"), nil
+		emails.AlertGeneralRatingsError(pid, "", name, true, errors.New("plusMinus must be -1 (delete), 0 (update), 1 (new)"), "plusMinus must be -1 (delete), 0 (update), 1 (new)", tools)
+		return
 	}
 
 	if newRate < 1 || newRate > 5 || ((oldRate < 1 || oldRate > 5) && plusMinus == 0) {
-		return errors.New("ratings must be 1-5 inclusive"), nil
+		emails.AlertGeneralRatingsError(pid, "", name, true, errors.New("ratings must be 1-5 inclusive"), "ratings must be 1-5 inclusive", tools)
+		return
 	}
 
 	prod, err := s.productRepo.Read(pid)
 	if err != nil {
-		return nil, err
+		emails.AlertGeneralRatingsError(pid, "", name, false, err, "unable to read product from SQL", tools)
+		return
 	}
 
 	prodRedis, rdr, err := s.productRepo.GetFullProduct(name, prod.Handle)
 	if err != nil {
-		return nil, err
+		emails.AlertGeneralRatingsError(pid, "", name, false, err, "unable to read product from redis", tools)
+		return
 	} else if rdr != "" {
-		return nil, errors.New("product has redirect, no longer active")
+		emails.AlertGeneralRatingsError(pid, "", name, false, errors.New("product has redirect, no longer active"), "product has redirect, no longer active", tools)
+		return
 	}
 
 	prodInfo, err := s.productRepo.GetAllProductInfo(name)
 	if err != nil {
-		return nil, err
+		emails.AlertGeneralRatingsError(pid, "", name, false, err, "unable to read product info section from redis", tools)
+		return
 	}
 
 	if prod.Rating != prodRedis.Rating || prod.RatingCt != prodRedis.RatingCt {
-		go emails.AlertRatingsMismatch(pid, prod.Handle, prod.Rating, prodRedis.Rating, prod.RatingCt, prodRedis.RatingCt, name, tools)
+		emails.AlertRatingsMismatch(pid, prod.Handle, prod.Rating, prodRedis.Rating, prod.RatingCt, prodRedis.RatingCt, name, tools)
 	}
 
 	rate := prodRedis.Rating
@@ -311,12 +317,16 @@ func (s *productService) UpdateRatings(pid int, name string, newRate, oldRate, p
 	}
 
 	if !found {
-		go emails.AlertProductNotInInfo(pid, prod.Handle, name, tools)
+		emails.AlertProductNotInInfo(pid, prod.Handle, name, tools)
 	}
 
 	if err := s.productRepo.SaveProductInfoInTransaction(name, &prodRedis, prodInfo); err != nil {
-		return nil, err
+		emails.AlertGeneralRatingsError(pid, "", name, false, err, "unable to save product and product info in transaction redis", tools)
+		return
 	}
 
-	return nil, s.productRepo.Update(*prod)
+	if err := s.productRepo.Update(*prod); err != nil {
+		emails.AlertGeneralRatingsError(pid, "", name, false, err, "unable to save product for sql", tools)
+		return
+	}
 }
