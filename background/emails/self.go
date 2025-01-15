@@ -321,3 +321,49 @@ func AlertRecoverableOrderSubmitError(store string, draftID, orderID, explain st
 		log.Printf("Error sending email: %v", err)
 	}
 }
+
+func AlertRatingsMismatch(pid int, handle string, pgRate, redisRate float64, pgCt, redisCt int, store string, tools *config.Tools) {
+	fromEmail := os.Getenv("ADMIN_EMAIL")
+	if fromEmail == "" {
+		log.Println("ADMIN_EMAIL is not set")
+		return
+	}
+
+	toEmail := fromEmail
+	subject := "Alert: Ratings mismatch for store " + store
+
+	message := fmt.Sprintf("Ratings did not match up between 3 sources for this product\n\nID: %d\nHandle: %s\n\nSQL Rate: %f\nSQL Count: %d\n\nSQL Rate: %f\nRedis Count: %d.", pid, handle, pgRate, pgCt, redisRate, redisCt)
+
+	from := mail.NewEmail("Admin", fromEmail)
+	to := mail.NewEmail("Admin", toEmail)
+	content := mail.NewContent("text/plain", message)
+	mailMessage := mail.NewV3MailInit(from, subject, to, content)
+
+	_, err := tools.SendGrid.Send(mailMessage)
+	if err != nil {
+		log.Printf("Error sending email: %v", err)
+	}
+}
+
+func AlertProductNotInInfo(pid int, handle string, store string, tools *config.Tools) {
+	fromEmail := os.Getenv("ADMIN_EMAIL")
+	if fromEmail == "" {
+		log.Println("ADMIN_EMAIL is not set")
+		return
+	}
+
+	toEmail := fromEmail
+	subject := "Alert: Product not in info section for store " + store
+
+	message := fmt.Sprintf("Product not in info section.\n\nID: %d\nHandle: %s.", pid, handle)
+
+	from := mail.NewEmail("Admin", fromEmail)
+	to := mail.NewEmail("Admin", toEmail)
+	content := mail.NewContent("text/plain", message)
+	mailMessage := mail.NewV3MailInit(from, subject, to, content)
+
+	_, err := tools.SendGrid.Send(mailMessage)
+	if err != nil {
+		log.Printf("Error sending email: %v", err)
+	}
+}

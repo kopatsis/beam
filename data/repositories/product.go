@@ -14,13 +14,14 @@ import (
 
 type ProductRepository interface {
 	Create(product models.Product) error
-	Read(id int) (*models.Product, error)
-	Update(product models.Product) error
+	Read(id int) (*models.Product, error) // U
+	Update(product models.Product) error  // U
 	Delete(id int) error
-	GetAllProductInfo(name string) ([]models.ProductInfo, error)
-	GetFullProduct(name, handle string) (models.ProductRedis, string, error)
+	GetAllProductInfo(name string) ([]models.ProductInfo, error)             // U
+	GetFullProduct(name, handle string) (models.ProductRedis, string, error) // U
 	GetLimVars(name string, vids []int) ([]*models.LimitedVariantRedis, error)
 	GetFullProducts(name string, handles []string) ([]*models.ProductRedis, error)
+	SaveProductInfoInTransaction(name string, prod *models.ProductRedis, info []models.ProductInfo) error // U
 }
 
 type productRepo struct {
@@ -145,4 +146,25 @@ func (r *productRepo) GetFullProducts(name string, handles []string) ([]*models.
 	}
 
 	return products, nil
+}
+
+func (r *productRepo) SaveProductInfoInTransaction(name string, prod *models.ProductRedis, info []models.ProductInfo) error {
+	prodKey := name + "::PRO::" + prod.Handle
+	infoKey := name + "::PWC"
+	prodData, err := json.Marshal(prod)
+	if err != nil {
+		return err
+	}
+	infoData, err := json.Marshal(info)
+	if err != nil {
+		return err
+	}
+	return r.rdb.Watch(context.Background(), func(tx *redis.Tx) error {
+		_, err := tx.Pipelined(context.Background(), func(pipe redis.Pipeliner) error {
+			pipe.Set(context.Background(), prodKey, prodData, 0)
+			pipe.Set(context.Background(), infoKey, infoData, 0)
+			return nil
+		})
+		return err
+	}, prodKey, infoKey)
 }

@@ -1,10 +1,12 @@
 package services
 
 import (
+	"beam/background/emails"
 	"beam/config"
 	"beam/data/models"
 	"beam/data/repositories"
 	"beam/data/services/product"
+	"errors"
 	"fmt"
 	"net/url"
 	"slices"
@@ -23,6 +25,7 @@ type ProductService interface {
 	GetProductByVariantID(name string, vid int) (models.ProductRedis, string, error)
 	GetProductsByVariantIDs(name string, vids []int) (map[int]*models.ProductRedis, error)
 	GetProductsMapFromCartLine(name string, cartLines []models.CartLine) (map[int]*models.ProductRedis, error)
+	UpdateRatings(pid int, name string, newRate, oldRate, plusMinus int, tools *config.Tools) (error, error)
 }
 
 type productService struct {
@@ -234,4 +237,86 @@ func (s *productService) GetProductsMapFromCartLine(name string, cartLines []mod
 	}
 
 	return s.GetProductsByVariantIDs(name, vids)
+}
+
+// Logistics error, DB error
+func (s *productService) UpdateRatings(pid int, name string, newRate, oldRate, plusMinus int, tools *config.Tools) (error, error) {
+	if plusMinus != -1 && plusMinus != 0 && plusMinus != 1 {
+		return errors.New("plusMinus must be -1 (delete), 0 (update), 1 (new)"), nil
+	}
+
+	if newRate < 1 || newRate > 5 || ((oldRate < 1 || oldRate > 5) && plusMinus == 0) {
+		return errors.New("ratings must be 1-5 inclusive"), nil
+	}
+
+	prod, err := s.productRepo.Read(pid)
+	if err != nil {
+		return nil, err
+	}
+
+	prodRedis, rdr, err := s.productRepo.GetFullProduct(name, prod.Handle)
+	if err != nil {
+		return nil, err
+	} else if rdr != "" {
+		return nil, errors.New("product has redirect, no longer active")
+	}
+
+	prodInfo, err := s.productRepo.GetAllProductInfo(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if prod.Rating != prodRedis.Rating || prod.RatingCt != prodRedis.RatingCt {
+		go emails.AlertRatingsMismatch(pid, prod.Handle, prod.Rating, prodRedis.Rating, prod.RatingCt, prodRedis.RatingCt, name, tools)
+	}
+
+	rate := prodRedis.Rating
+	ct := prodRedis.RatingCt
+
+	if plusMinus == 0 {
+		rate += float64(newRate - oldRate)
+	} else {
+		rate += float64(plusMinus * newRate)
+	}
+	ct += plusMinus
+
+	if ct < 0 {
+		ct = 0
+	}
+
+	if ct == 0 {
+		rate = 0
+	} else {
+		if rate < 1 {
+			rate = 1
+		} else if rate > 5 {
+			rate = 5
+		}
+	}
+
+	prod.Rating = rate
+	prod.RatingCt = ct
+	prodRedis.Rating = rate
+	prodRedis.RatingCt = ct
+
+	found := false
+	for i, pi := range prodInfo {
+		if pi.ID == pid {
+			found = true
+			pi.AvgRate = rate
+			pi.RateCt = ct
+			prodInfo[i] = pi
+			break
+		}
+	}
+
+	if !found {
+		go emails.AlertProductNotInInfo(pid, prod.Handle, name, tools)
+	}
+
+	if err := s.productRepo.SaveProductInfoInTransaction(name, &prodRedis, prodInfo); err != nil {
+		return nil, err
+	}
+
+	return nil, s.productRepo.Update(*prod)
 }
