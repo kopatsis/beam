@@ -13,7 +13,7 @@ type ReviewRepository interface {
 	Delete(ID int) error
 	GetSingle(customerID int, productID int) (*models.Review, error)
 	GetReviewsByCustomer(customerID, offset, limit int, sortColumn string, desc bool) ([]*models.Review, error)
-	GetReviewsByProduct(productID, offset, limit int, sortColumn string, desc bool) ([]*models.Review, error)
+	GetReviewsByProduct(productID, offset, limit int, sortColumn string, desc bool, custBlock int) ([]*models.Review, error)
 }
 
 type reviewRepo struct {
@@ -77,7 +77,7 @@ func (r *reviewRepo) GetReviewsByCustomer(customerID, offset, limit int, sortCol
 	return reviews, nil
 }
 
-func (r *reviewRepo) GetReviewsByProduct(productID, offset, limit int, sortColumn string, desc bool) ([]*models.Review, error) {
+func (r *reviewRepo) GetReviewsByProduct(productID, offset, limit int, sortColumn string, desc bool, custBlock int) ([]*models.Review, error) {
 	var reviews []*models.Review
 	order := sortColumn
 
@@ -93,8 +93,13 @@ func (r *reviewRepo) GetReviewsByProduct(productID, offset, limit int, sortColum
 		order += ", stars DESC"
 	}
 
-	if err := r.db.Where("product_id = ? AND just_star = false", productID).
-		Order(order).
+	query := r.db.Where("product_id = ? AND just_star = false", productID)
+
+	if custBlock > 0 {
+		query = query.Where("customer_id != ?", custBlock)
+	}
+
+	if err := query.Order(order).
 		Offset(offset).
 		Limit(limit).
 		Find(&reviews).Error; err != nil {
