@@ -166,3 +166,13 @@ type OrderRender struct {
 	SortColumn string
 	Descending bool
 }
+
+type ReviewPageRender struct {
+	AllReviews []*Review
+	CustReview *Review
+	Previous   bool
+	Next       bool
+	Page       int
+	SortColumn string
+	Descending bool
+}

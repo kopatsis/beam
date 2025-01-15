@@ -4,7 +4,9 @@ import (
 	"beam/config"
 	"beam/data/models"
 	"beam/data/repositories"
+	"beam/data/services/reviewhelp"
 	"fmt"
+	"net/url"
 )
 
 type ReviewService interface {
@@ -13,6 +15,8 @@ type ReviewService interface {
 	DeleteReview(customerID int, productID int, store string, ps *productService, tools *config.Tools) (*models.Review, error)
 	GetReview(customerID int, productID int) (*models.Review, error)
 	FirstThreeForProduct(customerID int, productID int) (firstThree []*models.Review, existingReview *models.Review, singleErr error, multiErr error)
+	ReviewsByProduct(customerID int, productID int, fromURL url.Values) (ret models.ReviewPageRender, singleErr error, multiErr error)
+	ReviewsByCustomer(customerID int, fromURL url.Values) (models.ReviewPageRender, error)
 }
 
 type reviewService struct {
@@ -138,4 +142,64 @@ func (s *reviewService) FirstThreeForProduct(customerID int, productID int) (fir
 	}
 
 	return firstThree, existingReview, multiErr, singleErr
+}
+
+func (s *reviewService) ReviewsByProduct(customerID int, productID int, fromURL url.Values) (ret models.ReviewPageRender, singleErr error, multiErr error) {
+
+	var existingReview *models.Review
+	var allReviews []*models.Review
+
+	sort, desc, page := reviewhelp.ParseQueryParams(fromURL)
+
+	perPage := config.REVIEWLEN
+
+	offset := (perPage * page) - perPage
+
+	existingReview, singleErr = s.reviewRepo.GetSingle(customerID, productID)
+
+	allReviews, multiErr = s.reviewRepo.GetReviewsByProduct(productID, offset, perPage+1, sort, desc, 0)
+
+	more := false
+	if len(allReviews) > perPage {
+		allReviews = allReviews[:perPage]
+		more = true
+	}
+	less := perPage > 1
+
+	ret.AllReviews = allReviews
+	ret.CustReview = existingReview
+	ret.Next = more
+	ret.Previous = less
+	ret.SortColumn = sort
+	ret.Descending = desc
+
+	return ret, multiErr, singleErr
+}
+
+func (s *reviewService) ReviewsByCustomer(customerID int, fromURL url.Values) (models.ReviewPageRender, error) {
+
+	var ret models.ReviewPageRender
+
+	sort, desc, page := reviewhelp.ParseQueryParams(fromURL)
+
+	perPage := config.REVIEWLEN
+
+	offset := (perPage * page) - perPage
+
+	allReviews, err := s.reviewRepo.GetReviewsByCustomer(customerID, offset, perPage+1, sort, desc)
+
+	more := false
+	if len(allReviews) > perPage {
+		allReviews = allReviews[:perPage]
+		more = true
+	}
+	less := perPage > 1
+
+	ret.AllReviews = allReviews
+	ret.Next = more
+	ret.Previous = less
+	ret.SortColumn = sort
+	ret.Descending = desc
+
+	return ret, err
 }

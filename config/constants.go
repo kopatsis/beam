@@ -4,6 +4,7 @@ import "time"
 
 const PAGELEN int = 20
 const ORDERLEN int = 6
+const REVIEWLEN int = 16
 
 const SHIPREQS int = 119
 const IPREQS int = 59
