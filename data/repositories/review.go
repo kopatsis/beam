@@ -2,12 +2,18 @@ package repositories
 
 import (
 	"beam/data/models"
+	"fmt"
 
 	"gorm.io/gorm"
 )
 
 type ReviewRepository interface {
 	Create(review *models.Review) error
+	Update(review *models.Review) error
+	Delete(ID int) error
+	GetSingle(customerID int, productID int) (*models.Review, error)
+	GetReviewsByCustomer(customerID, offset, limit int, sortColumn string, desc bool) ([]*models.Review, error)
+	GetReviewsByProduct(productID, offset, limit int, sortColumn string, desc bool) ([]*models.Review, error)
 }
 
 type reviewRepo struct {
@@ -20,4 +26,80 @@ func NewReviewRepository(db *gorm.DB) ReviewRepository {
 
 func (r *reviewRepo) Create(review *models.Review) error {
 	return r.db.Create(&review).Error
+}
+
+func (r *reviewRepo) Update(review *models.Review) error {
+	return r.db.Save(&review).Error
+}
+
+func (r *reviewRepo) Delete(ID int) error {
+	return r.db.Delete(&models.Review{}, ID).Error
+}
+
+func (r *reviewRepo) GetSingle(customerID int, productID int) (*models.Review, error) {
+	var reviews []models.Review
+	if err := r.db.Where("customer_id = ? AND product_id = ?", customerID, productID).Find(&reviews).Error; err != nil {
+		return nil, err
+	}
+	if len(reviews) > 1 {
+		return &reviews[0], fmt.Errorf("more than one review found for customerID %d and productID %d", customerID, productID)
+	}
+	if len(reviews) == 0 {
+		return nil, nil
+	}
+	return &reviews[0], nil
+}
+
+func (r *reviewRepo) GetReviewsByCustomer(customerID, offset, limit int, sortColumn string, desc bool) ([]*models.Review, error) {
+	var reviews []*models.Review
+	order := sortColumn
+
+	if desc {
+		order += " DESC"
+	} else {
+		order += " ASC"
+	}
+
+	if sortColumn != "created_at" {
+		order += ", created_at DESC"
+	} else {
+		order += ", stars DESC"
+	}
+
+	if err := r.db.Where("customer_id = ? AND just_star = false", customerID).
+		Order(order).
+		Offset(offset).
+		Limit(limit).
+		Find(&reviews).Error; err != nil {
+		return nil, err
+	}
+
+	return reviews, nil
+}
+
+func (r *reviewRepo) GetReviewsByProduct(productID, offset, limit int, sortColumn string, desc bool) ([]*models.Review, error) {
+	var reviews []*models.Review
+	order := sortColumn
+
+	if desc {
+		order += " DESC"
+	} else {
+		order += " ASC"
+	}
+
+	if sortColumn != "created_at" {
+		order += ", created_at DESC"
+	} else {
+		order += ", stars DESC"
+	}
+
+	if err := r.db.Where("product_id = ? AND just_star = false", productID).
+		Order(order).
+		Offset(offset).
+		Limit(limit).
+		Find(&reviews).Error; err != nil {
+		return nil, err
+	}
+
+	return reviews, nil
 }

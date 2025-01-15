@@ -4,7 +4,7 @@ import "time"
 
 type Review struct {
 	PK         int       `gorm:"primaryKey"`
-	UserID     int       `gorm:"index"`
+	CustomerID int       `gorm:"index"`
 	ProductID  int       `gorm:"index"`
 	CreatedAt  time.Time `gorm:"index"`
 	Status     string    `gorm:"index"`
