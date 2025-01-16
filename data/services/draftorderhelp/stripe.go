@@ -121,7 +121,7 @@ func GetAllPaymentMethods(stripeID string) ([]models.PaymentMethodStripe, error)
 		"mastercard": "MasterCard",
 		"unionpay":   "UnionPay",
 		"visa":       "Visa",
-		"unknown":    "Unknown",
+		"unknown":    "Other",
 	}
 
 	params := &stripe.PaymentMethodListParams{
