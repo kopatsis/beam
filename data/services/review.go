@@ -17,6 +17,8 @@ type ReviewService interface {
 	FirstThreeForProduct(customerID int, productID int) (firstThree []*models.Review, existingReview *models.Review, singleErr error, multiErr error)
 	ReviewsByProduct(customerID int, productID int, fromURL url.Values) (ret models.ReviewPageRender, singleErr error, multiErr error)
 	ReviewsByCustomer(customerID int, fromURL url.Values) (models.ReviewPageRender, error)
+	GetReviewIDOnly(customerID int, ID int) (*models.Review, error)
+	GetReviewsForOrder(order *models.Order) (map[int]*models.Review, error)
 }
 
 type reviewService struct {
@@ -202,4 +204,12 @@ func (s *reviewService) ReviewsByCustomer(customerID int, fromURL url.Values) (m
 	ret.Descending = desc
 
 	return ret, err
+}
+
+func (s *reviewService) GetReviewIDOnly(customerID int, ID int) (*models.Review, error) {
+	panic("ree")
+}
+
+func (s *reviewService) GetReviewsForOrder(order *models.Order) (map[int]*models.Review, error) {
+	panic("ree")
 }

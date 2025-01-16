@@ -12,8 +12,10 @@ type ReviewRepository interface {
 	Update(review *models.Review) error
 	Delete(ID int) error
 	GetSingle(customerID int, productID int) (*models.Review, error)
+	GetSingleByID(ID int) (*models.Review, error)
 	GetReviewsByCustomer(customerID, offset, limit int, sortColumn string, desc bool) ([]*models.Review, error)
 	GetReviewsByProduct(productID, offset, limit int, sortColumn string, desc bool, custBlock int) ([]*models.Review, error)
+	GetReviewsMultiProduct(productIDs []int, customerID int) (map[int]*models.Review, error)
 }
 
 type reviewRepo struct {
@@ -48,6 +50,14 @@ func (r *reviewRepo) GetSingle(customerID int, productID int) (*models.Review, e
 		return nil, nil
 	}
 	return &reviews[0], nil
+}
+
+func (r *reviewRepo) GetSingleByID(ID int) (*models.Review, error) {
+	var review models.Review
+	if err := r.db.First(&review, ID).Error; err != nil {
+		return nil, err
+	}
+	return &review, nil
 }
 
 func (r *reviewRepo) GetReviewsByCustomer(customerID, offset, limit int, sortColumn string, desc bool) ([]*models.Review, error) {
@@ -106,5 +116,22 @@ func (r *reviewRepo) GetReviewsByProduct(productID, offset, limit int, sortColum
 		return nil, err
 	}
 
+	return reviews, nil
+}
+
+func (r *reviewRepo) GetReviewsMultiProduct(productIDs []int, customerID int) (map[int]*models.Review, error) {
+	reviews := make(map[int]*models.Review)
+	var result []models.Review
+	if err := r.db.Where("product_id IN ? AND customer_id = ?", productIDs, customerID).Find(&result).Error; err != nil {
+		return nil, err
+	}
+	for _, review := range result {
+		reviews[review.ProductID] = &review
+	}
+	for _, productID := range productIDs {
+		if _, exists := reviews[productID]; !exists {
+			reviews[productID] = nil
+		}
+	}
 	return reviews, nil
 }
