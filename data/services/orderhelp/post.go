@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -66,19 +67,96 @@ func CreateOrderFromDraft(draft *models.DraftOrder) *models.Order {
 	}
 }
 
-func CreatePrintfulOrder(order *models.Order) (*apidata.Order, error) {
+func CreatePrintfulOrder(order *models.Order, mutex *config.AllMutexes) (*apidata.Order, error) {
 	ret := &apidata.Order{
 		ExternalID: order.ID.Hex(),
 		Shipping:   order.ActualRate.ID,
 		Recipient: apidata.OrderRecipient{
-			Name:     order.ShippingContact.FirstName,
-			Address1: order.ShippingContact.StreetAddress1,
-			City:     order.ShippingContact.City,
-			Zip:      order.ShippingContact.ZipCode,
-			Email:    order.Email,
+			Name:        order.ShippingContact.FirstName,
+			Address1:    order.ShippingContact.StreetAddress1,
+			City:        order.ShippingContact.City,
+			Zip:         order.ShippingContact.ZipCode,
+			CountryName: order.ShippingContact.Country,
+			Email:       order.Email,
 		},
 		Items: []apidata.OrderItems{},
 	}
+
+	countryCode := ""
+
+	mutex.Iso.Mu.RLock()
+	found := false
+	for _, bl := range mutex.Iso.Countries.List {
+		if bl.Name == order.ShippingContact.Country {
+			countryCode = bl.Code
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		log.Printf("unknown country: %s encountered (should not be possible) on order id: %s in convert to printful\n", order.ShippingContact.Country, order.ID.Hex())
+	} else {
+		ret.Recipient.CountryCode = countryCode
+	}
+
+	stateCode := ""
+	found = false
+	if countryCode == "US" {
+		for _, bl := range mutex.Iso.States.US {
+			if bl.Name == order.ShippingContact.ProvinceState {
+				stateCode = bl.Code
+				found = true
+				break
+			}
+		}
+		if !found {
+			log.Printf("unknown state: %s encountered for country code: %s (should not be possible) on order id: %s in convert to printful\n", order.ShippingContact.ProvinceState, countryCode, order.ID.Hex())
+		} else {
+			ret.Recipient.StateCode = stateCode
+		}
+	} else if countryCode == "MX" {
+		for _, bl := range mutex.Iso.States.MX {
+			if bl.Name == order.ShippingContact.ProvinceState {
+				stateCode = bl.Code
+				found = true
+				break
+			}
+		}
+		if !found {
+			log.Printf("unknown state: %s encountered for country code: %s (should not be possible) on order id: %s in convert to printful\n", order.ShippingContact.ProvinceState, countryCode, order.ID.Hex())
+		} else {
+			ret.Recipient.StateCode = stateCode
+		}
+	} else if countryCode == "AU" {
+		for _, bl := range mutex.Iso.States.AU {
+			if bl.Name == order.ShippingContact.ProvinceState {
+				stateCode = bl.Code
+				found = true
+				break
+			}
+		}
+		if !found {
+			log.Printf("unknown state: %s encountered for country code: %s (should not be possible) on order id: %s in convert to printful\n", order.ShippingContact.ProvinceState, countryCode, order.ID.Hex())
+		} else {
+			ret.Recipient.StateCode = stateCode
+		}
+	} else if countryCode == "CA" {
+		for _, bl := range mutex.Iso.States.CA {
+			if bl.Name == order.ShippingContact.ProvinceState {
+				stateCode = bl.Code
+				found = true
+				break
+			}
+		}
+		if !found {
+			log.Printf("unknown state: %s encountered for country code: %s (should not be possible) on order id: %s in convert to printful\n", order.ShippingContact.ProvinceState, countryCode, order.ID.Hex())
+		} else {
+			ret.Recipient.StateCode = stateCode
+		}
+	}
+
+	mutex.Iso.Mu.RUnlock()
 
 	if order.ShippingContact.LastName != nil {
 		ret.Recipient.Name += " " + *CopyString(order.ShippingContact.LastName)
@@ -152,7 +230,7 @@ func PostOrderToPrintful(order *models.Order, name string, mutexes *config.AllMu
 	apiKey := mutexes.Api.KeyMap[name]
 	mutexes.Api.Mu.RUnlock()
 
-	bodyStruct, err := CreatePrintfulOrder(order)
+	bodyStruct, err := CreatePrintfulOrder(order, mutexes)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +256,7 @@ func PostOrderToPrintful(order *models.Order, name string, mutexes *config.AllMu
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Error with response: http status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("error with response: http status: %d", resp.StatusCode)
 	}
 
 	var apiResponse apidata.OrderResponse

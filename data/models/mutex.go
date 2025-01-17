@@ -29,6 +29,22 @@ type TotalTags struct {
 	All map[string]TagMap `json:"a"`
 }
 
+type CodeBlock struct {
+	Name string `json:"Name"`
+	Code string `json:"Code"`
+}
+
+type CountryCodes struct {
+	List []CodeBlock `json:"List"`
+}
+
+type StateCodes struct {
+	US []CodeBlock `json:"US"`
+	CA []CodeBlock `json:"CA"`
+	MX []CodeBlock `json:"MX"`
+	AU []CodeBlock `json:"AU"`
+}
+
 var sizeOrder = map[string]int{
 	"XXXS": 0,
 	"XXS":  1,

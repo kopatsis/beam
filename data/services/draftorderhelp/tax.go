@@ -59,8 +59,8 @@ func GetRateWithFallback(client *http.Client, contact *models.Contact, taxData *
 	zipBackup, hasZipBackup := taxData.CATax[contact.ZipCode]
 	taxData.Mu.RUnlock()
 
-	isCalifornia := strings.EqualFold(contact.ProvinceState, "ca") || strings.EqualFold(contact.ProvinceState, "california")
-	isUS := strings.EqualFold(contact.Country, "US")
+	isCalifornia := strings.EqualFold(contact.ProvinceState, "California")
+	isUS := strings.EqualFold(contact.Country, "United States")
 
 	if !(isCalifornia && isUS || hasZipBackup) {
 		return 0, nil

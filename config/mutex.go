@@ -34,12 +34,19 @@ type APIKeyMutex struct {
 	KeyMap map[string]string
 }
 
+type IsoCodesMutex struct {
+	Mu        sync.RWMutex
+	Countries models.CountryCodes
+	States    models.StateCodes
+}
+
 type AllMutexes struct {
 	Store   StoreNamesWithMutex
 	Filters TotalFiltersWithMutex
 	Tags    TotalTagsWithMutex
 	Tax     TaxMutex
 	Api     APIKeyMutex
+	Iso     IsoCodesMutex
 }
 
 func unmarshalJSONFile(filePath string, v interface{}) error {
@@ -59,10 +66,14 @@ func LoadAllData() *AllMutexes {
 	filtersFile := "static/ref/allfilters.json"
 	tagsFile := "static/ref/alltags.json"
 	taxFile := "static/ref/tax.json"
+	countryFile := "static/ref/countryiso.json"
+	stateFile := "static/ref/stateiso.json"
 
 	var storeNames models.StoreNames
 	var totalFilters models.TotalFilters
 	var totalTags models.TotalTags
+	var countries models.CountryCodes
+	var states models.StateCodes
 	var tax map[string]float64
 
 	if err := unmarshalJSONFile(storeNamesFile, &storeNames); err != nil {
@@ -76,6 +87,12 @@ func LoadAllData() *AllMutexes {
 	}
 	if err := unmarshalJSONFile(taxFile, &tax); err != nil {
 		log.Fatalf("Unable to load the tags mutex vars: %v", err)
+	}
+	if err := unmarshalJSONFile(countryFile, &countries); err != nil {
+		log.Fatalf("Unable to load the country mutex vars: %v", err)
+	}
+	if err := unmarshalJSONFile(stateFile, &states); err != nil {
+		log.Fatalf("Unable to load the state mutex vars: %v", err)
 	}
 
 	keyMap := map[string]string{}
@@ -96,5 +113,6 @@ func LoadAllData() *AllMutexes {
 		Tags:    TotalTagsWithMutex{Tags: totalTags},
 		Tax:     TaxMutex{CATax: tax},
 		Api:     APIKeyMutex{KeyMap: keyMap},
+		Iso:     IsoCodesMutex{Countries: countries, States: states},
 	}
 }

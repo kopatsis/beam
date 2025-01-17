@@ -18,6 +18,8 @@ type CustomerRepository interface {
 	GetContactsWithDefault(customerID int) ([]*models.Contact, error)
 	AddContactToCustomer(customerID int, contact *models.Contact) error
 	GetCustomerAndContacts(customerID int) (*models.Customer, []*models.Contact, error)
+	AddStripeToCustomer(c *models.Customer)
+	GetPaymentMethodsCust(customerID int) ([]models.PaymentMethodStripe, error)
 }
 
 type customerRepo struct {
