@@ -31,6 +31,8 @@ type Contact struct {
 	StreetAddress2 *string `json:"street_address_2,omitempty" bson:"street_address_2,omitempty"`
 	City           string  `json:"city" bson:"city"`
 	ProvinceState  string  `json:"province_state" bson:"province_state"`
+	StateCode      string  `json:"state_code" bson:"state_code"`
 	ZipCode        string  `json:"zip_code" bson:"zip_code"`
 	Country        string  `json:"country" bson:"country"`
+	CountryCode    string  `json:"country_code" bson:"country_code"`
 }
