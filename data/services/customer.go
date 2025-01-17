@@ -5,8 +5,11 @@ import (
 	"beam/data/models"
 	"beam/data/repositories"
 	"beam/data/services/custhelp"
+	"beam/data/services/orderhelp"
 	"errors"
 	"fmt"
+
+	"github.com/go-playground/validator/v10"
 )
 
 type CustomerService interface {
@@ -185,10 +188,43 @@ func (s *customerService) DeleteContactAndRender(customerID, contactID int) ([]*
 	return list, updateErr, getErr
 }
 
+func (s *customerService) CreateCustomer(customer *models.CustomerPost, firebaseID string) (*models.Customer, error) {
+	validate := validator.New()
+	err := validate.Struct(customer)
+	if err != nil {
+		return nil, err
+	}
+
+	cid, status, err := s.customerRepo.CheckFirebaseUID(firebaseID)
+	if err != nil {
+		return nil, err
+	}
+
+	if status == "Archived" {
+		return nil, fmt.Errorf("inactive customer for firebase id: %s, with id: %d", firebaseID, cid)
+	} else if status == "Active" {
+		return nil, fmt.Errorf("active customer for firebase id: %s, with id: %d", firebaseID, cid)
+	}
+
+	newCust := &models.Customer{
+		FirebaseUID: firebaseID,
+		DefaultName: customer.DefaultName,
+		Email:       customer.Email,
+		EmailSubbed: customer.EmailSubbed,
+		Status:      "Active",
+	}
+
+	if customer.PhoneNumber != nil {
+		newCust.PhoneNumber = orderhelp.CopyString(customer.PhoneNumber)
+	}
+
+	if err := s.customerRepo.Create(*newCust); err != nil {
+		return nil, err
+	}
+
+	return newCust, nil
+}
+
 // Update basic user info = default name, email, phone number**
-
-// Create a customer with basic info ^ AND firebase provided, incl ensuring that firebase NOT already in.
-
-// General check that firebase ID NOT already in.
 
 // "Delete" a customer aka mark them as Removed

@@ -24,6 +24,7 @@ type CustomerRepository interface {
 	AddStripeToCustomer(c *models.Customer)
 	GetPaymentMethodsCust(customerID int) ([]models.PaymentMethodStripe, error)
 	UpdateCustomerDefault(customerID, contactID int) error
+	CheckFirebaseUID(firebaseUID string) (int, string, error)
 }
 
 type customerRepo struct {
@@ -186,4 +187,25 @@ func (r *customerRepo) UpdateCustomerDefault(customerID, contactID int) error {
 		Where("id = ?", customerID).
 		Update("default_shipping_contact_id", contactID).
 		Error
+}
+
+func (r *customerRepo) CheckFirebaseUID(firebaseUID string) (int, string, error) {
+	var result struct {
+		ID     int
+		Status string
+	}
+
+	err := r.db.Model(&models.Customer{}).
+		Select("id, status").
+		Where("firebase_uid = ?", firebaseUID).
+		First(&result).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, "", nil
+		}
+		return 0, "", err
+	}
+
+	return result.ID, result.Status, nil
 }

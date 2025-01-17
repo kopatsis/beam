@@ -20,6 +20,13 @@ type Customer struct {
 	Notes                    string
 }
 
+type CustomerPost struct {
+	DefaultName string  `json:"default_name" validate:"required"`
+	Email       string  `json:"email" validate:"required,email"`
+	EmailSubbed bool    `json:"email_subbed" validate:"required"`
+	PhoneNumber *string `json:"phone_number,omitempty"`
+}
+
 type Contact struct {
 	ID             int     `gorm:"primaryKey" json:"id" bson:"id"`
 	CustomerID     int     `gorm:"index" json:"customer_id" bson:"customer_id"`
