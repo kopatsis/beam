@@ -15,8 +15,6 @@ import (
 type CustomerService interface {
 	AddCustomer(customer models.Customer) error
 	GetCustomerByID(id int) (*models.Customer, error)
-	UpdateCustomer(customer models.Customer) error
-	DeleteCustomer(id int) error
 	GetCustomerAndContacts(customerID int) (*models.Customer, []*models.Contact, error)
 	GetPaymentMethodsCust(customerID int) ([]models.PaymentMethodStripe, error)
 	AddAddressToCustomer(customerID int, contact *models.Contact, mutex *config.AllMutexes) error
@@ -27,6 +25,9 @@ type CustomerService interface {
 	UpdateContactAndRender(customerID, contactID int, newContact *models.Contact, mutex *config.AllMutexes, isDefault bool) ([]*models.Contact, error, error)
 	DeleteContact(customerID, contactID int) (int, error)
 	DeleteContactAndRender(customerID, contactID int) ([]*models.Contact, error, error)
+	CreateCustomer(customer *models.CustomerPost, firebaseID string) (*models.Customer, error)
+	DeleteCustomer(custID int) (*models.Customer, error)
+	UpdateCustomer(customer *models.CustomerPost, custID int) (*models.Customer, error)
 }
 
 type customerService struct {
@@ -43,14 +44,6 @@ func (s *customerService) AddCustomer(customer models.Customer) error {
 
 func (s *customerService) GetCustomerByID(id int) (*models.Customer, error) {
 	return s.customerRepo.Read(id)
-}
-
-func (s *customerService) UpdateCustomer(customer models.Customer) error {
-	return s.customerRepo.Update(customer)
-}
-
-func (s *customerService) DeleteCustomer(id int) error {
-	return s.customerRepo.Delete(id)
 }
 
 func (s *customerService) GetCustomerAndContacts(customerID int) (*models.Customer, []*models.Contact, error) {
@@ -225,6 +218,52 @@ func (s *customerService) CreateCustomer(customer *models.CustomerPost, firebase
 	return newCust, nil
 }
 
-// Update basic user info = default name, email, phone number**
+func (s *customerService) DeleteCustomer(custID int) (*models.Customer, error) {
+	cust, err := s.customerRepo.Read(custID)
+	if err != nil {
+		return nil, err
+	}
+
+	if cust.Status == "Archived" {
+		return nil, fmt.Errorf("already archived customer for id: %d", custID)
+	}
+
+	cust.Status = "Archived"
+	if err := s.customerRepo.Update(*cust); err != nil {
+		return nil, err
+	}
+
+	// Do the same on the mutex? redis? for users??
+
+	return cust, nil
+}
+
+func (s *customerService) UpdateCustomer(customer *models.CustomerPost, custID int) (*models.Customer, error) {
+	validate := validator.New()
+	err := validate.Struct(customer)
+	if err != nil {
+		return nil, err
+	}
+
+	cust, err := s.customerRepo.Read(custID)
+	if err != nil {
+		return nil, err
+	}
+
+	if cust.Status == "Archived" {
+		return nil, fmt.Errorf("inactive customer for id: %d", custID)
+	}
+
+	cust.Email = customer.Email
+	cust.EmailSubbed = customer.EmailSubbed
+	cust.DefaultName = customer.DefaultName
+	cust.PhoneNumber = customer.PhoneNumber
+
+	if err := s.customerRepo.Update(*cust); err != nil {
+		return nil, err
+	}
+
+	return cust, nil
+}
 
 // "Delete" a customer aka mark them as Removed
