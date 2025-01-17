@@ -4,6 +4,7 @@ import (
 	"beam/config"
 	"beam/data/models"
 	"beam/data/repositories"
+	"beam/data/services/custhelp"
 	"beam/data/services/draftorderhelp"
 	"errors"
 	"fmt"
@@ -297,9 +298,14 @@ func (s *draftOrderService) AddAddressToDraft(name, draftID, guestID, ip string,
 		return draft, err
 	}
 
+	contact.CustomerID = customerID
+	if err := custhelp.VerifyContact(contact, mutexes); err != nil {
+		return draft, err
+	}
+
 	var custErr error = nil
 	if addToCust && customerID > 0 {
-		custErr = cts.customerRepo.AddContactToCustomer(customerID, contact)
+		custErr = cts.customerRepo.AddContactToCustomer(contact)
 	}
 
 	draft.ShippingContact = contact

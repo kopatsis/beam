@@ -14,12 +14,16 @@ type CustomerRepository interface {
 	Create(customer models.Customer) error
 	Read(id int) (*models.Customer, error)
 	Update(customer models.Customer) error
+	UpdateContact(contact models.Contact) error
 	Delete(id int) error
+	DeleteContact(id int) error
+	GetSingleContact(id int) (*models.Contact, error)
 	GetContactsWithDefault(customerID int) ([]*models.Contact, error)
-	AddContactToCustomer(customerID int, contact *models.Contact) error
+	AddContactToCustomer(contact *models.Contact) error
 	GetCustomerAndContacts(customerID int) (*models.Customer, []*models.Contact, error)
 	AddStripeToCustomer(c *models.Customer)
 	GetPaymentMethodsCust(customerID int) ([]models.PaymentMethodStripe, error)
+	UpdateCustomerDefault(customerID, contactID int) error
 }
 
 type customerRepo struct {
@@ -35,17 +39,31 @@ func (r *customerRepo) Create(customer models.Customer) error {
 }
 
 func (r *customerRepo) Read(id int) (*models.Customer, error) {
-	var customer models.Customer
-	err := r.db.First(&customer, id).Error
-	return &customer, err
+	var customer *models.Customer
+	err := r.db.First(customer, id).Error
+	return customer, err
+}
+
+func (r *customerRepo) GetSingleContact(id int) (*models.Contact, error) {
+	var cont *models.Contact
+	err := r.db.First(cont, id).Error
+	return cont, err
 }
 
 func (r *customerRepo) Update(customer models.Customer) error {
 	return r.db.Save(&customer).Error
 }
 
+func (r *customerRepo) UpdateContact(contact models.Contact) error {
+	return r.db.Save(&contact).Error
+}
+
 func (r *customerRepo) Delete(id int) error {
 	return r.db.Delete(&models.Customer{}, id).Error
+}
+
+func (r *customerRepo) DeleteContact(id int) error {
+	return r.db.Delete(&models.Contact{}, id).Error
 }
 
 func (r *customerRepo) GetContactsWithDefault(customerID int) ([]*models.Contact, error) {
@@ -84,8 +102,7 @@ func (r *customerRepo) GetContactsWithDefault(customerID int) ([]*models.Contact
 	return contacts, nil
 }
 
-func (r *customerRepo) AddContactToCustomer(customerID int, contact *models.Contact) error {
-	contact.CustomerID = customerID
+func (r *customerRepo) AddContactToCustomer(contact *models.Contact) error {
 	return r.db.Create(contact).Error
 }
 
@@ -162,4 +179,11 @@ func (r *customerRepo) GetPaymentMethodsCust(customerID int) ([]models.PaymentMe
 	}
 
 	return draftorderhelp.GetAllPaymentMethods(c.StripeID)
+}
+
+func (r *customerRepo) UpdateCustomerDefault(customerID, contactID int) error {
+	return r.db.Model(&models.Customer{}).
+		Where("id = ?", customerID).
+		Update("default_shipping_contact_id", contactID).
+		Error
 }
