@@ -8,8 +8,10 @@ import (
 	"beam/data/services/orderhelp"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 )
 
 type CustomerService interface {
@@ -274,4 +276,105 @@ func (s *customerService) UpdateCustomer(customer *models.CustomerPost, custID i
 	return cust, nil
 }
 
-// "Delete" a customer aka mark them as Removed
+func (s *customerService) LoginCookie(firebaseID, store string, guestID string) (*models.ClientCookie, error) {
+	customer, err := s.customerRepo.GetCustomerByFirebase(firebaseID)
+	if err != nil {
+		return nil, err
+	} else if customer == nil {
+		return nil, fmt.Errorf("no active customer for firebase ID: %s", firebaseID)
+	} else if customer.Status == "Archived" {
+		return nil, fmt.Errorf("archived customer for firebase ID: %s", firebaseID)
+	}
+
+	serverCookie, err := s.customerRepo.GetServerCookie(customer.ID, store)
+	if err != nil {
+		return nil, err
+	} else if serverCookie == nil {
+		return nil, fmt.Errorf("no active server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, store)
+	} else if customer.Status == "Archived" {
+		return nil, fmt.Errorf("archived server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, store)
+	}
+
+	return &models.ClientCookie{
+		Store:       store,
+		CustomerID:  customer.ID,
+		CustomerSet: time.Now(),
+		GuestID:     guestID,
+	}, nil
+}
+
+func (s *customerService) ResetPass(firebaseID, store string, guestID string) error {
+	customer, err := s.customerRepo.GetCustomerByFirebase(firebaseID)
+	if err != nil {
+		return err
+	} else if customer == nil {
+		return fmt.Errorf("no active customer for firebase ID: %s", firebaseID)
+	} else if customer.Status == "Archived" {
+		return fmt.Errorf("archived customer for firebase ID: %s", firebaseID)
+	}
+
+	serverCookie, err := s.customerRepo.GetServerCookie(customer.ID, store)
+	if err != nil {
+		return err
+	} else if serverCookie == nil {
+		return fmt.Errorf("no active server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, store)
+	} else if customer.Status == "Archived" {
+		return fmt.Errorf("archived server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, store)
+	}
+
+	reset := time.Now()
+	customer.LastReset = reset
+	sqlErr := s.customerRepo.Update(*customer)
+
+	_, redisErr := s.customerRepo.SetServerCookieReset(serverCookie, reset)
+
+	if redisErr != nil {
+		return redisErr
+	}
+	return sqlErr
+}
+
+func (s *customerService) CustomerMiddleware(cookie *models.ClientCookie) error {
+
+	if cookie.CustomerID > 0 {
+		serverCookie, err := s.customerRepo.GetServerCookie(cookie.CustomerID, cookie.Store)
+		if err != nil {
+			customer, err := s.customerRepo.Read(cookie.CustomerID)
+			if err != nil {
+				return err
+			} else if customer == nil {
+				return fmt.Errorf("no active customer for customer id: %d; store: %s", cookie.CustomerID, cookie.Store)
+			}
+			if customer.Status == "Archived" || customer.LastReset.After(cookie.CustomerSet) {
+				cookie.CustomerID = 0
+				cookie.CustomerSet = time.Time{}
+			}
+		} else if serverCookie == nil {
+			return fmt.Errorf("no active server cookie for customer id: %d; store: %s", cookie.CustomerID, cookie.Store)
+		}
+
+		if serverCookie.Archived || serverCookie.LastReset.After(cookie.CustomerSet) {
+			cookie.CustomerID = 0
+			cookie.CustomerSet = time.Time{}
+		}
+	}
+	return nil
+}
+
+func (s *customerService) GuestMiddleware(cookie *models.ClientCookie, store string) {
+	cookie.Store = store
+
+	if cookie.GuestID == "" {
+		cookie.GuestID = fmt.Sprintf("GI:%s", uuid.New().String())
+	}
+}
+
+func (s *customerService) FullMiddleware(cookie *models.ClientCookie, store string) error {
+	s.GuestMiddleware(cookie, store)
+	return s.CustomerMiddleware(cookie)
+}
+
+func (s *customerService) LogoutCookie(cookie *models.ClientCookie) {
+	cookie.CustomerID = 0
+	cookie.CustomerSet = time.Time{}
+}

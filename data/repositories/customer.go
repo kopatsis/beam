@@ -33,7 +33,7 @@ type CustomerRepository interface {
 	CheckFirebaseUID(firebaseUID string) (int, string, error)
 	GetCustomerByFirebase(firebaseUID string) (*models.Customer, error)
 	GetServerCookie(custID int, store string) (*models.ServerCookie, error)
-	SetServerCookieReset(c *models.ServerCookie) (*models.ServerCookie, error)
+	SetServerCookieReset(c *models.ServerCookie, reset time.Time) (*models.ServerCookie, error)
 	SetServerCookieStatus(c *models.ServerCookie, archived bool) (*models.ServerCookie, error)
 	CreateServerCookie(customerID int, firebaseID, store string) (*models.ServerCookie, error)
 }
@@ -253,8 +253,8 @@ func (r *customerRepo) GetServerCookie(custID int, store string) (*models.Server
 	return &cookie, nil
 }
 
-func (r *customerRepo) SetServerCookieReset(c *models.ServerCookie) (*models.ServerCookie, error) {
-	c.LastReset = time.Now()
+func (r *customerRepo) SetServerCookieReset(c *models.ServerCookie, reset time.Time) (*models.ServerCookie, error) {
+	c.LastReset = reset
 	data, err := json.Marshal(c)
 	if err != nil {
 		return nil, err
