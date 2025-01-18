@@ -5,8 +5,11 @@ import (
 	"beam/data/models"
 	"beam/data/repositories"
 	"beam/data/services/reviewhelp"
+	"errors"
 	"fmt"
+	"log"
 	"net/url"
+	"strconv"
 )
 
 type ReviewService interface {
@@ -207,9 +210,33 @@ func (s *reviewService) ReviewsByCustomer(customerID int, fromURL url.Values) (m
 }
 
 func (s *reviewService) GetReviewIDOnly(customerID int, ID int) (*models.Review, error) {
-	panic("ree")
+	r, err := s.reviewRepo.GetSingleByID(ID)
+	if err != nil {
+		return nil, err
+	} else if r == nil {
+		return nil, errors.New("empty review")
+	} else if r.CustomerID != customerID {
+		return nil, fmt.Errorf("review doesn't belong to customer: %d", customerID)
+	}
+	return r, nil
 }
 
 func (s *reviewService) GetReviewsForOrder(order *models.Order) (map[int]*models.Review, error) {
-	panic("ree")
+	pids := map[int]struct{}{}
+	for _, l := range order.Lines {
+		idInt, err := strconv.Atoi(l.ProductID)
+		if err != nil {
+			log.Printf("unable to convert product ID to int: %s\n", l.ProductID)
+			continue
+		}
+
+		pids[idInt] = struct{}{}
+	}
+
+	list := []int{}
+	for id := range pids {
+		list = append(list, id)
+	}
+
+	return s.reviewRepo.GetReviewsMultiProduct(list, order.CustomerID)
 }
