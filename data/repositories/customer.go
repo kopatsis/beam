@@ -3,10 +3,16 @@ package repositories
 import (
 	"beam/data/models"
 	"beam/data/services/draftorderhelp"
+	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
+	"strconv"
 	"sync"
+	"time"
 
+	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
 )
 
@@ -25,14 +31,19 @@ type CustomerRepository interface {
 	GetPaymentMethodsCust(customerID int) ([]models.PaymentMethodStripe, error)
 	UpdateCustomerDefault(customerID, contactID int) error
 	CheckFirebaseUID(firebaseUID string) (int, string, error)
+	GetCustomerByFirebase(firebaseUID string) (*models.Customer, error)
+	SetServerCookieReset(c *models.ServerCookie) (*models.ServerCookie, error)
+	SetServerCookieStatus(c *models.ServerCookie, archived bool) (*models.ServerCookie, error)
+	CreateServerCookie(customerID int, firebaseID, store string) (*models.ServerCookie, error)
 }
 
 type customerRepo struct {
-	db *gorm.DB
+	db  *gorm.DB
+	rdb *redis.Client
 }
 
-func NewCustomerRepository(db *gorm.DB) CustomerRepository {
-	return &customerRepo{db: db}
+func NewCustomerRepository(db *gorm.DB, rdb *redis.Client) CustomerRepository {
+	return &customerRepo{db: db, rdb: rdb}
 }
 
 func (r *customerRepo) Create(customer models.Customer) error {
@@ -40,15 +51,15 @@ func (r *customerRepo) Create(customer models.Customer) error {
 }
 
 func (r *customerRepo) Read(id int) (*models.Customer, error) {
-	var customer *models.Customer
-	err := r.db.First(customer, id).Error
-	return customer, err
+	var customer models.Customer
+	err := r.db.First(&customer, id).Error
+	return &customer, err
 }
 
 func (r *customerRepo) GetSingleContact(id int) (*models.Contact, error) {
-	var cont *models.Contact
-	err := r.db.First(cont, id).Error
-	return cont, err
+	var cont models.Contact
+	err := r.db.First(&cont, id).Error
+	return &cont, err
 }
 
 func (r *customerRepo) Update(customer models.Customer) error {
@@ -108,7 +119,7 @@ func (r *customerRepo) AddContactToCustomer(contact *models.Contact) error {
 }
 
 func (r *customerRepo) GetCustomerAndContacts(customerID int) (*models.Customer, []*models.Contact, error) {
-	var customer *models.Customer
+	var customer models.Customer
 	var contacts []*models.Contact
 	var customerErr, contactsErr error
 	var wg sync.WaitGroup
@@ -116,7 +127,7 @@ func (r *customerRepo) GetCustomerAndContacts(customerID int) (*models.Customer,
 
 	go func() {
 		defer wg.Done()
-		customerErr = r.db.First(customer, customerID).Error
+		customerErr = r.db.First(&customer, customerID).Error
 	}()
 
 	go func() {
@@ -127,9 +138,9 @@ func (r *customerRepo) GetCustomerAndContacts(customerID int) (*models.Customer,
 	wg.Wait()
 
 	if customerErr != nil {
-		return customer, contacts, customerErr
+		return &customer, contacts, customerErr
 	} else if contactsErr != nil {
-		return customer, contacts, contactsErr
+		return &customer, contacts, contactsErr
 	}
 
 	for i, contact := range contacts {
@@ -139,7 +150,7 @@ func (r *customerRepo) GetCustomerAndContacts(customerID int) (*models.Customer,
 		}
 	}
 
-	return customer, contacts, nil
+	return &customer, contacts, nil
 }
 
 func (r *customerRepo) AddStripeToCustomer(c *models.Customer) {
@@ -208,4 +219,80 @@ func (r *customerRepo) CheckFirebaseUID(firebaseUID string) (int, string, error)
 	}
 
 	return result.ID, result.Status, nil
+}
+
+func (r *customerRepo) GetCustomerByFirebase(firebaseUID string) (*models.Customer, error) {
+	var cust models.Customer
+	err := r.db.Where("firebase_uid = ?", firebaseUID).Find(&cust).Error
+	return &cust, err
+}
+
+func (r *customerRepo) GetServerCookie(custID int, store string) (*models.ServerCookie, error) {
+	key := store + "::SSC::" + strconv.Itoa(custID)
+
+	val, err := r.rdb.Get(context.Background(), key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var cookie models.ServerCookie
+	if err := json.Unmarshal([]byte(val), &cookie); err != nil {
+		return nil, err
+	}
+
+	if cookie.CustomerID != custID {
+		return nil, fmt.Errorf("customer id doesn't match, provided: %d; in struct: %d", custID, cookie.CustomerID)
+	} else if cookie.Store != store {
+		return nil, fmt.Errorf("store doesn't match, provided: %s; in struct: %s", store, cookie.Store)
+	}
+
+	return &cookie, nil
+}
+
+func (r *customerRepo) SetServerCookieReset(c *models.ServerCookie) (*models.ServerCookie, error) {
+	c.LastReset = time.Now()
+	data, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	key := fmt.Sprintf("%s::SSC::%d", c.Store, c.CustomerID)
+	if err := r.rdb.Set(context.Background(), key, data, 0).Err(); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+func (r *customerRepo) SetServerCookieStatus(c *models.ServerCookie, archived bool) (*models.ServerCookie, error) {
+	c.Archived = archived
+	data, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	key := fmt.Sprintf("%s::SSC::%d", c.Store, c.CustomerID)
+	if err := r.rdb.Set(context.Background(), key, data, 0).Err(); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+func (r *customerRepo) CreateServerCookie(customerID int, firebaseID, store string) (*models.ServerCookie, error) {
+	c := models.ServerCookie{
+		CustomerID: customerID,
+		FirebaseID: firebaseID,
+		Store:      store,
+		Archived:   false,
+		LastReset:  time.Time{},
+	}
+	data, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	key := fmt.Sprintf("%s::SSC::%d", c.Store, c.CustomerID)
+	if err := r.rdb.Set(context.Background(), key, data, 0).Err(); err != nil {
+		return nil, err
+	}
+	return &c, nil
 }

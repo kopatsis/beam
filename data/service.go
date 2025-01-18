@@ -40,7 +40,7 @@ func NewMainService(pgDBs map[string]*gorm.DB, redis *redis.Client, mongoDBs map
 		ret.Map[name] = &MainService{
 			Cart:         services.NewCartService(repositories.NewCartRepository(pgDBs[name])),
 			List:         services.NewListService(repositories.NewListRepository(pgDBs[name])),
-			Customer:     services.NewCustomerService(repositories.NewCustomerRepository(pgDBs[name])),
+			Customer:     services.NewCustomerService(repositories.NewCustomerRepository(pgDBs[name], redis)),
 			Product:      services.NewProductService(repositories.NewProductRepository(pgDBs[name], redis)),
 			Discount:     services.NewDiscountService(repositories.NewDiscountRepository(pgDBs[name])),
 			DraftOrder:   services.NewDraftOrderService(repositories.NewDraftOrderRepository(mongoDBs[name])),

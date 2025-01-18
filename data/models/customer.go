@@ -1,6 +1,8 @@
 package models
 
 import (
+	"time"
+
 	"github.com/lib/pq"
 )
 
@@ -18,6 +20,7 @@ type Customer struct {
 	OrderCount               int
 	AutodiscountPctOff       float64
 	Notes                    string
+	LastReset                time.Time
 }
 
 type CustomerPost struct {
