@@ -25,8 +25,8 @@ type CustomerService interface {
 	UpdateContactAndRender(customerID, contactID int, newContact *models.Contact, mutex *config.AllMutexes, isDefault bool) ([]*models.Contact, error, error)
 	DeleteContact(customerID, contactID int) (int, error)
 	DeleteContactAndRender(customerID, contactID int) ([]*models.Contact, error, error)
-	CreateCustomer(customer *models.CustomerPost, firebaseID string) (*models.Customer, error)
-	DeleteCustomer(custID int) (*models.Customer, error)
+	CreateCustomer(customer *models.CustomerPost, firebaseID string, store string) (*models.Customer, *models.ServerCookie, error)
+	DeleteCustomer(custID int, store string) (*models.Customer, error)
 	UpdateCustomer(customer *models.CustomerPost, custID int) (*models.Customer, error)
 }
 
@@ -181,22 +181,22 @@ func (s *customerService) DeleteContactAndRender(customerID, contactID int) ([]*
 	return list, updateErr, getErr
 }
 
-func (s *customerService) CreateCustomer(customer *models.CustomerPost, firebaseID string) (*models.Customer, error) {
+func (s *customerService) CreateCustomer(customer *models.CustomerPost, firebaseID string, store string) (*models.Customer, *models.ServerCookie, error) {
 	validate := validator.New()
 	err := validate.Struct(customer)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	cid, status, err := s.customerRepo.CheckFirebaseUID(firebaseID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if status == "Archived" {
-		return nil, fmt.Errorf("inactive customer for firebase id: %s, with id: %d", firebaseID, cid)
+		return nil, nil, fmt.Errorf("inactive customer for firebase id: %s, with id: %d", firebaseID, cid)
 	} else if status == "Active" {
-		return nil, fmt.Errorf("active customer for firebase id: %s, with id: %d", firebaseID, cid)
+		return nil, nil, fmt.Errorf("active customer for firebase id: %s, with id: %d", firebaseID, cid)
 	}
 
 	newCust := &models.Customer{
@@ -212,13 +212,15 @@ func (s *customerService) CreateCustomer(customer *models.CustomerPost, firebase
 	}
 
 	if err := s.customerRepo.Create(*newCust); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return newCust, nil
+	c, err := s.customerRepo.CreateServerCookie(newCust.ID, firebaseID, store)
+
+	return newCust, c, err
 }
 
-func (s *customerService) DeleteCustomer(custID int) (*models.Customer, error) {
+func (s *customerService) DeleteCustomer(custID int, store string) (*models.Customer, error) {
 	cust, err := s.customerRepo.Read(custID)
 	if err != nil {
 		return nil, err
@@ -233,9 +235,15 @@ func (s *customerService) DeleteCustomer(custID int) (*models.Customer, error) {
 		return nil, err
 	}
 
-	// Do the same on the mutex? redis? for users??
+	cookie, err := s.customerRepo.GetServerCookie(custID, store)
+	if err != nil {
+		// log it
+		return nil, err
+	}
 
-	return cust, nil
+	_, err = s.customerRepo.SetServerCookieStatus(cookie, true)
+
+	return cust, err
 }
 
 func (s *customerService) UpdateCustomer(customer *models.CustomerPost, custID int) (*models.Customer, error) {

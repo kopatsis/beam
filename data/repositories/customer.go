@@ -32,6 +32,7 @@ type CustomerRepository interface {
 	UpdateCustomerDefault(customerID, contactID int) error
 	CheckFirebaseUID(firebaseUID string) (int, string, error)
 	GetCustomerByFirebase(firebaseUID string) (*models.Customer, error)
+	GetServerCookie(custID int, store string) (*models.ServerCookie, error)
 	SetServerCookieReset(c *models.ServerCookie) (*models.ServerCookie, error)
 	SetServerCookieStatus(c *models.ServerCookie, archived bool) (*models.ServerCookie, error)
 	CreateServerCookie(customerID int, firebaseID, store string) (*models.ServerCookie, error)
