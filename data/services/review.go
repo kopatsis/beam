@@ -13,8 +13,8 @@ import (
 )
 
 type ReviewService interface {
-	AddReview(customerID int, productID int, store string, stars int, justStar bool, subject string, body string, ps *productService, tools *config.Tools) (*models.Review, error)
-	UpdateReview(customerID int, productID int, store string, stars int, justStar bool, subject string, body string, ps *productService, tools *config.Tools) (*models.Review, error)
+	AddReview(customerID int, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error)
+	UpdateReview(customerID int, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error)
 	DeleteReview(customerID int, productID int, store string, ps *productService, tools *config.Tools) (*models.Review, error)
 	GetReview(customerID int, productID int) (*models.Review, error)
 	FirstThreeForProduct(customerID int, productID int) (firstThree []*models.Review, existingReview *models.Review, singleErr error, multiErr error)
@@ -32,12 +32,28 @@ func NewReviewService(reviewRepo repositories.ReviewRepository) ReviewService {
 	return &reviewService{reviewRepo: reviewRepo}
 }
 
-func (s *reviewService) AddReview(customerID int, productID int, store string, stars int, justStar bool, subject string, body string, ps *productService, tools *config.Tools) (*models.Review, error) {
+func (s *reviewService) AddReview(customerID int, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error) {
 	if len(subject) > 280 {
 		subject = subject[:277] + "..."
 	}
 	if len(body) > 1400 {
 		body = body[:1397] + "..."
+	}
+
+	if useDefaultName {
+		cust, err := cs.customerRepo.Read(customerID)
+		if err == nil {
+			log.Printf("Unable to get customer by customerid: %d", customerID)
+			displayName = cust.DefaultName
+		}
+	}
+
+	if displayName == "" {
+		displayName = "Anonymous"
+	}
+
+	if len(displayName) > 140 {
+		displayName = displayName[:140]
 	}
 
 	existingReview, err := s.reviewRepo.GetSingle(customerID, productID)
@@ -55,12 +71,13 @@ func (s *reviewService) AddReview(customerID int, productID int, store string, s
 	}
 
 	review := &models.Review{
-		CustomerID: customerID,
-		ProductID:  productID,
-		Stars:      stars,
-		JustStar:   justStar,
-		Subject:    subject,
-		Body:       body,
+		CustomerID:  customerID,
+		ProductID:   productID,
+		DisplayName: displayName,
+		Stars:       stars,
+		JustStar:    justStar,
+		Subject:     subject,
+		Body:        body,
 	}
 
 	if err := s.reviewRepo.Create(review); err != nil {
@@ -72,12 +89,28 @@ func (s *reviewService) AddReview(customerID int, productID int, store string, s
 	return review, nil
 }
 
-func (s *reviewService) UpdateReview(customerID int, productID int, store string, stars int, justStar bool, subject string, body string, ps *productService, tools *config.Tools) (*models.Review, error) {
+func (s *reviewService) UpdateReview(customerID int, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error) {
 	if len(subject) > 280 {
 		subject = subject[:277] + "..."
 	}
 	if len(body) > 1400 {
 		body = body[:1397] + "..."
+	}
+
+	if useDefaultName {
+		cust, err := cs.customerRepo.Read(customerID)
+		if err == nil {
+			log.Printf("Unable to get customer by customerid: %d", customerID)
+			displayName = cust.DefaultName
+		}
+	}
+
+	if displayName == "" {
+		displayName = "Anonymous"
+	}
+
+	if len(displayName) > 140 {
+		displayName = displayName[:140]
 	}
 
 	existingReview, err := s.reviewRepo.GetSingle(customerID, productID)
@@ -100,6 +133,7 @@ func (s *reviewService) UpdateReview(customerID int, productID int, store string
 	existingReview.JustStar = justStar
 	existingReview.Subject = subject
 	existingReview.Body = body
+	existingReview.DisplayName = displayName
 
 	if err := s.reviewRepo.Update(existingReview); err != nil {
 		return nil, err
