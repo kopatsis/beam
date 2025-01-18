@@ -16,6 +16,7 @@ type DraftOrderService interface {
 	GetDraftOrder(name, draftID, guestID string, customerID int, cts *customerService) (*models.DraftOrder, string, error)
 	PostRenderUpdate(ip, name, guestID, draftID string, customerID int, cts *customerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
 	SaveAndUpdatePtl(draft *models.DraftOrder) error
+	GetDraftPtl(draftID, guestID string, custID int) (*models.DraftOrder, error)
 	AddAddressToDraft(name, draftID, guestID, ip string, customerID int, cts *customerService, contact *models.Contact, addToCust bool, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
 	ChooseAddress(name, draftID, guestID, ip string, addrID, index, customerID int, cts *customerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
 	ChooseShipRate(draftID, guestID, rateName string, customerID int) (*models.DraftOrder, error)
@@ -26,6 +27,10 @@ type DraftOrderService interface {
 	SetTip(draftID, guestID string, customerID, tip int) (*models.DraftOrder, error)
 	RemoveTip(draftID, guestID string, customerID int) (*models.DraftOrder, error)
 	AddGiftSubjectAndMessage(draftID, guestID, subject, message string, customerID int) (*models.DraftOrder, error)
+	AddGiftCard(draftID, guestID, gcCode string, customerID int, ds *discountService) (*models.DraftOrder, error)
+	ApplyGiftCard(draftID, guestID string, gcID, customerID, amount int, useMax bool) (*models.DraftOrder, error)
+	DeApplyGiftCard(draftID, guestID string, gcID, customerID int) (*models.DraftOrder, error)
+	RemoveGiftCard(draftID, guestID string, gcID, customerID int) (*models.DraftOrder, error)
 	CheckDiscountsAndGiftCards(draftID, guestID string, customerID int, ds *discountService) (error, error, error, bool)
 }
 

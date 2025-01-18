@@ -22,7 +22,7 @@ type CartService interface {
 	ClearCart(name string, custID int, guestID string, logger eventService) (*models.CartRender, error)
 	AddGiftCard(message, store string, cents int, discService *discountService, tools *config.Tools, custID int, guestID string, logger eventService) (*models.Cart, error)
 	DeleteGiftCard(name, cartID, lineID string, custID int, guestID string, prodServ *productService, logger eventService) (*models.CartRender, error)
-
+	UpdateRender(name string, cart *models.CartRender, ps *productService) error
 	SavesListToCart(id, handle, name string, ps *productService, ls *listService, custID int, logger eventService) (models.SavesListRender, *models.CartRender, error)
 }
 

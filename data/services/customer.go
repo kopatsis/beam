@@ -30,6 +30,13 @@ type CustomerService interface {
 	CreateCustomer(customer *models.CustomerPost, firebaseID string, store string) (*models.Customer, *models.ServerCookie, error)
 	DeleteCustomer(custID int, store string) (*models.Customer, error)
 	UpdateCustomer(customer *models.CustomerPost, custID int) (*models.Customer, error)
+
+	LoginCookie(firebaseID, store string, guestID string) (*models.ClientCookie, error)
+	ResetPass(firebaseID, store string, guestID string) error
+	CustomerMiddleware(cookie *models.ClientCookie) error
+	GuestMiddleware(cookie *models.ClientCookie, store string)
+	FullMiddleware(cookie *models.ClientCookie, store string) error
+	LogoutCookie(cookie *models.ClientCookie)
 }
 
 type customerService struct {
