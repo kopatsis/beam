@@ -6,9 +6,9 @@ import (
 )
 
 type SessionService interface {
-	AddSession(session models.Session) error
+	AddSession(session *models.Session) error
 	GetSessionByID(id string) (*models.Session, error)
-	UpdateSession(session models.Session) error
+	UpdateSession(session *models.Session) error
 	DeleteSession(id string) error
 }
 
@@ -20,7 +20,7 @@ func NewSessionService(sessionRepo repositories.SessionRepository) SessionServic
 	return &sessionService{sessionRepo: sessionRepo}
 }
 
-func (s *sessionService) AddSession(session models.Session) error {
+func (s *sessionService) AddSession(session *models.Session) error {
 	return s.sessionRepo.Create(session)
 }
 
@@ -28,7 +28,7 @@ func (s *sessionService) GetSessionByID(id string) (*models.Session, error) {
 	return s.sessionRepo.Read(id)
 }
 
-func (s *sessionService) UpdateSession(session models.Session) error {
+func (s *sessionService) UpdateSession(session *models.Session) error {
 	return s.sessionRepo.Update(session)
 }
 

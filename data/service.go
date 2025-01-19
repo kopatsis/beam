@@ -47,7 +47,7 @@ func NewMainService(pgDBs map[string]*gorm.DB, redis *redis.Client, mongoDBs map
 			Order:        services.NewOrderService(repositories.NewOrderRepository(mongoDBs[name])),
 			Event:        services.NewEventService(repositories.NewEventRepository(mongoDBs[name])),
 			Notification: services.NewNotificationService(repositories.NewNotificationRepository(mongoDBs[name])),
-			Session:      services.NewSessionService(repositories.NewSessionRepository(mongoDBs[name])),
+			Session:      services.NewSessionService(repositories.NewSessionRepository(pgDBs[name])),
 		}
 	}
 

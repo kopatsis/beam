@@ -3,6 +3,7 @@ package models
 import (
 	"time"
 
+	"github.com/lib/pq"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -49,17 +50,21 @@ type Event struct {
 }
 
 type Session struct {
-	ID           string             `bson:"_id,omitempty" json:"id"`
-	UserID       int                `bson:"user_id" json:"user_id"`
-	SessionID    string             `bson:"session_id" json:"session_id"`
-	CreatedAt    primitive.DateTime `bson:"created_at" json:"created_at"`
-	LastActivity primitive.DateTime `bson:"last_activity" json:"last_activity"`
-	Expiry       primitive.DateTime `bson:"expiry" json:"expiry"`
-	IPAddress    string             `bson:"ip_address" json:"ip_address"`
-	UserAgent    string             `bson:"user_agent" json:"user_agent"`
-	Referrer     string             `bson:"referrer" json:"referrer"`
-	IsActive     bool               `bson:"is_active" json:"is_active"`
-	Data         any                `bson:"data,omitempty" json:"data,omitempty"`
-	Tags         []string           `bson:"tags,omitempty" json:"tags,omitempty"`
-	GuestID      string             `bson:"guest_id,omitempty" json:"guest_id,omitempty"`
+	ID            int    `gorm:"primaryKey"`
+	CustomerID    int    `gorm:"index"`
+	GuestID       string `gorm:"index"`
+	CreatedAt     time.Time
+	Referrer      string
+	IPAddress     string
+	Tags          pq.StringArray `gorm:"type:text[]"`
+	InitialRoute  string
+	IsAffiliate   bool
+	AffiliateCode string
+}
+
+type SessionLine struct {
+	ID        int    `gorm:"primaryKey"`
+	SessionID string `gorm:"index"`
+	Route     string
+	Accessed  time.Time
 }

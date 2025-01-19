@@ -27,11 +27,11 @@ func NewReviewRepository(db *gorm.DB) ReviewRepository {
 }
 
 func (r *reviewRepo) Create(review *models.Review) error {
-	return r.db.Create(&review).Error
+	return r.db.Create(review).Error
 }
 
 func (r *reviewRepo) Update(review *models.Review) error {
-	return r.db.Save(&review).Error
+	return r.db.Save(review).Error
 }
 
 func (r *reviewRepo) Delete(ID int) error {
