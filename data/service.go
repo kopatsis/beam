@@ -5,6 +5,7 @@ import (
 	"beam/config"
 	"beam/data/repositories"
 	"beam/data/services"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -36,6 +37,8 @@ func NewMainService(pgDBs map[string]*gorm.DB, redis *redis.Client, mongoDBs map
 
 	mutex.Store.Mu.RLock()
 
+	storeLen := len(mutex.Store.Store.ToDomain)
+
 	for name := range mutex.Store.Store.ToDomain {
 		ret.Map[name] = &MainService{
 			Cart:         services.NewCartService(repositories.NewCartRepository(pgDBs[name])),
@@ -47,8 +50,11 @@ func NewMainService(pgDBs map[string]*gorm.DB, redis *redis.Client, mongoDBs map
 			Order:        services.NewOrderService(repositories.NewOrderRepository(mongoDBs[name])),
 			Event:        services.NewEventService(repositories.NewEventRepository(mongoDBs[name])),
 			Notification: services.NewNotificationService(repositories.NewNotificationRepository(mongoDBs[name])),
-			Session:      services.NewSessionService(repositories.NewSessionRepository(pgDBs[name])),
+			Session:      services.NewSessionService(repositories.NewSessionRepository(pgDBs[name], name)),
 		}
+
+		time.Sleep(time.Duration(float64(config.SESSIONBATCH)/float64(storeLen)) * time.Second)
+
 	}
 
 	mutex.Store.Mu.RUnlock()
