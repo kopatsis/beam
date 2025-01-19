@@ -6,138 +6,22 @@ import (
 	"beam/config"
 	"beam/data/models"
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"net/http"
 	"os"
 	"strconv"
-	"sync"
 	"time"
-
-	"golang.org/x/time/rate"
 )
 
-var (
-	estimateLimiters = make(map[string]*rate.Limiter)
-	ipEstLimiters    = make(map[string]*rate.Limiter)
-	estMu            sync.Mutex
-	ipeMu            sync.Mutex
-)
-
-func getEstimateLimiter(storeName string) *rate.Limiter {
-
-	estMu.Lock()
-	defer estMu.Unlock()
-
-	limiter, exists := estimateLimiters[storeName]
-	if !exists {
-		limiter = rate.NewLimiter(rate.Every(time.Duration(int64(config.SHIPINTERVAL)/int64(config.ESTREQS))), config.ESTREQS)
-		estimateLimiters[storeName] = limiter
+func applyRateLimitsEstimate(storeName, ip string, tools *config.Tools) error {
+	if err := config.RateLimit(tools.Redis, ip, config.IPREQS, "IE"); err != nil {
+		return err
 	}
 
-	return limiter
-}
-
-func getIPEstLimiter(ip string) *rate.Limiter {
-	ipeMu.Lock()
-	defer ipeMu.Unlock()
-
-	limiter, exists := ipEstLimiters[ip]
-	if !exists {
-		limiter = rate.NewLimiter(rate.Every(time.Duration(int64(config.SHIPINTERVAL)/int64(config.IPEREQS))), config.IPEREQS)
-		ipEstLimiters[ip] = limiter
-	}
-
-	return limiter
-}
-
-func applyEstimateRateLimit(storeName string, tools *config.Tools) error {
-	limiter := getEstimateLimiter(storeName)
-	ctx, cancel := context.WithTimeout(context.Background(), 9*time.Second)
-	defer cancel()
-
-	startTime := time.Now()
-
-	err := limiter.Wait(ctx)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			log.Printf("Warning: Store %s wait time exceeded 3 seconds: %v", storeName, 9*time.Second)
-			go emails.AlertEmailEstRateDanger(storeName, 9*time.Second, tools, true)
-			return fmt.Errorf("rate limit exceeded for %s, timeout after 10 seconds", storeName)
-		}
-		return fmt.Errorf("failed to wait for rate limit: %w", err)
-	}
-
-	waitDuration := time.Since(startTime)
-
-	if waitDuration > 6*time.Second {
-		go emails.AlertEmailEstRateDanger(storeName, waitDuration, tools, false)
-	}
-
-	if waitDuration > 3*time.Second {
-		log.Printf("Warning: Store %s wait time exceeded 3 seconds: %v", storeName, waitDuration)
-	}
-
-	return nil
-}
-
-func applyIPEstRateLimit(ip string, tools *config.Tools) error {
-	limiter := getIPEstLimiter(ip)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	startTime := time.Now()
-
-	err := limiter.Wait(ctx)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			log.Printf("Warning: IP %s wait time exceeded 3 seconds: %v", ip, 10*time.Second)
-			go emails.AlertIPEstRateDanger(ip, 9*time.Second, tools, true)
-			return fmt.Errorf("rate limit exceeded for %s, timeout after 10 seconds", ip)
-		}
-		return fmt.Errorf("failed to wait for rate limit: %w", err)
-	}
-
-	waitDuration := time.Since(startTime)
-
-	if waitDuration > 6*time.Second {
-		go emails.AlertIPEstRateDanger(ip, waitDuration, tools, false)
-	}
-
-	if waitDuration > 3*time.Second {
-		log.Printf("Warning: IP %s wait time exceeded 3 seconds: %v", ip, waitDuration)
-	}
-
-	return nil
-}
-
-func applyEstRateLimitsConcurrently(storeName, ip string, tools *config.Tools) error {
-	var storeErr, ipErr error
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		storeErr = applyEstimateRateLimit(storeName, tools)
-	}()
-
-	go func() {
-		defer wg.Done()
-		ipErr = applyIPEstRateLimit(ip, tools)
-	}()
-
-	wg.Wait()
-
-	if ipErr != nil {
-		return errors.New("did not complete based on ip limiting")
-	} else if storeErr != nil {
-		return errors.New("did not complete based on store limiting")
-	}
-	return nil
+	return config.RateLimit(tools.Redis, storeName, config.SHIPREQS, "SE")
 }
 
 func getEstApiShipRates(draft *models.DraftOrder, newContact *models.Contact, mutexes *config.AllMutexes, name, ip, rateName string, tools *config.Tools) (*models.OrderEstimateCost, error) {
@@ -183,7 +67,7 @@ func getEstApiShipRates(draft *models.DraftOrder, newContact *models.Contact, mu
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	if err := applyEstRateLimitsConcurrently(name, ip, tools); err != nil {
+	if err := applyRateLimitsEstimate(name, ip, tools); err != nil {
 		return nil, err
 	}
 

@@ -1,142 +1,26 @@
 package draftorderhelp
 
 import (
-	"beam/background/emails"
 	"beam/config"
 	"beam/data/models"
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"slices"
 	"strconv"
-	"sync"
 	"time"
-
-	"golang.org/x/time/rate"
 )
 
-var (
-	storeLimiters = make(map[string]*rate.Limiter)
-	ipLimiters    = make(map[string]*rate.Limiter)
-	stMu          sync.Mutex
-	ipMu          sync.Mutex
-)
+func applyRateLimitsShip(storeName, ip string, tools *config.Tools) error {
 
-func getStoreLimiter(storeName string) *rate.Limiter {
-
-	stMu.Lock()
-	defer stMu.Unlock()
-
-	limiter, exists := storeLimiters[storeName]
-	if !exists {
-		limiter = rate.NewLimiter(rate.Every(time.Duration(int64(config.SHIPINTERVAL)/int64(config.SHIPREQS))), config.SHIPREQS)
-		storeLimiters[storeName] = limiter
+	if err := config.RateLimit(tools.Redis, ip, config.IPREQS, "IS"); err != nil {
+		return err
 	}
 
-	return limiter
-}
-
-func getIPLimiter(ip string) *rate.Limiter {
-	ipMu.Lock()
-	defer ipMu.Unlock()
-
-	limiter, exists := ipLimiters[ip]
-	if !exists {
-		limiter = rate.NewLimiter(rate.Every(time.Duration(int64(config.SHIPINTERVAL)/int64(config.IPREQS))), config.IPREQS)
-		ipLimiters[ip] = limiter
-	}
-
-	return limiter
-}
-
-func applyStoreRateLimit(storeName string, tools *config.Tools) error {
-	limiter := getStoreLimiter(storeName)
-	ctx, cancel := context.WithTimeout(context.Background(), 9*time.Second)
-	defer cancel()
-
-	startTime := time.Now()
-
-	err := limiter.Wait(ctx)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			log.Printf("Warning: Store %s wait time exceeded 3 seconds: %v", storeName, 9*time.Second)
-			go emails.AlertEmailRateDanger(storeName, 9*time.Second, tools, true)
-			return fmt.Errorf("rate limit exceeded for %s, timeout after 10 seconds", storeName)
-		}
-		return fmt.Errorf("failed to wait for rate limit: %w", err)
-	}
-
-	waitDuration := time.Since(startTime)
-
-	if waitDuration > 6*time.Second {
-		go emails.AlertEmailRateDanger(storeName, waitDuration, tools, false)
-	}
-
-	if waitDuration > 3*time.Second {
-		log.Printf("Warning: Store %s wait time exceeded 3 seconds: %v", storeName, waitDuration)
-	}
-
-	return nil
-}
-
-func applyIpRateLimit(ip string, tools *config.Tools) error {
-	limiter := getIPLimiter(ip)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	startTime := time.Now()
-
-	err := limiter.Wait(ctx)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			log.Printf("Warning: IP %s wait time exceeded 3 seconds: %v", ip, 10*time.Second)
-			go emails.AlertIPRateDanger(ip, 9*time.Second, tools, true)
-			return fmt.Errorf("rate limit exceeded for %s, timeout after 10 seconds", ip)
-		}
-		return fmt.Errorf("failed to wait for rate limit: %w", err)
-	}
-
-	waitDuration := time.Since(startTime)
-
-	if waitDuration > 6*time.Second {
-		go emails.AlertIPRateDanger(ip, waitDuration, tools, false)
-	}
-
-	if waitDuration > 3*time.Second {
-		log.Printf("Warning: IP %s wait time exceeded 3 seconds: %v", ip, waitDuration)
-	}
-
-	return nil
-}
-
-func applyRateLimitsConcurrently(storeName, ip string, tools *config.Tools) error {
-	var storeErr, ipErr error
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		storeErr = applyStoreRateLimit(storeName, tools)
-	}()
-
-	go func() {
-		defer wg.Done()
-		ipErr = applyIpRateLimit(ip, tools)
-	}()
-
-	wg.Wait()
-
-	if ipErr != nil {
-		return errors.New("did not complete based on ip limiting")
-	} else if storeErr != nil {
-		return errors.New("did not complete based on store limiting")
-	}
-	return nil
+	return config.RateLimit(tools.Redis, storeName, config.SHIPREQS, "SS")
 }
 
 func UpdateShippingRates(draft *models.DraftOrder, newContact *models.Contact, mutexes *config.AllMutexes, name, ip string, tools *config.Tools) error {
@@ -238,7 +122,7 @@ func getApiShipRates(draft *models.DraftOrder, newContact *models.Contact, mutex
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	if err := applyRateLimitsConcurrently(name, ip, tools); err != nil {
+	if err := applyRateLimitsShip(name, ip, tools); err != nil {
 		return []models.ShippingRate{}, err
 	}
 

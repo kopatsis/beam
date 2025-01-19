@@ -18,7 +18,7 @@ func main() {
 	defer config.MongoDisconnect(mongoClient)
 
 	fullService := data.NewMainService(pgDBs, redis, mongoDBs, mutexes)
-	tools := config.NewTools()
+	tools := config.NewTools(redis)
 
 	rtr := routing.New(fullService, tools)
 

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/stripe/stripe-go/v81"
 )
@@ -13,9 +14,10 @@ import (
 type Tools struct {
 	SendGrid *sendgrid.Client
 	Client   *http.Client
+	Redis    *redis.Client
 }
 
-func NewTools() *Tools {
+func NewTools(client *redis.Client) *Tools {
 	t := &Tools{
 		Client: &http.Client{},
 	}
