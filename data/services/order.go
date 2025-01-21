@@ -8,9 +8,11 @@ import (
 	"beam/data/services/draftorderhelp"
 	"beam/data/services/orderhelp"
 	"errors"
+	"fmt"
 	"log"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -52,6 +54,31 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store str
 		} else if !(customerID > 0 && !draft.Guest) {
 			return errors.New("requires non guest order if using existing payment method"), nil
 		}
+	}
+
+	dvids := []int{}
+	for _, l := range draft.Lines {
+		varInt, err := strconv.Atoi(l.VariantID)
+		if err != nil {
+			log.Printf("Unable to convert variant ID: %s on order: %s, in store: %s to int\n", l.VariantID, draftID, store)
+			continue
+		}
+		dvids = append(dvids, varInt)
+	}
+
+	mapped, works, err := ps.ConfirmDraftOrderProducts(store, dvids)
+	if err != nil {
+		return nil, fmt.Errorf("unable to query lim vars for draft order: %s, store: %s,  err: %v", draftID, store, err)
+	} else if !works {
+		var builder strings.Builder
+		for id, val := range mapped {
+			if !val {
+				builder.WriteString(strconv.Itoa(id))
+				builder.WriteString(",")
+			}
+		}
+		falseVarIDs := builder.String()
+		return nil, fmt.Errorf("non existant lim vars for draft order: %s, store: %s, list: %s", draftID, store, falseVarIDs)
 	}
 
 	order := orderhelp.CreateOrderFromDraft(draft)

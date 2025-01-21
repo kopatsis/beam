@@ -26,6 +26,7 @@ type ProductService interface {
 	GetProductsByVariantIDs(name string, vids []int) (map[int]*models.ProductRedis, error)
 	GetProductsMapFromCartLine(name string, cartLines []models.CartLine) (map[int]*models.ProductRedis, error)
 	UpdateRatings(pid int, name string, newRate, oldRate, plusMinus int, tools *config.Tools)
+	ConfirmDraftOrderProducts(name string, vids []int) (map[int]bool, bool, error)
 }
 
 type productService struct {
@@ -329,4 +330,28 @@ func (s *productService) UpdateRatings(pid int, name string, newRate, oldRate, p
 		emails.AlertGeneralRatingsError(pid, "", name, false, err, "unable to save product for sql", tools)
 		return
 	}
+}
+
+func (s *productService) ConfirmDraftOrderProducts(name string, vids []int) (map[int]bool, bool, error) {
+	lvl, err := s.productRepo.GetLimVars(name, vids)
+	if err != nil {
+		return nil, false, err
+	}
+
+	result := map[int]bool{}
+	anyFalse := false
+	variantIDSet := map[int]struct{}{}
+	for _, variant := range lvl {
+		variantIDSet[variant.VariantID] = struct{}{}
+	}
+
+	for _, vid := range vids {
+		_, exists := variantIDSet[vid]
+		result[vid] = exists
+		if !exists {
+			anyFalse = true
+		}
+	}
+
+	return result, anyFalse, nil
 }
