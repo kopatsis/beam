@@ -48,12 +48,12 @@ func NewMainService(pgDBs map[string]*gorm.DB, redis *redis.Client, mongoDBs map
 			Discount:     services.NewDiscountService(repositories.NewDiscountRepository(pgDBs[name])),
 			DraftOrder:   services.NewDraftOrderService(repositories.NewDraftOrderRepository(mongoDBs[name])),
 			Order:        services.NewOrderService(repositories.NewOrderRepository(mongoDBs[name])),
-			Event:        services.NewEventService(repositories.NewEventRepository(mongoDBs[name])),
+			Event:        services.NewEventService(repositories.NewEventRepository(mongoDBs[name], name)),
 			Notification: services.NewNotificationService(repositories.NewNotificationRepository(mongoDBs[name])),
 			Session:      services.NewSessionService(repositories.NewSessionRepository(pgDBs[name], name)),
 		}
 
-		time.Sleep(time.Duration(float64(config.SESSIONBATCH)/float64(storeLen)) * time.Second)
+		time.Sleep(time.Duration(float64(config.BATCH)/float64(storeLen)) * time.Second)
 
 	}
 

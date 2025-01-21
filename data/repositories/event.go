@@ -1,9 +1,10 @@
 package repositories
 
 import (
+	"beam/config"
 	"beam/data/models"
 	"context"
-	"fmt"
+	"log"
 	"slices"
 	"sync"
 	"time"
@@ -12,35 +13,57 @@ import (
 )
 
 var (
-	eventQueue           chan models.Event
-	once                 sync.Once
 	validClassifications = []string{
 		"Order", "DraftOrder", "Product", "List", "Cart", "Collection", "Discount", "GiftCard",
 	}
 )
 
 type EventRepository interface {
-	SaveEvent(
+	AddToBatch(
 		customerID int,
 		guestID, eventClassification, eventDescription, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID string,
-	) error
+	)
+	FlushBatch()
 }
 
 type eventRepo struct {
-	coll *mongo.Collection
+	coll       *mongo.Collection
+	mutex      sync.Mutex
+	events     []*models.Event
+	saveTicker *time.Ticker
+	store      string
 }
 
-func NewEventRepository(mdb *mongo.Database) EventRepository {
-	collection := mdb.Collection("Event")
-	return &eventRepo{coll: collection}
+func NewEventRepository(mdb *mongo.Database, store string) EventRepository {
+	repo := &eventRepo{
+		coll:       mdb.Collection("Event"),
+		events:     make([]*models.Event, 0),
+		saveTicker: time.NewTicker(time.Duration(config.BATCH) * time.Second),
+		store:      store,
+	}
+
+	go func() {
+		for range repo.saveTicker.C {
+			repo.FlushBatch()
+		}
+	}()
+	defer func() {
+		for range repo.saveTicker.C {
+			repo.FlushBatch()
+		}
+		repo.saveTicker.Stop()
+	}()
+
+	return repo
 }
 
-func (repo *eventRepo) SaveEvent(
+func (r *eventRepo) AddToBatch(
 	customerID int,
 	guestID, eventClassification, eventDescription, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID string,
-) error {
+) {
 	if !slices.Contains(validClassifications, eventClassification) {
-		return fmt.Errorf("invalid event classification: %s", eventClassification)
+		log.Printf("invalid event classification: %s\n", eventClassification)
+		eventClassification = "Other"
 	}
 
 	event := models.Event{
@@ -74,26 +97,23 @@ func (repo *eventRepo) SaveEvent(
 		event.GiftCardID = &giftCardID
 	}
 
-	once.Do(func() {
-		eventQueue = make(chan models.Event, 100)
-		for i := 0; i < 5; i++ {
-			go func() {
-				for task := range eventQueue {
-					_, err := repo.coll.InsertOne(context.Background(), task)
-					if err != nil {
-						fmt.Printf("ERROR saving event: %e\n", err)
-					}
-				}
-			}()
-		}
-	})
+	r.events = append(r.events, &event)
 
-	go func() {
-		select {
-		case eventQueue <- event:
-		default:
-		}
-	}()
+}
 
-	return nil
+func (r *eventRepo) FlushBatch() {
+	r.mutex.Lock()
+	if len(r.events) > 0 {
+		docs := []interface{}{}
+		for _, v := range r.events {
+			docs = append(docs, v)
+		}
+		if res, err := r.coll.InsertMany(context.Background(), docs); err != nil {
+			log.Printf("Unable to insert events for store: %s, error: %v\n", r.store, err)
+		} else {
+			log.Printf("Successfully inserted %d events\n", len(res.InsertedIDs))
+			r.events = nil
+		}
+	}
+	r.mutex.Unlock()
 }

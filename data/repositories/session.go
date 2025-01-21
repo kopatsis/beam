@@ -35,7 +35,7 @@ func NewSessionRepository(db *gorm.DB, store string) SessionRepository {
 		db:         db,
 		sessions:   make([]*models.Session, 0),
 		lines:      make([]*models.SessionLine, 0),
-		saveTicker: time.NewTicker(time.Duration(config.SESSIONBATCH) * time.Second),
+		saveTicker: time.NewTicker(time.Duration(config.BATCH) * time.Second),
 		store:      store,
 	}
 
@@ -44,7 +44,12 @@ func NewSessionRepository(db *gorm.DB, store string) SessionRepository {
 			repo.FlushBatch()
 		}
 	}()
-	defer repo.saveTicker.Stop()
+	defer func() {
+		for range repo.saveTicker.C {
+			repo.FlushBatch()
+		}
+		repo.saveTicker.Stop()
+	}()
 
 	return repo
 }

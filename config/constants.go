@@ -12,7 +12,7 @@ const IPREQS int = 59
 const IPEREQS int = 119
 const ESTREQS int = 199
 
-const SESSIONBATCH int = 30
+const BATCH int = 45
 
 const SHIPINTERVAL time.Duration = 60 * time.Second
 
