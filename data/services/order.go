@@ -8,12 +8,14 @@ import (
 	"beam/data/services/draftorderhelp"
 	"beam/data/services/orderhelp"
 	"errors"
+	"log"
 	"net/url"
+	"strconv"
 	"time"
 )
 
 type OrderService interface {
-	SubmitOrder(draftID, guestID, newPaymentMethod, store string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, mutexes *config.AllMutexes, tools *config.Tools) (error, error)
+	SubmitOrder(draftID, guestID, newPaymentMethod, store string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, ls *listService, ps *productService, mutexes *config.AllMutexes, tools *config.Tools) (error, error)
 	UseDiscountsAndGiftCards(order *models.Order, guestID string, customerID int, ds *discountService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds *draftOrderService) error
 	RenderOrder(orderID, guestID string, customerID int) (*models.Order, bool, error)
@@ -29,7 +31,7 @@ func NewOrderService(orderRepo repositories.OrderRepository) OrderService {
 }
 
 // Charging error, internal error
-func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, mutexes *config.AllMutexes, tools *config.Tools) (error, error) {
+func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, ls *listService, ps *productService, mutexes *config.AllMutexes, tools *config.Tools) (error, error) {
 
 	draft, err := ds.GetDraftPtl(draftID, guestID, customerID)
 	if err != nil {
@@ -111,6 +113,20 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store str
 
 	if err := orderhelp.OrderEmailWithProfit(resp, order, tools, store); err != nil {
 		go emails.AlertRecoverableOrderSubmitError(store, draftID, order.ID.Hex(), "Unable to send email of success to creat the order", tools, order, draft, nil, false, err)
+	}
+
+	vids := []int{}
+	for _, l := range order.Lines {
+		varInt, err := strconv.Atoi(l.VariantID)
+		if err != nil {
+			log.Printf("Unable to convert variant ID: %s on order: %s, in store: %s to int\n", l.VariantID, order.ID.Hex(), store)
+			continue
+		}
+		vids = append(vids, varInt)
+	}
+
+	if err := ls.UpdateLastOrdersList(store, customerID, order.DateCreated, order.ID.Hex(), vids, ps); err != nil {
+		log.Printf("Unable to update last orders list for order: %s, in store: %s; error: %v\n", order.ID.Hex(), store, err)
 	}
 
 	return nil, nil

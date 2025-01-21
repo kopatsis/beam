@@ -10,6 +10,7 @@ type SessionService interface {
 	GetSessionByID(id string) (*models.Session, error)
 	UpdateSession(session *models.Session) error
 	DeleteSession(id string) error
+	AddToSession(session *models.Session, line *models.SessionLine)
 }
 
 type sessionService struct {
@@ -34,4 +35,8 @@ func (s *sessionService) UpdateSession(session *models.Session) error {
 
 func (s *sessionService) DeleteSession(id string) error {
 	return s.sessionRepo.Delete(id)
+}
+
+func (s *sessionService) AddToSession(session *models.Session, line *models.SessionLine) {
+	s.sessionRepo.AddToBatch(session, line)
 }
