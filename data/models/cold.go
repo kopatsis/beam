@@ -3,7 +3,6 @@ package models
 import (
 	"time"
 
-	"github.com/lib/pq"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -35,9 +34,11 @@ type Event struct {
 	ID                  primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	CustomerID          int                `bson:"customer_id" json:"customer_id"`
 	GuestID             string             `bson:"guest_id" json:"guest_id"`
+	SessionID           string             `bson:"session_id" json:"session_id"`
 	Timestamp           time.Time          `bson:"timestamp" json:"timestamp"`
-	EventClassification string             `bson:"event_classification" json:"event_classification"`
-	EventDescription    string             `bson:"event_description" json:"event_description"`
+	EventClassification string             `bson:"event_classification" json:"event_classification"` // Super General, like "List"
+	EventDescription    string             `bson:"event_description" json:"event_description"`       // More specific function, like "Delete Faves Line"
+	EventDetails        string             `bson:"event_details" json:"event_details"`               // Exact, like "Successfully deleted faves line no error, optional"
 	OrderID             *string            `bson:"order_id,omitempty" json:"order_id,omitempty"`
 	DraftOrderID        *string            `bson:"draftorder_id,omitempty" json:"draftorder_id,omitempty"`
 	ProductID           *string            `bson:"product_id,omitempty" json:"product_id,omitempty"`
@@ -47,6 +48,8 @@ type Event struct {
 	GiftCardID          *string            `bson:"giftcard_id,omitempty" json:"giftcard_id,omitempty"`
 	SpecialNote         string             `bson:"special_note" json:"special_note"`
 	Tags                []string           `bson:"tags" json:"tags"`
+	AnyError            bool               `bson:"any_err" json:"any_err"`
+	AllErrorsSt         []string           `bson:"errors" json:"errors"`
 }
 
 type Session struct {
@@ -56,10 +59,10 @@ type Session struct {
 	CreatedAt     time.Time
 	Referrer      string
 	IPAddress     string
-	Tags          pq.StringArray `gorm:"type:text[]"`
 	InitialRoute  string
 	IsAffiliate   bool
 	AffiliateCode string
+	SpecialStatus string
 }
 
 type SessionLine struct {
@@ -67,4 +70,6 @@ type SessionLine struct {
 	SessionID string `gorm:"index"`
 	Route     string
 	Accessed  time.Time
+	AnyError  bool
+	ErrorSt   string
 }
