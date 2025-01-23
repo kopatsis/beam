@@ -21,7 +21,8 @@ var (
 type EventRepository interface {
 	AddToBatch(
 		customerID int,
-		guestID, eventClassification, eventDescription, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID string,
+		guestID, eventClassification, eventDescription, eventDetails, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID string,
+		errors []error,
 	)
 	FlushBatch()
 }
@@ -59,7 +60,8 @@ func NewEventRepository(mdb *mongo.Database, store string) EventRepository {
 
 func (r *eventRepo) AddToBatch(
 	customerID int,
-	guestID, eventClassification, eventDescription, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID string,
+	guestID, eventClassification, eventDescription, eventDetails, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID string,
+	errors []error,
 ) {
 	if !slices.Contains(validClassifications, eventClassification) {
 		log.Printf("invalid event classification: %s\n", eventClassification)
@@ -72,6 +74,7 @@ func (r *eventRepo) AddToBatch(
 		Timestamp:           time.Now(),
 		EventClassification: eventClassification,
 		EventDescription:    eventDescription,
+		EventDetails:        eventDetails,
 		SpecialNote:         specialNote,
 	}
 
@@ -96,6 +99,19 @@ func (r *eventRepo) AddToBatch(
 	if giftCardID != "" {
 		event.GiftCardID = &giftCardID
 	}
+
+	hasErr := false
+	errList := []string{}
+
+	for _, e := range errors {
+		if e != nil {
+			errList = append(errList, e.Error())
+			hasErr = true
+		}
+	}
+
+	event.AnyError = hasErr
+	event.AllErrorsSt = errList
 
 	r.events = append(r.events, &event)
 

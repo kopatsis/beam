@@ -53,13 +53,16 @@ func (s *cartService) DeleteCart(id int) error {
 func (s *cartService) AddToCart(id, handle, name string, quant int, prodServ *productService, custID int, guestID string, logger eventService) (*models.Cart, error) {
 	p, r, err := prodServ.productRepo.GetFullProduct(name, handle)
 	if err != nil {
+		logger.SaveEvent(custID, guestID, "Cart", "AddToCart", "Error querying product", "", "", "", strconv.Itoa(p.PK), "", "", "", "", []error{err})
 		return nil, err
 	} else if r != "" {
+		logger.SaveEvent(custID, guestID, "Cart", "AddToCart", "Queried product, but has redirection", "", "", "", strconv.Itoa(p.PK), "", "", "", "", []error{errors.New("product has a redirection")})
 		return nil, errors.New("product has a redirection")
 	}
 
 	vid, err := strconv.Atoi(id)
 	if err != nil {
+		logger.SaveEvent(custID, guestID, "Cart", "AddToCart", "Variant ID is not an int", "", "", "", strconv.Itoa(p.PK), "", "", "", "", []error{err})
 		return nil, err
 	}
 
@@ -71,6 +74,7 @@ func (s *cartService) AddToCart(id, handle, name string, quant int, prodServ *pr
 	}
 
 	if index < 0 {
+		logger.SaveEvent(custID, guestID, "Cart", "AddToCart", "No matching variant ID as provided", "", "", "", strconv.Itoa(p.PK), "", "", "", "", []error{errors.New("no matching variant by id to provided handle")})
 		return nil, errors.New("no matching variant by id to provided handle")
 	}
 
@@ -134,7 +138,7 @@ func (s *cartService) AddToCart(id, handle, name string, quant int, prodServ *pr
 		return nil, err
 	}
 
-	logger.SaveEvent(custID, guestID, "Cart", "Added Item to Cart", "", "", "", strconv.Itoa(p.PK), "", strconv.Itoa(cart.ID), "", "")
+	logger.SaveEvent(custID, guestID, "Cart", "AddToCart", "Success", "", "", "", strconv.Itoa(p.PK), "", strconv.Itoa(cart.ID), "", "", nil)
 	return &cart, nil
 }
 
@@ -333,7 +337,7 @@ func (s *cartService) ClearCart(name string, custID int, guestID string, logger 
 
 	ret.Empty = true
 
-	logger.SaveEvent(custID, guestID, "Cart", "Cleared Cart", "", "", "", "", "", strconv.Itoa(cart.ID), "", "")
+	logger.SaveEvent(custID, guestID, "Cart", "ClearCart", "Success", "", "", "", "", "", strconv.Itoa(cart.ID), "", "", nil)
 	return &ret, nil
 }
 
@@ -392,7 +396,7 @@ func (s *cartService) AddGiftCard(message, store string, cents int, discService 
 		return nil, err
 	}
 
-	logger.SaveEvent(custID, guestID, "Cart", "Added Gift Card to Cart", "", "", "", "", "", strconv.Itoa(cart.ID), "", strconv.Itoa(idDB))
+	logger.SaveEvent(custID, guestID, "Cart", "AddGiftCard", "Success", "", "", "", "", "", strconv.Itoa(cart.ID), "", strconv.Itoa(idDB), nil)
 	return &cart, nil
 }
 
@@ -459,7 +463,7 @@ func (s *cartService) DeleteGiftCard(name, cartID, lineID string, custID int, gu
 		return nil, err
 	}
 
-	logger.SaveEvent(custID, guestID, "Cart", "Deleted Gift Card from Cart", "", "", "", "", "", strconv.Itoa(cart.ID), "", strconv.Itoa(lines[index].VariantID))
+	logger.SaveEvent(custID, guestID, "Cart", "DeleteGiftCard", "Success", "", "", "", "", "", strconv.Itoa(cart.ID), "", strconv.Itoa(lines[index].VariantID), nil)
 	return &ret, nil
 }
 

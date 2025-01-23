@@ -5,7 +5,7 @@ import (
 )
 
 type EventService interface {
-	SaveEvent(customerID int, guestID, eventClassification, eventDescription, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID string)
+	SaveEvent(customerID int, guestID, eventClassification, eventDescription, eventDetails, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID string, errors []error)
 }
 
 type eventService struct {
@@ -16,9 +16,9 @@ func NewEventService(eventRepo repositories.EventRepository) EventService {
 	return &eventService{eventRepo: eventRepo}
 }
 
-func (s *eventService) SaveEvent(customerID int, guestID, eventClassification, eventDescription, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID string) {
+func (s *eventService) SaveEvent(customerID int, guestID, eventClassification, eventDescription, eventDetails, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID string, errors []error) {
 	s.eventRepo.AddToBatch(
 		customerID,
-		guestID, eventClassification, eventDescription, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID,
+		guestID, eventClassification, eventDescription, eventDetails, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID, errors,
 	)
 }
