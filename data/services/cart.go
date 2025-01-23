@@ -87,9 +87,11 @@ func (s *cartService) AddToCart(id, handle, name string, quant int, prodServ *pr
 	} else if guestID != "" {
 		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByGuestID(guestID)
 	} else {
+		logger.SaveEvent(custID, guestID, "Cart", "AddToCart", "No customer id or guest ID", "", "", "", strconv.Itoa(p.PK), "", "", "", "", []error{errors.New("error retrieving cart unrelated to cart not existing")})
 		return nil, errors.New("error retrieving cart unrelated to cart not existing")
 	}
 	if err != nil {
+		logger.SaveEvent(custID, guestID, "Cart", "AddToCart", "Unable to retrieve cart and lines", "", "", "", strconv.Itoa(p.PK), "", "", "", "", []error{err})
 		return nil, err
 	}
 
@@ -124,6 +126,7 @@ func (s *cartService) AddToCart(id, handle, name string, quant int, prodServ *pr
 		cart, err = s.cartRepo.CreateCart(cart)
 	}
 	if err != nil {
+		logger.SaveEvent(custID, guestID, "Cart", "AddToCart", "Unable to create cart for inexistent", "", "", "", strconv.Itoa(p.PK), "", "", "", "", []error{err})
 		return nil, err
 	}
 
@@ -135,6 +138,7 @@ func (s *cartService) AddToCart(id, handle, name string, quant int, prodServ *pr
 		line, err = s.cartRepo.SaveCartLine(line)
 	}
 	if err != nil {
+		logger.SaveEvent(custID, guestID, "Cart", "AddToCart", "Unable to save or add line for cart", "", "", "", strconv.Itoa(p.PK), "", strconv.Itoa(cart.ID), "", "", []error{err})
 		return nil, err
 	}
 
@@ -184,11 +188,13 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 
 	cid, err := strconv.Atoi(cartID)
 	if err != nil {
+		// 1
 		return nil, err
 	}
 
 	lid, err := strconv.Atoi(lineID)
 	if err != nil {
+		// 2
 		return nil, err
 	}
 
@@ -201,15 +207,18 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 	} else if guestID != "" {
 		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByIDAndGuestID(cid, guestID)
 	} else {
+		// 3
 		return nil, errors.New("no user id of either type provided")
 	}
 	if err != nil {
+		// 4
 		return nil, err
 	}
 
 	if !exists {
 		ret.Empty = true
 		ret.CartError = "Cart has been checked out already or no longer exists"
+		// 5
 		return &ret, nil
 	}
 
@@ -228,23 +237,28 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 	if index == -1 {
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
 		if err := s.UpdateRender(name, &ret, prodServ); err != nil {
+			// 6
 			return nil, err
 		}
+		// 7
 		return &ret, nil
 	}
 
 	prod, redir, err := prodServ.GetProductByVariantID(name, lines[index].VariantID)
 	if err != nil {
+		// 8
 		return nil, err
 	}
 
 	if redir != "" {
 		err := s.cartRepo.DeleteCartLine(lines[index])
 		if err != nil {
+			// 9
 			return nil, err
 		}
 		ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
 		if err := s.UpdateRender(name, &ret, prodServ); err != nil {
+			// 10
 			return nil, err
 		}
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
@@ -260,10 +274,12 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 	if varIndex == -1 {
 		err := s.cartRepo.DeleteCartLine(lines[index])
 		if err != nil {
+			// 11
 			return nil, err
 		}
 		ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
 		if err := s.UpdateRender(name, &ret, prodServ); err != nil {
+			// 12
 			return nil, err
 		}
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
@@ -286,16 +302,20 @@ func (s *cartService) AdjustQuantity(name, cartID, lineID string, quant int, pro
 		ret.CartLines[index].ActualLine.Quantity = oldQuant
 		ret.CartLines[index].ActualLine.Price = product.VolumeDiscPrice(prod.Variants[varIndex].Price, oldQuant, prod.VolumeDisc)
 		if err := s.UpdateRender(name, &ret, prodServ); err != nil {
+			logger.SaveEvent(custID, guestID, "Cart", "AdjustQuantity", "Unable to update the render after save", "", "", "", strconv.Itoa(lines[index].ProductID), "", cartID, "", "", []error{err})
 			return nil, err
 		}
 		ret.CartError = "Unable to update cart :/ Please refresh and try again"
+		logger.SaveEvent(custID, guestID, "Cart", "AdjustQuantity", "Unable to update the cart after save", "", "", "", strconv.Itoa(lines[index].ProductID), "", cartID, "", "", []error{err})
 		return &ret, nil
 	}
 
 	if err := s.UpdateRender(name, &ret, prodServ); err != nil {
+		logger.SaveEvent(custID, guestID, "Cart", "AdjustQuantity", "Unable to update the render", "", "", "", strconv.Itoa(lines[index].ProductID), "", cartID, "", "", []error{err})
 		return nil, err
 	}
 
+	logger.SaveEvent(custID, guestID, "Cart", "AdjustQuantity", "Success", "", "", "", strconv.Itoa(lines[index].ProductID), "", cartID, "", "", nil)
 	return &ret, nil
 }
 
