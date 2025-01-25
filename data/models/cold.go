@@ -42,8 +42,12 @@ type Event struct {
 	OrderID             *string            `bson:"order_id,omitempty" json:"order_id,omitempty"`
 	DraftOrderID        *string            `bson:"draftorder_id,omitempty" json:"draftorder_id,omitempty"`
 	ProductID           *string            `bson:"product_id,omitempty" json:"product_id,omitempty"`
-	ListID              *string            `bson:"list_id,omitempty" json:"list_id,omitempty"`
+	VariantID           *string            `bson:"variant_id,omitempty" json:"variant_id,omitempty"`
+	SavesID             *string            `bson:"saves_id,omitempty" json:"saves_id,omitempty"`
+	FavesID             *string            `bson:"faves_id,omitempty" json:"faves_id,omitempty"`
+	LOListID            *string            `bson:"lolist_id,omitempty" json:"lolist_id,omitempty"`
 	CartID              *string            `bson:"cart_id,omitempty" json:"cart_id,omitempty"`
+	CartLineID          *string            `bson:"cart_line_id,omitempty" json:"cart_line_id,omitempty"`
 	DiscountID          *string            `bson:"discount_id,omitempty" json:"discount_id,omitempty"`
 	GiftCardID          *string            `bson:"giftcard_id,omitempty" json:"giftcard_id,omitempty"`
 	SpecialNote         string             `bson:"special_note" json:"special_note"`

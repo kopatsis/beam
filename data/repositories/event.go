@@ -21,7 +21,7 @@ var (
 type EventRepository interface {
 	AddToBatch(
 		customerID int,
-		guestID, eventClassification, eventDescription, eventDetails, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID string,
+		guestID, eventClassification, eventDescription, eventDetails, specialNote, orderID, draftOrderID, productID, variantID, favesID, savesID, lolistID, cartID, cartLineID, discountID, giftCardID string,
 		errors []error,
 	)
 	FlushBatch()
@@ -60,7 +60,7 @@ func NewEventRepository(mdb *mongo.Database, store string) EventRepository {
 
 func (r *eventRepo) AddToBatch(
 	customerID int,
-	guestID, eventClassification, eventDescription, eventDetails, specialNote, orderID, draftOrderID, productID, listID, cartID, discountID, giftCardID string,
+	guestID, eventClassification, eventDescription, eventDetails, specialNote, orderID, draftOrderID, productID, variantID, favesID, savesID, lolistID, cartID, cartLineID, discountID, giftCardID string,
 	errors []error,
 ) {
 	if !slices.Contains(validClassifications, eventClassification) {
@@ -87,11 +87,23 @@ func (r *eventRepo) AddToBatch(
 	if productID != "" {
 		event.ProductID = &productID
 	}
-	if listID != "" {
-		event.ListID = &listID
+	if variantID != "" {
+		event.VariantID = &variantID
+	}
+	if savesID != "" {
+		event.SavesID = &savesID
+	}
+	if favesID != "" {
+		event.FavesID = &favesID
+	}
+	if lolistID != "" {
+		event.LOListID = &lolistID
 	}
 	if cartID != "" {
 		event.CartID = &cartID
+	}
+	if cartLineID != "" {
+		event.CartLineID = &cartLineID
 	}
 	if discountID != "" {
 		event.DiscountID = &discountID
