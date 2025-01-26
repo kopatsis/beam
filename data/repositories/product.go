@@ -22,6 +22,7 @@ type ProductRepository interface {
 	GetLimVars(name string, vids []int) ([]*models.LimitedVariantRedis, error)
 	GetFullProducts(name string, handles []string) ([]*models.ProductRedis, error)
 	SaveProductInfoInTransaction(name string, prod *models.ProductRedis, info []models.ProductInfo) error // U
+	ReadComparables(id int) ([]*models.Comparable, error)
 }
 
 type productRepo struct {
@@ -167,4 +168,10 @@ func (r *productRepo) SaveProductInfoInTransaction(name string, prod *models.Pro
 		})
 		return err
 	}, prodKey, infoKey)
+}
+
+func (r *productRepo) ReadComparables(id int) ([]*models.Comparable, error) {
+	var comparables []*models.Comparable
+	err := r.db.Where("pkfk_product_id1 = ? OR pkfk_product_id2 = ?", id, id).Find(&comparables).Error
+	return comparables, err
 }

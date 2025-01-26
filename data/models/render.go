@@ -176,3 +176,13 @@ type ReviewPageRender struct {
 	SortColumn string
 	Descending bool
 }
+
+type ComparablesRender struct {
+	Handle    string
+	Title     string
+	ImageURL  string
+	Price     int
+	Inventory int
+	AvgRate   float64
+	RateCt    int
+}

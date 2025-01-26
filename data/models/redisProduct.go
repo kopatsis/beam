@@ -3,34 +3,27 @@ package models
 import "time"
 
 type ProductRedis struct {
-	PK             int               `json:"pk"`
-	Handle         string            `json:"h"`
-	Store          string            `json:"sr"`
-	Title          string            `json:"t"`
-	Description    string            `json:"d"`
-	Bullets        []string          `json:"b"`
-	ImageURL       string            `json:"iu"`
-	AltImageURLs   []string          `json:"aiu"`
-	Status         string            `json:"s"`
-	DateAdded      time.Time         `json:"da"`
-	Tags           []string          `json:"tg"`
-	Rating         float64           `json:"r"`
-	RatingCt       int               `json:"a"`
-	Var1Key        string            `json:"vk1"`
-	Var2Key        string            `json:"vk2,omitempty"` // Optional
-	Var3Key        string            `json:"vk3,omitempty"` // Optional
-	SEOTitle       string            `json:"st"`
-	SEODescription string            `json:"sd"`
-	Comparables    []ComparableRedis `json:"c"`
-	Variants       []VariantRedis    `json:"v"`
-	StandardPrice  int               `json:"sp"`
-	VolumeDisc     bool              `json:"vd"`
-}
-
-type ComparableRedis struct {
-	Handle string `json:"h"`
-	Title  string `json:"t"`
-	Image  string `json:"iu"`
+	PK             int            `json:"pk"`
+	Handle         string         `json:"h"`
+	Store          string         `json:"sr"`
+	Title          string         `json:"t"`
+	Description    string         `json:"d"`
+	Bullets        []string       `json:"b"`
+	ImageURL       string         `json:"iu"`
+	AltImageURLs   []string       `json:"aiu"`
+	Status         string         `json:"s"`
+	DateAdded      time.Time      `json:"da"`
+	Tags           []string       `json:"tg"`
+	Rating         float64        `json:"r"`
+	RatingCt       int            `json:"a"`
+	Var1Key        string         `json:"vk1"`
+	Var2Key        string         `json:"vk2,omitempty"` // Optional
+	Var3Key        string         `json:"vk3,omitempty"` // Optional
+	SEOTitle       string         `json:"st"`
+	SEODescription string         `json:"sd"`
+	Variants       []VariantRedis `json:"v"`
+	StandardPrice  int            `json:"sp"`
+	VolumeDisc     bool           `json:"vd"`
 }
 
 type VariantRedis struct {
@@ -53,6 +46,7 @@ type ProductInfo struct {
 	Handle     string    `json:"h"`
 	Title      string    `json:"t"`
 	DateAdded  time.Time `json:"da"`
+	ImageURL   string    `json:"m"`
 	Sales      int       `json:"s"`
 	Price      int       `json:"p"`
 	Inventory  int       `json:"i"`

@@ -8,8 +8,10 @@ import (
 	"beam/data/services/product"
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"slices"
+	"sort"
 	"strconv"
 )
 
@@ -27,6 +29,7 @@ type ProductService interface {
 	GetProductsMapFromCartLine(name string, cartLines []models.CartLine) (map[int]*models.ProductRedis, error)
 	UpdateRatings(pid int, name string, newRate, oldRate, plusMinus int, tools *config.Tools)
 	ConfirmDraftOrderProducts(name string, vids []int) (map[int]bool, bool, error)
+	RenderComparables(name string, id int) ([]models.ComparablesRender, error)
 }
 
 type productService struct {
@@ -354,4 +357,59 @@ func (s *productService) ConfirmDraftOrderProducts(name string, vids []int) (map
 	}
 
 	return result, anyFalse, nil
+}
+
+func (s *productService) RenderComparables(name string, productID int) ([]models.ComparablesRender, error) {
+	comps, err := s.productRepo.ReadComparables(productID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(comps) == 0 {
+		return nil, nil
+	}
+
+	otherIDs := map[int]struct{}{}
+	for _, comp := range comps {
+		if comp.PKFKProductID1 == productID {
+			otherIDs[comp.PKFKProductID2] = struct{}{}
+		} else {
+			otherIDs[comp.PKFKProductID1] = struct{}{}
+		}
+	}
+
+	prodInfo, err := s.productRepo.GetAllProductInfo(name)
+	if err != nil {
+		return nil, err
+	}
+
+	ret := []models.ComparablesRender{}
+	for _, pi := range prodInfo {
+		if _, ok := otherIDs[pi.ID]; ok {
+			ret = append(ret, models.ComparablesRender{
+				Handle:    pi.Handle,
+				Title:     pi.Title,
+				ImageURL:  pi.ImageURL,
+				Price:     pi.Price,
+				Inventory: pi.Inventory,
+				AvgRate:   pi.AvgRate,
+				RateCt:    pi.RateCt,
+			})
+			delete(otherIDs, pi.ID)
+		}
+	}
+
+	if len(otherIDs) > 0 {
+		log.Printf("Unable to locate ids listed as comps within product info for store: %s, product id: %d, ids: ", name, productID)
+		for id := range otherIDs {
+			log.Printf(" %d,", id)
+		}
+		log.Printf("\n")
+	}
+
+	sort.Slice(ret, func(i, j int) bool {
+		return ret[i].AvgRate > ret[j].AvgRate
+	})
+
+	return ret, nil
 }
