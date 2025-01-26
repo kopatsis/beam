@@ -495,24 +495,29 @@ func (s *cartService) DeleteGiftCard(name, cartID, lineID string, custID int, gu
 func (s *cartService) SavesListToCart(id, handle, name string, ps *productService, ls *listService, custID int, logger eventService) (models.SavesListRender, *models.CartRender, error) {
 	vid, err := strconv.Atoi(id)
 	if err != nil {
+		logger.SaveEvent(custID, "", "Cart", "SavesListToCart", "Unable to convert saves list var id to int", "", "", "", "", id, "", "", "", "", "", "", "", []error{err})
 		return models.SavesListRender{}, nil, err
 	}
 
 	sl, err := ls.DeleteSavesListRender(name, custID, vid, 1, ps)
 	if err != nil {
+		logger.SaveEvent(custID, "", "Cart", "SavesListToCart", "Unable to delete off of saves list", "", "", "", "", id, "", "", "", "", "", "", "", []error{err})
 		return models.SavesListRender{}, nil, err
 	}
 
 	_, err = s.AddToCart(id, handle, name, 1, ps, custID, "", logger)
 	if err != nil {
+		logger.SaveEvent(custID, "", "Cart", "SavesListToCart", "Unable to add to cart after delete off of saves list", "", "", "", "", id, "", "", "", "", "", "", "", []error{err})
 		return models.SavesListRender{}, nil, err
 	}
 
 	cr, err := s.GetCart(name, custID, "", ps)
 	if err != nil {
+		logger.SaveEvent(custID, "", "Cart", "SavesListToCart", "Unable to add to retrieve cart after adding from saves list", "", "", "", "", id, "", "", "", "", "", "", "", []error{err})
 		return models.SavesListRender{}, nil, err
 	}
 
+	logger.SaveEvent(custID, "", "Cart", "SavesListToCart", "Success", "", "", "", "", id, "", "", "", strconv.Itoa(cr.Cart.ID), "", "", "", nil)
 	return sl, cr, nil
 }
 
