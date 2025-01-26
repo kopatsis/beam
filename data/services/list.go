@@ -31,7 +31,7 @@ type ListService interface {
 	GetSavesListByPage(name string, customerID, page int, ps *productService) (models.SavesListRender, error)
 	GetLastOrdersListByPage(name string, customerID, page int, ps *productService) (models.LastOrderListRender, error)
 
-	CartToSavesList(name, cartID, lineID string, ps *productService, cs *cartService, custID int, logger eventService) (models.SavesListRender, *models.CartRender, error)
+	CartToSavesList(name, cartID, lineID string, ps *productService, cs *cartService, custID int, logger *eventService) (models.SavesListRender, *models.CartRender, error)
 }
 
 type listService struct {
@@ -346,7 +346,7 @@ func (s *listService) GetLastOrdersListByPage(name string, customerID, page int,
 	return ret, nil
 }
 
-func (s *listService) CartToSavesList(name, cartID, lineID string, ps *productService, cs *cartService, custID int, logger eventService) (models.SavesListRender, *models.CartRender, error) {
+func (s *listService) CartToSavesList(name, cartID, lineID string, ps *productService, cs *cartService, custID int, logger *eventService) (models.SavesListRender, *models.CartRender, error) {
 
 	cid, err := strconv.Atoi(cartID)
 	if err != nil {
