@@ -423,6 +423,8 @@ func (s *productService) SetInventoryFromOrder(name string, decrement map[int]in
 	}
 
 	maxEach := map[string]int{}
+	salesInc := map[string]int{}
+
 	for i, p := range prods {
 		maxCurrent := 0
 		for j, v := range p.Variants {
@@ -430,6 +432,11 @@ func (s *productService) SetInventoryFromOrder(name string, decrement map[int]in
 				v.Quantity -= dec
 				if v.Quantity > 0 {
 					log.Printf("Negative inventory for handle: %s; variant id: %d; store: %s; inventory: %d\n", p.Handle, v.PK, name, v.Quantity)
+				}
+				if salesCurrent, ok := salesInc[p.Handle]; ok {
+					salesInc[p.Handle] = salesCurrent + dec
+				} else {
+					salesInc[p.Handle] = dec
 				}
 			}
 			if v.Quantity > maxCurrent {
@@ -453,6 +460,9 @@ func (s *productService) SetInventoryFromOrder(name string, decrement map[int]in
 				pi.Inventory = maxNew
 				modded = true
 			}
+		}
+		if salesUp, ok := salesInc[pi.Handle]; ok {
+			pi.Sales += salesUp
 		}
 		productInfo[i] = pi
 	}
