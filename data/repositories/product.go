@@ -23,6 +23,9 @@ type ProductRepository interface {
 	GetFullProducts(name string, handles []string) ([]*models.ProductRedis, error)
 	SaveProductInfoInTransaction(name string, prod *models.ProductRedis, info []models.ProductInfo) error // U
 	ReadComparables(id int) ([]*models.Comparable, error)
+	DecrementQuantitiesSQL(updates map[int]int) error
+	SaveProductInfoInTransactionMulti(name string, prods []*models.ProductRedis, info []models.ProductInfo) error
+	SaveProducts(name string, prods []*models.ProductRedis) error
 }
 
 type productRepo struct {
@@ -174,4 +177,66 @@ func (r *productRepo) ReadComparables(id int) ([]*models.Comparable, error) {
 	var comparables []*models.Comparable
 	err := r.db.Where("pkfk_product_id1 = ? OR pkfk_product_id2 = ?", id, id).Find(&comparables).Error
 	return comparables, err
+}
+
+func (r *productRepo) DecrementQuantitiesSQL(updates map[int]int) error {
+	if len(updates) == 0 {
+		return nil
+	}
+
+	var pkKeys []int
+	for pk := range updates {
+		pkKeys = append(pkKeys, pk)
+	}
+
+	var variants []models.Variant
+	if err := r.db.Where("pk IN ?", pkKeys).Find(&variants).Error; err != nil {
+		return err
+	}
+
+	for i := range variants {
+		variants[i].Quantity -= updates[variants[i].PK]
+	}
+
+	return r.db.Save(&variants).Error
+}
+
+func (r *productRepo) SaveProductInfoInTransactionMulti(name string, prods []*models.ProductRedis, info []models.ProductInfo) error {
+	infoKey := name + "::PWC"
+	infoData, err := json.Marshal(info)
+	if err != nil {
+		return err
+	}
+
+	return r.rdb.Watch(context.Background(), func(tx *redis.Tx) error {
+		_, err := tx.Pipelined(context.Background(), func(pipe redis.Pipeliner) error {
+			for _, prod := range prods {
+				prodKey := name + "::PRO::" + prod.Handle
+				prodData, err := json.Marshal(prod)
+				if err != nil {
+					return err
+				}
+				pipe.Set(context.Background(), prodKey, prodData, 0)
+			}
+			pipe.Set(context.Background(), infoKey, infoData, 0)
+			return nil
+		})
+		return err
+	}, infoKey)
+}
+
+func (r *productRepo) SaveProducts(name string, prods []*models.ProductRedis) error {
+	msetData := make([]interface{}, 0, len(prods)*2)
+
+	for _, prod := range prods {
+		prodKey := name + "::PRO::" + prod.Handle
+		prodData, err := json.Marshal(prod)
+		if err != nil {
+			return err
+		}
+		msetData = append(msetData, prodKey, prodData)
+	}
+
+	_, err := r.rdb.MSet(context.Background(), msetData...).Result()
+	return err
 }

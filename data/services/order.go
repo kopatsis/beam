@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -143,6 +144,8 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store str
 	}
 
 	vids := []int{}
+	dec := map[int]int{}
+	handles := []string{}
 	for _, l := range order.Lines {
 		varInt, err := strconv.Atoi(l.VariantID)
 		if err != nil {
@@ -150,6 +153,16 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store str
 			continue
 		}
 		vids = append(vids, varInt)
+
+		dec[varInt] = l.Quantity
+
+		if !slices.Contains(handles, l.Handle) {
+			handles = append(handles, l.Handle)
+		}
+	}
+
+	if err := ps.SetInventoryFromOrder(store, dec, handles); err != nil {
+		log.Printf("Unable to update inventory for order: %s, in store: %s; error: %v\n", order.ID.Hex(), store, err)
 	}
 
 	if err := ls.UpdateLastOrdersList(store, customerID, order.DateCreated, order.ID.Hex(), vids, ps); err != nil {

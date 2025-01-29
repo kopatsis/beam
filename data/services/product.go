@@ -30,6 +30,7 @@ type ProductService interface {
 	UpdateRatings(pid int, name string, newRate, oldRate, plusMinus int, tools *config.Tools)
 	ConfirmDraftOrderProducts(name string, vids []int) (map[int]bool, bool, error)
 	RenderComparables(name string, id int) ([]models.ComparablesRender, error)
+	SetInventoryFromOrder(name string, decrement map[int]int, handles []string) error
 }
 
 type productService struct {
@@ -412,4 +413,60 @@ func (s *productService) RenderComparables(name string, productID int) ([]models
 	})
 
 	return ret, nil
+}
+
+func (s *productService) SetInventoryFromOrder(name string, decrement map[int]int, handles []string) error {
+
+	prods, err := s.productRepo.GetFullProducts(name, handles)
+	if err != nil {
+		return err
+	}
+
+	maxEach := map[string]int{}
+	for i, p := range prods {
+		maxCurrent := 0
+		for j, v := range p.Variants {
+			if dec, ok := decrement[v.PK]; ok {
+				v.Quantity -= dec
+				if v.Quantity > 0 {
+					log.Printf("Negative inventory for handle: %s; variant id: %d; store: %s; inventory: %d\n", p.Handle, v.PK, name, v.Quantity)
+				}
+			}
+			if v.Quantity > maxCurrent {
+				maxCurrent = v.Quantity
+			}
+			p.Variants[j] = v
+		}
+		maxEach[p.Handle] = maxCurrent
+		prods[i] = p
+	}
+
+	productInfo, err := s.productRepo.GetAllProductInfo(name)
+	if err != nil {
+		return err
+	}
+
+	modded := false
+	for i, pi := range productInfo {
+		if maxNew, ok := maxEach[pi.Handle]; ok {
+			if maxNew != pi.Inventory {
+				pi.Inventory = maxNew
+				modded = true
+			}
+		}
+		productInfo[i] = pi
+	}
+
+	errSaveRedis := error(nil)
+	if modded {
+		errSaveRedis = s.productRepo.SaveProductInfoInTransactionMulti(name, prods, productInfo)
+	} else {
+		errSaveRedis = s.productRepo.SaveProducts(name, prods)
+	}
+
+	if errSaveRedis != nil {
+		return errSaveRedis
+	}
+
+	return s.productRepo.DecrementQuantitiesSQL(decrement)
 }
