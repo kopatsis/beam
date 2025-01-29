@@ -17,10 +17,10 @@ type Customer struct {
 	Tags                     pq.StringArray `gorm:"type:text[]"`
 	PhoneNumber              *string
 	Status                   string // Active, Archived
-	OrderCount               int
-	AutodiscountPctOff       float64
-	Notes                    string
-	LastReset                time.Time
+	// OrderCount               int
+	AutodiscountPctOff float64
+	Notes              string
+	LastReset          time.Time
 }
 
 type CustomerPost struct {
