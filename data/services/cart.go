@@ -577,8 +577,10 @@ func (s *cartService) UpdateRender(name string, cart *models.CartRender, ps *pro
 func (s *cartService) CartMiddleware(custCartID, guestCartID, custID int, guestID string) (int, error) {
 	if custID > 0 {
 		if custCartID <= 0 {
-			// attempt to get most recent cart w/ allowed
-			// return that or create and return
+			exCart, err := s.cartRepo.MostRecentAllowedCart(custID)
+			if exCart != nil && err == nil {
+				return exCart.ID, nil
+			}
 			cart := models.Cart{
 				CustomerID:    custID,
 				DateCreated:   time.Now(),
@@ -586,12 +588,13 @@ func (s *cartService) CartMiddleware(custCartID, guestCartID, custID int, guestI
 				LastRetrieved: time.Now(),
 				Status:        "Active",
 			}
-			cart, err := s.cartRepo.SaveCart(cart)
+			cart, err = s.cartRepo.SaveCart(cart)
 			if err != nil {
 				return 0, err
 			}
 			return cart.ID, nil
 		}
+		return custCartID, nil
 	} else if guestID != "" {
 		if guestCartID < 0 {
 			cart := models.Cart{
@@ -607,6 +610,52 @@ func (s *cartService) CartMiddleware(custCartID, guestCartID, custID int, guestI
 			}
 			return cart.ID, nil
 		}
+		return guestCartID, nil
 	}
 	return 0, errors.New("no one logged in")
+}
+
+func (s *cartService) CartCountCheck(cartID, custID int, guestID string) (int, error) {
+	cart, err := s.cartRepo.Read(cartID)
+	if err != nil {
+		return 0, err
+	} else if cart.Status != "Active" {
+		return 0, errors.New("inactive cart")
+	} else if cart.ID != cartID {
+		return 0, errors.New("queried the incorrect cart by id")
+	}
+
+	if custID > 0 {
+		if cart.CustomerID != custID {
+			return 0, errors.New("customer cart doesn't belong to customer")
+		}
+	} else if guestID != "" {
+		if cart.CustomerID != custID {
+			return 0, errors.New("customer cart doesn't belong to customer")
+		}
+	} else {
+		return 0, errors.New("no one logged in")
+	}
+
+	return s.cartRepo.TotalQuantity(cart.ID)
+}
+
+// Cart ID, count, err
+func (s *cartService) CartCountCheckWithVerify(cartID, custID int, guestID string) (int, int, error) {
+	count, err := s.CartCountCheck(cartID, custID, guestID)
+	if err != nil {
+		if err.Error() == "no one logged in" {
+			return 0, 0, err
+		} else {
+			cartID, err = s.CartMiddleware(0, 0, custID, guestID)
+			if err != nil {
+				return 0, 0, err
+			}
+			count, err = s.CartCountCheck(cartID, custID, guestID)
+			if err != nil {
+				return cartID, 0, err
+			}
+		}
+	}
+	return cartID, count, nil
 }

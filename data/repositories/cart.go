@@ -26,6 +26,7 @@ type CartRepository interface {
 
 	GetCartLineWithValidation(customerID, cartID, lineID int) (*models.CartLine, error)
 	MostRecentAllowedCart(customerID int) (*models.Cart, error)
+	TotalQuantity(cartID int) (int, error)
 }
 
 type cartRepo struct {
@@ -210,4 +211,17 @@ func (r *cartRepo) MostRecentAllowedCart(customerID int) (*models.Cart, error) {
 		return nil, err
 	}
 	return &cart, nil
+}
+
+func (r *cartRepo) TotalQuantity(cartID int) (int, error) {
+	var total int
+	err := r.db.Model(&models.CartLine{}).
+		Where("cart_id = ?", cartID).
+		Select("COALESCE(SUM(quantity), 0)").
+		Scan(&total).Error
+
+	if err != nil {
+		return 0, err
+	}
+	return total, nil
 }
