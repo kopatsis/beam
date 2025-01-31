@@ -3,6 +3,7 @@ package repositories
 import (
 	"beam/data/models"
 	"errors"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -24,6 +25,7 @@ type CartRepository interface {
 	DeleteCartWithLines(id int) error
 
 	GetCartLineWithValidation(customerID, cartID, lineID int) (*models.CartLine, error)
+	MostRecentAllowedCart(customerID int) (*models.Cart, error)
 }
 
 type cartRepo struct {
@@ -190,4 +192,22 @@ func (r *cartRepo) GetCartLineWithValidation(customerID, cartID, lineID int) (*m
 	}
 
 	return &cartLine, nil
+}
+
+func (r *cartRepo) MostRecentAllowedCart(customerID int) (*models.Cart, error) {
+	var cart models.Cart
+	cutoffTime := time.Now().Add(-120 * time.Hour)
+
+	err := r.db.Where("customer_id = ? AND status = ? AND ever_checked_out = ? AND date_modified >= ?",
+		customerID, "Active", false, cutoffTime).
+		Order("last_retrieved DESC").
+		First(&cart).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &cart, nil
 }

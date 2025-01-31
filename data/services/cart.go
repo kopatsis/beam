@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 )
 
 type CartService interface {
@@ -24,6 +25,8 @@ type CartService interface {
 	DeleteGiftCard(name, cartID, lineID string, custID int, guestID string, prodServ *productService, logger *eventService) (*models.CartRender, error)
 	UpdateRender(name string, cart *models.CartRender, ps *productService) error
 	SavesListToCart(id, handle, name string, ps *productService, ls *listService, custID int, logger *eventService) (models.SavesListRender, *models.CartRender, error)
+
+	CartMiddleware(custCartID, guestCartID, custID int, guestID string) (int, error)
 }
 
 type cartService struct {
@@ -569,4 +572,41 @@ func (s *cartService) UpdateRender(name string, cart *models.CartRender, ps *pro
 	}
 
 	return nil
+}
+
+func (s *cartService) CartMiddleware(custCartID, guestCartID, custID int, guestID string) (int, error) {
+	if custID > 0 {
+		if custCartID <= 0 {
+			// attempt to get most recent cart w/ allowed
+			// return that or create and return
+			cart := models.Cart{
+				CustomerID:    custID,
+				DateCreated:   time.Now(),
+				DateModified:  time.Now(),
+				LastRetrieved: time.Now(),
+				Status:        "Active",
+			}
+			cart, err := s.cartRepo.SaveCart(cart)
+			if err != nil {
+				return 0, err
+			}
+			return cart.ID, nil
+		}
+	} else if guestID != "" {
+		if guestCartID < 0 {
+			cart := models.Cart{
+				GuestID:       guestID,
+				DateCreated:   time.Now(),
+				DateModified:  time.Now(),
+				LastRetrieved: time.Now(),
+				Status:        "Active",
+			}
+			cart, err := s.cartRepo.SaveCart(cart)
+			if err != nil {
+				return 0, err
+			}
+			return cart.ID, nil
+		}
+	}
+	return 0, errors.New("no one logged in")
 }

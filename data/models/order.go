@@ -62,6 +62,7 @@ type DraftOrder struct {
 	ID                    primitive.ObjectID           `bson:"_id,omitempty" json:"id"`
 	PrintfulID            string                       `bson:"printful_id" json:"printful_id"`
 	CustomerID            int                          `bson:"customer_id" json:"customer_id"`
+	CartID                int                          `bson:"cart_id" json:"cart_id"`
 	Status                string                       `bson:"status" json:"status"` // Created (default), Modified, Expired, Abandoned, Attempted, Failed, Submitted, Succceeded
 	OrderID               string                       `bson:"order_id" json:"order_id"`
 	Email                 string                       `bson:"email" json:"email"`
@@ -149,19 +150,6 @@ type OrderLine struct {
 	EndPrice          int                    `bson:"end_price" json:"end_price"`
 	LineTotal         int                    `bson:"line_total" json:"line_total"`
 }
-
-// type OrderContact struct {
-// 	FirstName      string `bson:"first_name" json:"first_name"`
-// 	LastName       string `bson:"last_name" json:"last_name"`
-// 	CompanyName    string `bson:"comp_name" json:"comp_name"`
-// 	PhoneNumber    string `bson:"phone_number" json:"phone_number"`
-// 	StreetAddress1 string `bson:"street_address_1" json:"street_address_1"`
-// 	StreetAddress2 string `bson:"street_address_2" json:"street_address_2"`
-// 	City           string `bson:"city" json:"city"`
-// 	ProvinceState  string `bson:"province_state" json:"province_state"`
-// 	ZipCode        string `bson:"zip_code" json:"zip_code"`
-// 	Country        string `bson:"country" json:"country"`
-// }
 
 type ShippingRate struct {
 	ID              string    `json:"id" bson:"id"`
