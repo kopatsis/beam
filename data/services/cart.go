@@ -35,6 +35,10 @@ type CartService interface {
 	GetCartWithLinesAndVerify(cartID, custID int, guestID string) (int, *models.Cart, []*models.CartLine, error)
 	CartCountCheck(cartID, custID int, guestID string) (int, int, error)
 	OrderSuccessCart(cartID, custID int, guestID string, orderLines []models.OrderLine) error
+
+	CopyCartWithLines(cartID, newCustomer int) error
+	MoveCart(cartID, newCustomer int) error
+	DirectCartRetrieval(cartID, customerID int, guestID string) (int, error, bool)
 }
 
 type cartService struct {
@@ -776,4 +780,15 @@ func (s *cartService) OrderSuccessCart(cartID, custID int, guestID string, order
 		return s.cartRepo.ArchiveCart(cart.ID)
 	}
 	return s.cartRepo.ReactivateCartWithLines(cart.ID, newLines)
+}
+
+func (s *cartService) CopyCartWithLines(cartID, newCustomer int) error {
+	return s.cartRepo.CopyCartWithLines(cartID, newCustomer)
+}
+func (s *cartService) MoveCart(cartID, newCustomer int) error {
+	return s.cartRepo.MoveCart(cartID, newCustomer)
+}
+
+func (s *cartService) DirectCartRetrieval(cartID, customerID int, guestID string) (int, error, bool) {
+	return s.cartRepo.DirectCartRetrieval(cartID, customerID, guestID)
 }

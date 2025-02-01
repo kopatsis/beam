@@ -34,8 +34,9 @@ type CartRepository interface {
 	ActiveCart(id int) error
 	ReactivateCartWithLines(cartID int, newLines []models.CartLine) error
 
-	CopyCartWithLines(cartID int, newCustomer int) error
-	MoveCartWithLines(cartID int, newCustomer int) error
+	CopyCartWithLines(cartID, newCustomer int) error
+	MoveCart(cartID, newCustomer int) error
+	DirectCartRetrieval(cartID, customerID int, guestID string) (int, error, bool)
 }
 
 type cartRepo struct {
@@ -325,8 +326,8 @@ func (r *cartRepo) CopyCartWithLines(cartID int, newCustomer int) error {
 	})
 }
 
-func (r *cartRepo) MoveCartWithLines(cartID int, newCustomer int) error {
-	cart, err := r.ReadWithPreload(cartID)
+func (r *cartRepo) MoveCart(cartID int, newCustomer int) error {
+	cart, err := r.Read(cartID)
 	if err != nil {
 		return err
 	}
@@ -346,4 +347,17 @@ func (r *cartRepo) MoveCartWithLines(cartID int, newCustomer int) error {
 	cart.DateModified = time.Now()
 
 	return r.Update(*cart)
+}
+
+// Cart ID confirm, actual error, redirect to signin
+func (r *cartRepo) DirectCartRetrieval(cartID, customerID int, guestID string) (int, error, bool) {
+	cart, err := r.Read(cartID)
+	if err != nil {
+		return cartID, err, false
+	} else if cart.Status != "Active" {
+		return cartID, errors.New("inactive cart"), false
+	} else if customerID == 0 || customerID != cart.CustomerID {
+		return cartID, nil, true
+	}
+	return cartID, nil, false
 }
