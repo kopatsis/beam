@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type CartService interface {
@@ -26,7 +28,13 @@ type CartService interface {
 	UpdateRender(name string, cart *models.CartRender, ps *productService) error
 	SavesListToCart(id, handle, name string, ps *productService, ls *listService, custID int, logger *eventService) (models.SavesListRender, *models.CartRender, error)
 
-	CartMiddleware(custCartID, guestCartID, custID int, guestID string) (int, error)
+	CartMiddleware(cartID, custID int, guestID string) (int, error)
+	GetCartMain(cartID, custID int, guestID string) (*models.Cart, error, bool)
+	GetCartAndVerify(cartID, custID int, guestID string) (int, *models.Cart, error)
+	GetCartMainWithLines(cartID, custID int, guestID string) (*models.Cart, []*models.CartLine, error, bool)
+	GetCartWithLinesAndVerify(cartID, custID int, guestID string) (int, *models.Cart, []*models.CartLine, error)
+	CartCountCheck(cartID, custID int, guestID string) (int, int, error)
+	OrderSuccessCart(cartID, custID int, guestID string, orderLines []models.OrderLine) error
 }
 
 type cartService struct {
@@ -574,9 +582,9 @@ func (s *cartService) UpdateRender(name string, cart *models.CartRender, ps *pro
 	return nil
 }
 
-func (s *cartService) CartMiddleware(custCartID, guestCartID, custID int, guestID string) (int, error) {
+func (s *cartService) CartMiddleware(cartID, custID int, guestID string) (int, error) {
 	if custID > 0 {
-		if custCartID <= 0 {
+		if cartID <= 0 {
 			exCart, err := s.cartRepo.MostRecentAllowedCart(custID)
 			if exCart != nil && err == nil {
 				return exCart.ID, nil
@@ -594,9 +602,9 @@ func (s *cartService) CartMiddleware(custCartID, guestCartID, custID int, guestI
 			}
 			return cart.ID, nil
 		}
-		return custCartID, nil
+		return cartID, nil
 	} else if guestID != "" {
-		if guestCartID < 0 {
+		if cartID < 0 {
 			cart := models.Cart{
 				GuestID:       guestID,
 				DateCreated:   time.Now(),
@@ -610,52 +618,162 @@ func (s *cartService) CartMiddleware(custCartID, guestCartID, custID int, guestI
 			}
 			return cart.ID, nil
 		}
-		return guestCartID, nil
+		return cartID, nil
 	}
 	return 0, errors.New("no one logged in")
 }
 
-func (s *cartService) CartCountCheck(cartID, custID int, guestID string) (int, error) {
+func (s *cartService) GetCartMain(cartID, custID int, guestID string) (*models.Cart, error, bool) {
 	cart, err := s.cartRepo.Read(cartID)
 	if err != nil {
-		return 0, err
-	} else if cart.Status != "Active" {
-		return 0, errors.New("inactive cart")
+		if err == gorm.ErrRecordNotFound {
+			return nil, err, true
+		}
+		return nil, err, false
+	}
+
+	if cart.Status != "Active" {
+		return nil, errors.New("inactive cart"), true
 	} else if cart.ID != cartID {
-		return 0, errors.New("queried the incorrect cart by id")
+		return nil, errors.New("queried the incorrect cart by id"), true
 	}
 
 	if custID > 0 {
 		if cart.CustomerID != custID {
-			return 0, errors.New("customer cart doesn't belong to customer")
+			return nil, errors.New("customer cart doesn't belong to customer"), true
 		}
 	} else if guestID != "" {
 		if cart.CustomerID != custID {
-			return 0, errors.New("customer cart doesn't belong to customer")
+			return nil, errors.New("guest cart doesn't belong to guest"), true
 		}
 	} else {
-		return 0, errors.New("no one logged in")
+		return nil, errors.New("no one logged in"), true
 	}
 
-	return s.cartRepo.TotalQuantity(cart.ID)
+	return cart, nil, false
+}
+
+func (s *cartService) GetCartAndVerify(cartID, custID int, guestID string) (int, *models.Cart, error) {
+	cart, err, retry := s.GetCartMain(cartID, custID, guestID)
+	if err != nil {
+		if retry {
+			newID, err := s.CartMiddleware(cartID, custID, guestID)
+			if err != nil {
+				return cartID, nil, err
+			}
+			cart, err, _ = s.GetCartMain(cartID, custID, guestID)
+			return newID, cart, err
+		}
+		return cartID, nil, err
+	}
+	return cart.ID, cart, nil
+}
+
+func (s *cartService) GetCartMainWithLines(cartID, custID int, guestID string) (*models.Cart, []*models.CartLine, error, bool) {
+
+	cart, err := s.cartRepo.ReadWithPreload(cartID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil, err, true
+		}
+		return nil, nil, err, false
+	} else if cart.Status != "Active" {
+		return nil, nil, errors.New("inactive cart"), true
+	} else if cart.ID != cartID {
+		return nil, nil, errors.New("queried the incorrect cart by id"), true
+	}
+
+	if custID > 0 {
+		if cart.CustomerID != custID {
+			return nil, nil, errors.New("customer cart doesn't belong to customer"), true
+		}
+	} else if guestID != "" {
+		if cart.CustomerID != custID {
+			return nil, nil, errors.New("guest cart doesn't belong to guest"), true
+		}
+	} else {
+		return nil, nil, errors.New("no one logged in"), true
+	}
+
+	cartLines, err := s.cartRepo.CartLinesRetrieval(cart.ID)
+	if err != nil {
+		return nil, nil, err, false
+	}
+
+	return cart, cartLines, nil, false
+}
+
+func (s *cartService) GetCartWithLinesAndVerify(cartID, custID int, guestID string) (int, *models.Cart, []*models.CartLine, error) {
+	cart, lines, err, retry := s.GetCartMainWithLines(cartID, custID, guestID)
+	if err != nil {
+		if retry {
+			newID, err := s.CartMiddleware(cartID, custID, guestID)
+			if err != nil {
+				return cartID, nil, nil, err
+			}
+			cart, lines, err, _ = s.GetCartMainWithLines(cartID, custID, guestID)
+			return newID, cart, lines, err
+		}
+		return cartID, nil, nil, err
+	}
+	return cart.ID, cart, lines, nil
 }
 
 // Cart ID, count, err
-func (s *cartService) CartCountCheckWithVerify(cartID, custID int, guestID string) (int, int, error) {
-	count, err := s.CartCountCheck(cartID, custID, guestID)
+func (s *cartService) CartCountCheck(cartID, custID int, guestID string) (int, int, error) {
+	id, cart, err := s.GetCartAndVerify(cartID, custID, guestID)
 	if err != nil {
-		if err.Error() == "no one logged in" {
-			return 0, 0, err
-		} else {
-			cartID, err = s.CartMiddleware(0, 0, custID, guestID)
-			if err != nil {
-				return 0, 0, err
-			}
-			count, err = s.CartCountCheck(cartID, custID, guestID)
-			if err != nil {
-				return cartID, 0, err
-			}
-		}
+		return cartID, 0, err
 	}
-	return cartID, count, nil
+
+	count, err := s.cartRepo.TotalQuantity(cart.ID)
+	return id, count, err
+}
+
+func (s *cartService) OrderSuccessCart(cartID, custID int, guestID string, orderLines []models.OrderLine) error {
+	var err error
+	var cart models.Cart
+	var lines []models.CartLine
+	var exists bool
+
+	if custID > 0 {
+		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByIDAndCustomerID(cartID, custID)
+	} else if guestID != "" {
+		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByIDAndGuestID(cartID, guestID)
+	} else {
+		return errors.New("no user id of either type provided")
+	}
+
+	if !exists {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	varIDs := map[int]struct{}{}
+	for _, l := range orderLines {
+		if l.IsGiftCard {
+			continue
+		}
+		varID, err := strconv.Atoi(l.VariantID)
+		if err != nil {
+			return err
+		}
+		varIDs[varID] = struct{}{}
+	}
+
+	newLines := []models.CartLine{}
+	for _, line := range lines {
+		if line.IsGiftCard {
+			continue
+		} else if _, ok := varIDs[line.VariantID]; ok {
+			continue
+		}
+		newLines = append(newLines, line)
+	}
+
+	if len(newLines) == 0 {
+		return s.cartRepo.ArchiveCart(cart.ID)
+	}
+	return s.cartRepo.ReactivateCartWithLines(cart.ID, newLines)
 }

@@ -141,7 +141,7 @@ type OrderLine struct {
 	Variant3Key       string                 `bson:"variant_3_key" json:"variant_3_key"`
 	Variant3Value     string                 `bson:"variant_3_value" json:"variant_3_value"`
 	ProductID         string                 `bson:"product_id" json:"product_id"`
-	IsGiftCard        int                    `bson:"gift_card" json:"gift_card"`
+	IsGiftCard        bool                   `bson:"gift_card" json:"gift_card"`
 	VariantID         string                 `bson:"variant_id" json:"variant_id"`
 	Quantity          int                    `bson:"quantity" json:"quantity"`
 	UndiscountedPrice int                    `bson:"undiscounted_price" json:"undiscounted_price"`

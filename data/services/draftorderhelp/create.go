@@ -30,6 +30,7 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Car
 				Price:             line.Price,
 				EndPrice:          line.Price,
 				LineTotal:         line.Price,
+				IsGiftCard:        true,
 			}
 			subtotal += line.Quantity * line.Price
 		} else {

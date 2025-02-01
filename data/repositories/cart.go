@@ -27,6 +27,11 @@ type CartRepository interface {
 	GetCartLineWithValidation(customerID, cartID, lineID int) (*models.CartLine, error)
 	MostRecentAllowedCart(customerID int) (*models.Cart, error)
 	TotalQuantity(cartID int) (int, error)
+
+	ReadWithPreload(id int) (*models.Cart, error)
+	CartLinesRetrieval(cartID int) ([]*models.CartLine, error)
+	ArchiveCart(id int) error
+	ReactivateCartWithLines(cartID int, newLines []models.CartLine) error
 }
 
 type cartRepo struct {
@@ -45,6 +50,18 @@ func (r *cartRepo) Read(id int) (*models.Cart, error) {
 	var cart models.Cart
 	err := r.db.First(&cart, id).Error
 	return &cart, err
+}
+
+func (r *cartRepo) ReadWithPreload(id int) (*models.Cart, error) {
+	var cart models.Cart
+	err := r.db.Preload("CartLines").First(&cart, id).Error
+	return &cart, err
+}
+
+func (r *cartRepo) CartLinesRetrieval(cartID int) ([]*models.CartLine, error) {
+	var cartLines []*models.CartLine
+	err := r.db.Where("cart_id = ?", cartID).Find(&cartLines).Error
+	return cartLines, err
 }
 
 func (r *cartRepo) Update(cart models.Cart) error {
@@ -224,4 +241,28 @@ func (r *cartRepo) TotalQuantity(cartID int) (int, error) {
 		return 0, err
 	}
 	return total, nil
+}
+
+func (r *cartRepo) ArchiveCart(id int) error {
+	return r.db.Model(&models.Cart{}).Where("id = ?", id).Update("status", "Archived").Error
+}
+
+func (r *cartRepo) ReactivateCartWithLines(cartID int, newLines []models.CartLine) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.Cart{}).Where("id = ?", cartID).
+			Updates(map[string]interface{}{
+				"status":           "Active",
+				"ever_checked_out": false,
+				"date_modified":    time.Now(),
+			}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("cart_id = ?", cartID).Delete(&models.CartLine{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(&newLines).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
