@@ -115,6 +115,7 @@ type Session struct {
 	InitialRoute  string
 	IsAffiliate   bool
 	AffiliateCode string
+	AffiliateID   int
 	SpecialStatus string
 	City          string
 	Country       string
@@ -133,4 +134,14 @@ type SessionLine struct {
 	Accessed  time.Time
 	AnyError  bool
 	ErrorSt   string
+}
+
+type Affiliate struct {
+	ID        int    `gorm:"primaryKey"`
+	Code      string `gorm:"uniqueIndex"`
+	Name      string
+	Email     string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Valid     bool
 }

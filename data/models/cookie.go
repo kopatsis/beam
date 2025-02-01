@@ -27,6 +27,11 @@ type SessionCookie struct {
 	SessionID  string    `json:"i"`
 }
 
+type AffiliateSession struct {
+	ID         int    `json:"i"`
+	ActualCode string `json:"a"`
+}
+
 func (c *ClientCookie) GetCart() int {
 	if c.CustomerID > 0 {
 		return c.CustomerCart
