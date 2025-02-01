@@ -13,6 +13,8 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+
+	"math/rand"
 )
 
 type ProductService interface {
@@ -430,7 +432,14 @@ func (s *productService) SetInventoryFromOrder(name string, decrement map[int]in
 		for j, v := range p.Variants {
 			if dec, ok := decrement[v.PK]; ok {
 				v.Quantity -= dec
-				if v.Quantity > 0 {
+				if config.INV_ALWAYS_UP && v.Quantity < 50 {
+					rangeRand := config.HIGHER_INV - config.LOWER_INV + 1
+					if rangeRand < 0 {
+						rangeRand = 0
+					}
+					v.Quantity = rand.Intn(rangeRand) + config.LOWER_INV
+				}
+				if v.Quantity < 0 {
 					log.Printf("Negative inventory for handle: %s; variant id: %d; store: %s; inventory: %d\n", p.Handle, v.PK, name, v.Quantity)
 				}
 				if salesCurrent, ok := salesInc[p.Handle]; ok {

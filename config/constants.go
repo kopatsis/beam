@@ -23,3 +23,7 @@ const LAST_ORDERED_LIMIT = 50
 const GC_HANDLE string = "/giftcard"
 const GC_IMG string = "https://cdn.com/gc_"
 const GC_NAME string = "Gift Card"
+
+const INV_ALWAYS_UP = true
+const LOWER_INV = 150
+const HIGHER_INV = 500
