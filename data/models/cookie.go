@@ -19,6 +19,14 @@ type ClientCookie struct {
 	GuestCart    int       `json:"r"`
 }
 
+type SessionCookie struct {
+	Store      string    `json:"s"`
+	CustomerID int       `json:"c"`
+	GuestID    string    `json:"g"`
+	Assigned   time.Time `json:"t"`
+	SessionID  string    `json:"i"`
+}
+
 func (c *ClientCookie) GetCart() int {
 	if c.CustomerID > 0 {
 		return c.CustomerCart
