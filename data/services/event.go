@@ -1,6 +1,7 @@
 package services
 
 import (
+	"beam/data/models"
 	"beam/data/repositories"
 )
 
@@ -10,6 +11,7 @@ type EventService interface {
 		guestID, eventClassification, eventDescription, eventDetails, specialNote, orderID, draftOrderID, productID, variantID, favesID, savesID, lolistID, cartID, cartLineID, discountID, giftCardID string,
 		errors []error,
 	)
+	SaveEventNew(eventClassification, eventDescription, eventDetails, specialNote string, ids models.EventIDPassIn, errors []error)
 }
 
 type eventService struct {
@@ -29,4 +31,8 @@ func (s *eventService) SaveEvent(
 		customerID,
 		guestID, eventClassification, eventDescription, eventDetails, specialNote, orderID, draftOrderID, productID, variantID, favesID, savesID, lolistID, cartID, cartLineID, discountID, giftCardID,
 		errors)
+}
+
+func (s *eventService) SaveEventNew(eventClassification, eventDescription, eventDetails, specialNote string, ids models.EventIDPassIn, errors []error) {
+	s.eventRepo.AddToBatchNew(eventClassification, eventDescription, eventDetails, specialNote, ids, errors)
 }

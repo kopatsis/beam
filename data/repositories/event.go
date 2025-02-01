@@ -24,6 +24,7 @@ type EventRepository interface {
 		guestID, eventClassification, eventDescription, eventDetails, specialNote, orderID, draftOrderID, productID, variantID, favesID, savesID, lolistID, cartID, cartLineID, discountID, giftCardID string,
 		errors []error,
 	)
+	AddToBatchNew(eventClassification, eventDescription, eventDetails, specialNote string, ids models.EventIDPassIn, errors []error)
 	FlushBatch()
 }
 
@@ -31,6 +32,7 @@ type eventRepo struct {
 	coll       *mongo.Collection
 	mutex      sync.Mutex
 	events     []*models.Event
+	eventsNew  []*models.EventNew
 	saveTicker *time.Ticker
 	store      string
 }
@@ -126,14 +128,60 @@ func (r *eventRepo) AddToBatch(
 	event.AllErrorsSt = errList
 
 	r.events = append(r.events, &event)
+}
 
+func (r *eventRepo) AddToBatchNew(eventClassification, eventDescription, eventDetails, specialNote string, ids models.EventIDPassIn, errors []error) {
+	if !slices.Contains(validClassifications, eventClassification) {
+		log.Printf("invalid event classification: %s\n", eventClassification)
+		eventClassification = "Other"
+	}
+
+	event := models.EventNew{
+		Timestamp:           time.Now(),
+		EventClassification: eventClassification,
+		EventDescription:    eventDescription,
+		EventDetails:        eventDetails,
+		SpecialNote:         specialNote,
+		CustomerID:          ids.CustomerID,
+		GuestID:             ids.GuestID,
+		OrderID:             ids.OrderID,
+		DraftOrderID:        ids.DraftOrderID,
+		ProductID:           ids.ProductID,
+		ProductHandle:       ids.ProductHandle,
+		VariantID:           ids.VariantID,
+		SavesID:             ids.SavesID,
+		FavesID:             ids.FavesID,
+		LastOrderListID:     ids.LastOrderListID,
+		CartID:              ids.CartID,
+		CartLineID:          ids.CartLineID,
+		DiscountID:          ids.DiscountID,
+		DiscountCode:        ids.DiscountCode,
+		GiftCardID:          ids.GiftCardID,
+		GiftCardCode:        ids.GiftCardCode,
+		SessionID:           ids.SessionID,
+	}
+
+	hasErr := false
+	errList := []string{}
+
+	for _, e := range errors {
+		if e != nil {
+			errList = append(errList, e.Error())
+			hasErr = true
+		}
+	}
+
+	event.AnyError = hasErr
+	event.AllErrorsSt = errList
+
+	r.eventsNew = append(r.eventsNew, &event)
 }
 
 func (r *eventRepo) FlushBatch() {
 	r.mutex.Lock()
 	if len(r.events) > 0 {
 		docs := []interface{}{}
-		for _, v := range r.events {
+		for _, v := range r.eventsNew {
 			docs = append(docs, v)
 		}
 		if res, err := r.coll.InsertMany(context.Background(), docs); err != nil {

@@ -33,7 +33,7 @@ type CartService interface {
 	GetCartAndVerify(cartID, custID int, guestID string) (int, *models.Cart, error)
 	GetCartMainWithLines(cartID, custID int, guestID string) (*models.Cart, []*models.CartLine, error, bool)
 	GetCartWithLinesAndVerify(cartID, custID int, guestID string) (int, *models.Cart, []*models.CartLine, error)
-	CartCountCheck(cartID, custID int, guestID string) (int, int, error)
+	CartCountCheck(cartID, custID int, guestID string, logger *eventService) (int, int, error)
 	OrderSuccessCart(cartID, custID int, guestID string, orderLines []models.OrderLine) error
 
 	CopyCartWithLines(cartID, newCustomer int) error
@@ -724,13 +724,14 @@ func (s *cartService) GetCartWithLinesAndVerify(cartID, custID int, guestID stri
 }
 
 // Cart ID, count, err
-func (s *cartService) CartCountCheck(cartID, custID int, guestID string) (int, int, error) {
+func (s *cartService) CartCountCheck(cartID, custID int, guestID string, logger *eventService) (int, int, error) {
 	id, cart, err := s.GetCartAndVerify(cartID, custID, guestID)
 	if err != nil {
 		return cartID, 0, err
 	}
 
 	count, err := s.cartRepo.TotalQuantity(cart.ID)
+	logger.SaveEventNew("Cart", "CartCountCheck", "Success", "", models.EventIDPassIn{CartID: cartID, CustomerID: custID, GuestID: guestID}, nil)
 	return id, count, err
 }
 
