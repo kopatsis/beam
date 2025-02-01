@@ -31,7 +31,11 @@ type CartRepository interface {
 	ReadWithPreload(id int) (*models.Cart, error)
 	CartLinesRetrieval(cartID int) ([]*models.CartLine, error)
 	ArchiveCart(id int) error
+	ActiveCart(id int) error
 	ReactivateCartWithLines(cartID int, newLines []models.CartLine) error
+
+	CopyCartWithLines(cartID int, newCustomer int) error
+	MoveCartWithLines(cartID int, newCustomer int) error
 }
 
 type cartRepo struct {
@@ -247,6 +251,10 @@ func (r *cartRepo) ArchiveCart(id int) error {
 	return r.db.Model(&models.Cart{}).Where("id = ?", id).Update("status", "Archived").Error
 }
 
+func (r *cartRepo) ActiveCart(id int) error {
+	return r.db.Model(&models.Cart{}).Where("id = ?", id).Update("status", "Active").Error
+}
+
 func (r *cartRepo) ReactivateCartWithLines(cartID int, newLines []models.CartLine) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.Cart{}).Where("id = ?", cartID).
@@ -265,4 +273,77 @@ func (r *cartRepo) ReactivateCartWithLines(cartID int, newLines []models.CartLin
 		}
 		return nil
 	})
+}
+
+func (r *cartRepo) CopyCartWithLines(cartID int, newCustomer int) error {
+	cart, err := r.ReadWithPreload(cartID)
+	if err != nil {
+		return err
+	}
+
+	if cart.CustomerID == newCustomer && cart.Status == "Active" {
+		return nil
+	} else if cart.CustomerID == newCustomer {
+		return r.ActiveCart(cartID)
+	}
+
+	newCart := models.Cart{
+		CustomerID:    newCustomer,
+		DateCreated:   time.Now(),
+		DateModified:  time.Now(),
+		LastRetrieved: time.Now(),
+		Status:        "Active",
+	}
+
+	cartLines, err := r.CartLinesRetrieval(cartID)
+	if err != nil {
+		return err
+	}
+
+	newCartLines := make([]models.CartLine, len(cartLines))
+	for i, line := range cartLines {
+		newCartLines[i] = models.CartLine{
+			VariantID:       line.VariantID,
+			ProductID:       line.ProductID,
+			Quantity:        line.Quantity,
+			NonDiscPrice:    line.NonDiscPrice,
+			Price:           line.Price,
+			IsGiftCard:      line.IsGiftCard,
+			GiftCardCode:    line.GiftCardCode,
+			GiftCardMessage: line.GiftCardMessage,
+		}
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&newCart).Error; err != nil {
+			return err
+		}
+		for i := range newCartLines {
+			newCartLines[i].CartID = newCart.ID
+		}
+		return tx.Create(&newCartLines).Error
+	})
+}
+
+func (r *cartRepo) MoveCartWithLines(cartID int, newCustomer int) error {
+	cart, err := r.ReadWithPreload(cartID)
+	if err != nil {
+		return err
+	}
+
+	if cart.CustomerID == newCustomer && cart.Status == "Active" {
+		return nil
+	} else if cart.CustomerID == newCustomer {
+		return r.ActiveCart(cartID)
+	}
+
+	cart.GuestID = ""
+	cart.CustomerID = newCustomer
+	cart.Status = "Active"
+	cart.EverCheckedOut = false
+	cart.DateCreated = time.Now()
+	cart.LastRetrieved = time.Now()
+	cart.DateModified = time.Now()
+
+	return r.Update(*cart)
 }
