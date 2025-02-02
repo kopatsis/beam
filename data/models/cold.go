@@ -145,3 +145,20 @@ type Affiliate struct {
 	LastUsed  time.Time
 	Valid     bool
 }
+
+type AffiliateLine struct {
+	ID          int    `gorm:"primaryKey"`
+	AffiliateID int    `gorm:"index"`
+	Code        string `gorm:"index"`
+	SessionID   string `gorm:"index"`
+	CreatedAt   time.Time
+}
+
+type AffiliateSale struct {
+	ID          int    `gorm:"primaryKey"`
+	AffiliateID int    `gorm:"index"`
+	Code        string `gorm:"index"`
+	SessionID   string `gorm:"index"`
+	OrderID     string `gorm:"index"`
+	CreatedAt   time.Time
+}
