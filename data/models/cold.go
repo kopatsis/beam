@@ -142,6 +142,6 @@ type Affiliate struct {
 	Name      string
 	Email     string
 	CreatedAt time.Time
-	UpdatedAt time.Time
+	LastUsed  time.Time
 	Valid     bool
 }

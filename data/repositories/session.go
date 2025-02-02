@@ -18,6 +18,7 @@ type SessionRepository interface {
 	SaveBatch(sessions []*models.Session, lines []*models.SessionLine) (error, error)
 	AddToBatch(session *models.Session, line *models.SessionLine)
 	FlushBatch()
+	SetAffiliate(code string) (models.AffiliateSession, error)
 }
 
 type sessionRepo struct {
@@ -121,4 +122,19 @@ func (r *sessionRepo) SaveBatch(sessions []*models.Session, lines []*models.Sess
 	errSessions := r.db.Save(sessions).Error
 	errLines := r.db.Save(lines).Error
 	return errSessions, errLines
+}
+
+func (r *sessionRepo) SetAffiliate(code string) (models.AffiliateSession, error) {
+	var aff models.Affiliate
+	if err := r.db.Where("code = ? AND valid = true", code).First(&aff).Error; err != nil {
+		return models.AffiliateSession{}, err
+	}
+
+	session := models.AffiliateSession{ID: aff.ID, ActualCode: aff.Code}
+
+	go func() {
+		r.db.Model(&models.Affiliate{}).Where("id = ?", aff.ID).Update("last_used", time.Now())
+	}()
+
+	return session, nil
 }

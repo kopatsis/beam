@@ -11,6 +11,7 @@ type SessionService interface {
 	UpdateSession(session *models.Session) error
 	DeleteSession(id string) error
 	AddToSession(session *models.Session, line *models.SessionLine)
+	SetAffiliate(code string) (models.AffiliateSession, error)
 }
 
 type sessionService struct {
@@ -39,4 +40,8 @@ func (s *sessionService) DeleteSession(id string) error {
 
 func (s *sessionService) AddToSession(session *models.Session, line *models.SessionLine) {
 	s.sessionRepo.AddToBatch(session, line)
+}
+
+func (s *sessionService) SetAffiliate(code string) (models.AffiliateSession, error) {
+	return s.sessionRepo.SetAffiliate(code)
 }
