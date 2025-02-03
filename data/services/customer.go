@@ -8,6 +8,7 @@ import (
 	"beam/data/services/orderhelp"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -33,9 +34,9 @@ type CustomerService interface {
 
 	LoginCookie(firebaseID, store string, guestID string) (*models.ClientCookie, error)
 	ResetPass(firebaseID, store string, guestID string) error
-	CustomerMiddleware(cookie *models.ClientCookie) error
+	CustomerMiddleware(cookie *models.ClientCookie)
 	GuestMiddleware(cookie *models.ClientCookie, store string)
-	FullMiddleware(cookie *models.ClientCookie, store string) error
+	FullMiddleware(cookie *models.ClientCookie, store string)
 	LogoutCookie(cookie *models.ClientCookie)
 }
 
@@ -341,31 +342,38 @@ func (s *customerService) ResetPass(firebaseID, store string, guestID string) er
 	return sqlErr
 }
 
-func (s *customerService) CustomerMiddleware(cookie *models.ClientCookie) error {
+func (s *customerService) CustomerMiddleware(cookie *models.ClientCookie) {
 
 	if cookie.CustomerID > 0 {
 		serverCookie, err := s.customerRepo.GetServerCookie(cookie.CustomerID, cookie.Store)
 		if err != nil {
 			customer, err := s.customerRepo.Read(cookie.CustomerID)
 			if err != nil {
-				return err
+				log.Printf("Unable to query customer for customer id: %d; store: %s; error: %v\n", cookie.CustomerID, cookie.Store, err)
+				cookie.CustomerID = 0
+				cookie.CustomerSet = time.Time{}
+				return
 			} else if customer == nil {
-				return fmt.Errorf("no active customer for customer id: %d; store: %s", cookie.CustomerID, cookie.Store)
+				log.Printf("No active customer for customer id: %d; store: %s\n", cookie.CustomerID, cookie.Store)
+				cookie.CustomerID = 0
+				cookie.CustomerSet = time.Time{}
+				return
 			}
 			if customer.Status == "Archived" || customer.LastReset.After(cookie.CustomerSet) {
 				cookie.CustomerID = 0
 				cookie.CustomerSet = time.Time{}
+				return
 			}
 		} else if serverCookie == nil {
-			return fmt.Errorf("no active server cookie for customer id: %d; store: %s", cookie.CustomerID, cookie.Store)
-		}
-
-		if serverCookie.Archived || serverCookie.LastReset.After(cookie.CustomerSet) {
+			log.Printf("No active server cookie for customer id: %d; store: %s\n", cookie.CustomerID, cookie.Store)
+			cookie.CustomerID = 0
+			cookie.CustomerSet = time.Time{}
+			return
+		} else if serverCookie.Archived || serverCookie.LastReset.After(cookie.CustomerSet) {
 			cookie.CustomerID = 0
 			cookie.CustomerSet = time.Time{}
 		}
 	}
-	return nil
 }
 
 func (s *customerService) GuestMiddleware(cookie *models.ClientCookie, store string) {
@@ -376,9 +384,12 @@ func (s *customerService) GuestMiddleware(cookie *models.ClientCookie, store str
 	}
 }
 
-func (s *customerService) FullMiddleware(cookie *models.ClientCookie, store string) error {
+func (s *customerService) FullMiddleware(cookie *models.ClientCookie, store string) {
+	if cookie == nil {
+		cookie = &models.ClientCookie{}
+	}
 	s.GuestMiddleware(cookie, store)
-	return s.CustomerMiddleware(cookie)
+	s.CustomerMiddleware(cookie)
 }
 
 func (s *customerService) LogoutCookie(cookie *models.ClientCookie) {

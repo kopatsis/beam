@@ -107,15 +107,12 @@ type EventIDPassIn struct {
 
 type Session struct {
 	ID            string `gorm:"primaryKey"`
-	CustomerID    int    `gorm:"index"`
+	CustomerID    int    `gorm:"index"` // On create, may be added/change
 	GuestID       string `gorm:"index"`
 	CreatedAt     time.Time
 	Referrer      string
 	IPAddress     string
 	InitialRoute  string
-	IsAffiliate   bool
-	AffiliateCode string
-	AffiliateID   int
 	SpecialStatus string
 	City          string
 	Country       string
@@ -124,16 +121,16 @@ type Session struct {
 	Platform      string
 	Mobile        bool
 	Bot           bool
-	FromQR        bool
 }
 
 type SessionLine struct {
-	ID        int    `gorm:"primaryKey"`
-	SessionID string `gorm:"index"`
-	Route     string
-	Accessed  time.Time
-	AnyError  bool
-	ErrorSt   string
+	ID         int    `gorm:"primaryKey"`
+	SessionID  string `gorm:"index"`
+	CustomerID int    `gorm:"index"` // At time of line
+	Route      string
+	Accessed   time.Time
+	AnyError   bool
+	ErrorSt    string
 }
 
 type Affiliate struct {
@@ -151,7 +148,7 @@ type AffiliateLine struct {
 	AffiliateID int    `gorm:"index"`
 	Code        string `gorm:"index"`
 	SessionID   string `gorm:"index"`
-	CreatedAt   time.Time
+	Timestamp   time.Time
 }
 
 type AffiliateSale struct {
@@ -160,5 +157,5 @@ type AffiliateSale struct {
 	Code        string `gorm:"index"`
 	SessionID   string `gorm:"index"`
 	OrderID     string `gorm:"index"`
-	CreatedAt   time.Time
+	Timestamp   time.Time
 }

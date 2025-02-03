@@ -2,6 +2,18 @@ package models
 
 import "time"
 
+type DataPassIn struct {
+	Store         string
+	CustomerID    int
+	IsLoggedIn    bool
+	GuestID       string
+	CartID        string
+	SessionID     string
+	AffiliateID   int
+	AffiliateCode string
+	FirebaseID    string
+}
+
 type ServerCookie struct {
 	Store      string    `json:"s"`
 	FirebaseID string    `json:"f"`
@@ -10,6 +22,7 @@ type ServerCookie struct {
 	Archived   bool      `json:"a"`
 }
 
+// Client
 type ClientCookie struct {
 	Store        string    `json:"s"`
 	CustomerID   int       `json:"c"`
@@ -19,6 +32,7 @@ type ClientCookie struct {
 	GuestCart    int       `json:"r"`
 }
 
+// Session
 type SessionCookie struct {
 	Store      string    `json:"s"`
 	CustomerID int       `json:"c"`
@@ -27,6 +41,7 @@ type SessionCookie struct {
 	SessionID  string    `json:"i"`
 }
 
+// Affiliate
 type AffiliateSession struct {
 	ID         int    `json:"i"`
 	ActualCode string `json:"a"`

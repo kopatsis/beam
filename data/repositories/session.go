@@ -18,7 +18,9 @@ type SessionRepository interface {
 	SaveBatch(sessions []*models.Session, lines []*models.SessionLine) (error, error)
 	AddToBatch(session *models.Session, line *models.SessionLine)
 	FlushBatch()
-	SetAffiliate(code string) (models.AffiliateSession, error)
+	GetAffiliate(code string) (models.AffiliateSession, error)
+	AddAffiliateLine(line *models.AffiliateLine, store string)
+	AddAffiliateSale(line *models.AffiliateSale, store string)
 }
 
 type sessionRepo struct {
@@ -124,7 +126,7 @@ func (r *sessionRepo) SaveBatch(sessions []*models.Session, lines []*models.Sess
 	return errSessions, errLines
 }
 
-func (r *sessionRepo) SetAffiliate(code string) (models.AffiliateSession, error) {
+func (r *sessionRepo) GetAffiliate(code string) (models.AffiliateSession, error) {
 	var aff models.Affiliate
 	if err := r.db.Where("code = ? AND valid = true", code).First(&aff).Error; err != nil {
 		return models.AffiliateSession{}, err
@@ -137,4 +139,27 @@ func (r *sessionRepo) SetAffiliate(code string) (models.AffiliateSession, error)
 	}()
 
 	return session, nil
+}
+
+func (r *sessionRepo) AddAffiliateLine(line *models.AffiliateLine, store string) {
+
+	if line == nil {
+		log.Printf("Nil affiliate line attempted to save.\n")
+		return
+	}
+
+	if err := r.db.Save(line).Error; err != nil {
+		log.Printf("Unable to save affiliate line, error: %v; Store: %s; ID: %d; Code: %s; SessionID: %s\n", err, store, line.AffiliateID, line.Code, line.SessionID)
+	}
+}
+
+func (r *sessionRepo) AddAffiliateSale(line *models.AffiliateSale, store string) {
+	if line == nil {
+		log.Printf("Nil affiliate sale attempted to save.\n")
+		return
+	}
+
+	if err := r.db.Save(line).Error; err != nil {
+		log.Printf("Unable to save affiliate line, error: %v; Store: %s; ID: %d; Code: %s; SessionID: %s; Order ID: %s\n", err, store, line.AffiliateID, line.Code, line.SessionID, line.OrderID)
+	}
 }
