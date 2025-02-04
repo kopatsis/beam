@@ -37,10 +37,19 @@ func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.Ha
 		}
 
 		service.Customer.FullMiddleware(clientCookie, store)
+		if clientCookie == nil {
+			clientCookie = &models.ClientCookie{}
+		}
 
 		service.Session.SessionMiddleware(sessionCookie, clientCookie.CustomerID, clientCookie.GuestID, store, c, tools)
+		if sessionCookie == nil {
+			sessionCookie = &models.SessionCookie{}
+		}
 
 		service.Session.AffiliateMiddleware(affiliateCookie, sessionCookie.SessionID, store, c)
+		if affiliateCookie == nil {
+			affiliateCookie = &models.AffiliateSession{}
+		}
 
 		cartID, err := service.Cart.CartMiddleware(clientCookie.GetCart(), clientCookie.CustomerID, clientCookie.GuestID)
 		if err != nil {
@@ -48,6 +57,10 @@ func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.Ha
 		} else {
 			clientCookie.SetCart(cartID)
 		}
+
+		SetClientCookie(c, *clientCookie)
+		SetSessionCookie(c, *sessionCookie)
+		SetAffiliateCookie(c, *affiliateCookie)
 
 		c.Next()
 	}

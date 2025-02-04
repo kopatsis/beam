@@ -7,11 +7,10 @@ type DataPassIn struct {
 	CustomerID    int
 	IsLoggedIn    bool
 	GuestID       string
-	CartID        string
+	CartID        int
 	SessionID     string
 	AffiliateID   int
 	AffiliateCode string
-	FirebaseID    string
 }
 
 type ServerCookie struct {

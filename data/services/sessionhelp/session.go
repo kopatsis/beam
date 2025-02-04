@@ -5,7 +5,6 @@ import (
 	"beam/data/models"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"net"
 	"strings"
 
@@ -13,10 +12,6 @@ import (
 	"github.com/mssola/user_agent"
 	"github.com/ua-parser/uap-go/uaparser"
 )
-
-func SessionContextData(c *gin.Context, cookie *models.SessionCookie) {
-	fmt.Println("not done")
-}
 
 func CreateSessionDetails(c *gin.Context, tools *config.Tools, session *models.Session) {
 
