@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/oschwald/geoip2-golang"
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/stripe/stripe-go/v81"
 )
@@ -15,6 +16,7 @@ type Tools struct {
 	SendGrid *sendgrid.Client
 	Client   *http.Client
 	Redis    *redis.Client
+	Geo      *geoip2.Reader
 }
 
 func NewTools(client *redis.Client) *Tools {
@@ -27,6 +29,7 @@ func NewTools(client *redis.Client) *Tools {
 	if err := t.initializeStripe(); err != nil {
 		log.Fatalf("Error initializing Stripe: %v", err)
 	}
+	t.initializeGeo()
 	return t
 }
 
@@ -46,4 +49,13 @@ func (t *Tools) initializeStripe() error {
 	}
 	stripe.Key = stripeKey
 	return nil
+}
+
+func (t *Tools) initializeGeo() {
+	ipDB, err := geoip2.Open("static/geo/GeoLite2-City.mmdb")
+	if err != nil {
+		log.Printf("Unable to create geolite mmdb, err: %v\n", err)
+		t.Geo = nil
+	}
+	t.Geo = ipDB
 }

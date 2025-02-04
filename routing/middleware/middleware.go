@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func CookieMiddleware(fullService *data.AllServices) gin.HandlerFunc {
+func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.HandlerFunc {
 	return func(c *gin.Context) {
 
 		domain := strings.Split(c.Request.Host, ":")[0]
@@ -38,7 +38,7 @@ func CookieMiddleware(fullService *data.AllServices) gin.HandlerFunc {
 
 		service.Customer.FullMiddleware(clientCookie, store)
 
-		service.Session.SessionMiddleware(sessionCookie, clientCookie.CustomerID, clientCookie.GuestID, store, c)
+		service.Session.SessionMiddleware(sessionCookie, clientCookie.CustomerID, clientCookie.GuestID, store, c, tools)
 
 		service.Session.AffiliateMiddleware(affiliateCookie, sessionCookie.SessionID, store, c)
 

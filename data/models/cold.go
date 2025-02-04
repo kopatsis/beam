@@ -113,6 +113,7 @@ type Session struct {
 	Referrer      string
 	IPAddress     string
 	InitialRoute  string
+	FullURL       string
 	SpecialStatus string
 	City          string
 	Country       string

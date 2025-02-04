@@ -10,6 +10,6 @@ import (
 
 func New(fullService *data.AllServices, tools *config.Tools) *gin.Engine {
 	router := gin.Default()
-	router.Use(middleware.CookieMiddleware(fullService))
+	router.Use(middleware.CookieMiddleware(fullService, tools))
 	return router
 }
