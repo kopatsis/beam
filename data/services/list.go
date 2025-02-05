@@ -8,27 +8,27 @@ import (
 )
 
 type ListService interface {
-	GetFavesLine(name string, customerID int, variantID int, ps *productService) (bool, error)
-	GetSavesList(name string, customerID int, variantID int, ps *productService) (bool, error)
+	GetFavesLine(dpi DataPassIn, variantID int, ps *productService) (bool, error)
+	GetSavesList(dpi DataPassIn, variantID int, ps *productService) (bool, error)
 
-	GetLastOrdersList(name string, customerID int, variantID int, ps *productService) (bool, *models.LastOrdersList, error)
-	GetLastOrdersListProd(name string, customerID int, productID int, ps *productService) (bool, *models.LastOrdersList, error)
+	GetLastOrdersList(dpi DataPassIn, variantID int, ps *productService) (bool, *models.LastOrdersList, error)
+	GetLastOrdersListProd(dpi DataPassIn, productID int, ps *productService) (bool, *models.LastOrdersList, error)
 
-	AddFavesLine(name string, customerID, variantID int, ps *productService) error
-	AddSavesList(name string, customerID, variantID int, ps *productService) error
-	DeleteFavesLine(name string, customerID, variantID int, ps *productService) error
-	DeleteSavesList(name string, customerID, variantID int, ps *productService) error
+	AddFavesLine(dpi DataPassIn, variantID int, ps *productService) error
+	AddSavesList(dpi DataPassIn, variantID int, ps *productService) error
+	DeleteFavesLine(dpi DataPassIn, variantID int, ps *productService) error
+	DeleteSavesList(dpi DataPassIn, variantID int, ps *productService) error
 
-	AddFavesLineRender(name string, customerID, variantID int, page int, ps *productService) (models.FavesListRender, error)
-	AddSavesListRender(name string, customerID, variantID int, page int, ps *productService) (models.SavesListRender, error)
-	DeleteFavesLineRender(name string, customerID, variantID int, page int, ps *productService) (models.FavesListRender, error)
-	DeleteSavesListRender(name string, customerID, variantID int, page int, ps *productService) (models.SavesListRender, error)
+	AddFavesLineRender(dpi DataPassIn, variantID int, page int, ps *productService) (models.FavesListRender, error)
+	AddSavesListRender(dpi DataPassIn, variantID int, page int, ps *productService) (models.SavesListRender, error)
+	DeleteFavesLineRender(dpi DataPassIn, variantID int, page int, ps *productService) (models.FavesListRender, error)
+	DeleteSavesListRender(dpi DataPassIn, variantID int, page int, ps *productService) (models.SavesListRender, error)
 
-	UpdateLastOrdersList(name string, customerID int, orderDate time.Time, orderID string, vids []int, ps *productService) error
+	UpdateLastOrdersList(dpi DataPassIn, orderDate time.Time, orderID string, vids []int, ps *productService) error
 
-	GetFavesLineByPage(name string, customerID, page int, ps *productService) (models.FavesListRender, error)
-	GetSavesListByPage(name string, customerID, page int, ps *productService) (models.SavesListRender, error)
-	GetLastOrdersListByPage(name string, customerID, page int, ps *productService) (models.LastOrderListRender, error)
+	GetFavesLineByPage(dpi DataPassIn, page int, ps *productService) (models.FavesListRender, error)
+	GetSavesListByPage(dpi DataPassIn, page int, ps *productService) (models.SavesListRender, error)
+	GetLastOrdersListByPage(dpi DataPassIn, page int, ps *productService) (models.LastOrderListRender, error)
 
 	CartToSavesList(dpi DataPassIn, lineID int, ps *productService, cs *cartService) (models.SavesListRender, *models.CartRender, error)
 }
@@ -41,91 +41,91 @@ func NewListService(listRepo repositories.ListRepository) ListService {
 	return &listService{listRepo: listRepo}
 }
 
-func (s *listService) AddFavesLine(name string, customerID, variantID int, ps *productService) error {
-	lvs, err := ps.GetLimitedVariants(name, []int{variantID})
+func (s *listService) AddFavesLine(dpi DataPassIn, variantID int, ps *productService) error {
+	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
 	if err != nil {
 		return err
 	} else if len(lvs) != 1 {
 		return fmt.Errorf("could not find single lim var for id: %d", variantID)
 	}
 
-	return s.listRepo.AddFavesLine(customerID, lvs[0].ProductID, variantID)
+	return s.listRepo.AddFavesLine(dpi.CustomerID, lvs[0].ProductID, variantID)
 }
 
-func (s *listService) AddSavesList(name string, customerID, variantID int, ps *productService) error {
-	lvs, err := ps.GetLimitedVariants(name, []int{variantID})
+func (s *listService) AddSavesList(dpi DataPassIn, variantID int, ps *productService) error {
+	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
 	if err != nil {
 		return err
 	} else if len(lvs) != 1 {
 		return fmt.Errorf("could not find single lim var for id: %d", variantID)
 	}
 
-	return s.listRepo.AddSavesList(customerID, lvs[0].ProductID, variantID)
+	return s.listRepo.AddSavesList(dpi.CustomerID, lvs[0].ProductID, variantID)
 }
 
-func (s *listService) DeleteFavesLine(name string, customerID, variantID int, ps *productService) error {
-	lvs, err := ps.GetLimitedVariants(name, []int{variantID})
+func (s *listService) DeleteFavesLine(dpi DataPassIn, variantID int, ps *productService) error {
+	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
 	if err != nil {
 		return err
 	} else if len(lvs) != 1 {
 		return fmt.Errorf("could not find single lim var for id: %d", variantID)
 	}
 
-	return s.listRepo.DeleteFavesLine(customerID, variantID)
+	return s.listRepo.DeleteFavesLine(dpi.CustomerID, variantID)
 }
 
-func (s *listService) DeleteSavesList(name string, customerID, variantID int, ps *productService) error {
-	lvs, err := ps.GetLimitedVariants(name, []int{variantID})
+func (s *listService) DeleteSavesList(dpi DataPassIn, variantID int, ps *productService) error {
+	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
 	if err != nil {
 		return err
 	} else if len(lvs) != 1 {
 		return fmt.Errorf("could not find single lim var for id: %d", variantID)
 	}
 
-	return s.listRepo.DeleteSavesList(customerID, variantID)
+	return s.listRepo.DeleteSavesList(dpi.CustomerID, variantID)
 }
 
-func (s *listService) AddFavesLineRender(name string, customerID, variantID int, page int, ps *productService) (models.FavesListRender, error) {
-	err := s.AddFavesLine(name, customerID, variantID, ps)
+func (s *listService) AddFavesLineRender(dpi DataPassIn, variantID int, page int, ps *productService) (models.FavesListRender, error) {
+	err := s.AddFavesLine(dpi, variantID, ps)
 	if err != nil {
 		return models.FavesListRender{}, err
 	}
-	return s.GetFavesLineByPage(name, customerID, page, ps)
+	return s.GetFavesLineByPage(dpi, page, ps)
 }
 
-func (s *listService) AddSavesListRender(name string, customerID, variantID int, page int, ps *productService) (models.SavesListRender, error) {
-	err := s.AddSavesList(name, customerID, variantID, ps)
+func (s *listService) AddSavesListRender(dpi DataPassIn, variantID int, page int, ps *productService) (models.SavesListRender, error) {
+	err := s.AddSavesList(dpi, variantID, ps)
 	if err != nil {
 		return models.SavesListRender{}, err
 	}
-	return s.GetSavesListByPage(name, customerID, page, ps)
+	return s.GetSavesListByPage(dpi, page, ps)
 }
 
-func (s *listService) DeleteFavesLineRender(name string, customerID, variantID int, page int, ps *productService) (models.FavesListRender, error) {
-	err := s.DeleteFavesLine(name, customerID, variantID, ps)
+func (s *listService) DeleteFavesLineRender(dpi DataPassIn, variantID int, page int, ps *productService) (models.FavesListRender, error) {
+	err := s.DeleteFavesLine(dpi, variantID, ps)
 	if err != nil {
 		return models.FavesListRender{}, err
 	}
-	return s.GetFavesLineByPage(name, customerID, page, ps)
+	return s.GetFavesLineByPage(dpi, page, ps)
 }
 
-func (s *listService) DeleteSavesListRender(name string, customerID, variantID int, page int, ps *productService) (models.SavesListRender, error) {
-	err := s.DeleteSavesList(name, customerID, variantID, ps)
+func (s *listService) DeleteSavesListRender(dpi DataPassIn, variantID int, page int, ps *productService) (models.SavesListRender, error) {
+	err := s.DeleteSavesList(dpi, variantID, ps)
 	if err != nil {
 		return models.SavesListRender{}, err
 	}
-	return s.GetSavesListByPage(name, customerID, page, ps)
+	return s.GetSavesListByPage(dpi, page, ps)
 }
 
-func (s *listService) GetFavesLine(name string, customerID int, variantID int, ps *productService) (bool, error) {
-	lvs, err := ps.GetLimitedVariants(name, []int{variantID})
+func (s *listService) GetFavesLine(dpi DataPassIn, variantID int, ps *productService) (bool, error) {
+	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
 	if err != nil {
 		return false, err
 	} else if len(lvs) != 1 {
 		return false, fmt.Errorf("could not find single lim var for id: %d", variantID)
 	}
 
-	in, _, err := s.listRepo.CheckFavesLine(customerID, variantID)
+	in, _, err := s.listRepo.CheckFavesLine(dpi.CustomerID, variantID)
 	if err != nil {
 		return false, err
 	}
@@ -133,15 +133,15 @@ func (s *listService) GetFavesLine(name string, customerID int, variantID int, p
 	return in, nil
 }
 
-func (s *listService) GetSavesList(name string, customerID int, variantID int, ps *productService) (bool, error) {
-	lvs, err := ps.GetLimitedVariants(name, []int{variantID})
+func (s *listService) GetSavesList(dpi DataPassIn, variantID int, ps *productService) (bool, error) {
+	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
 	if err != nil {
 		return false, err
 	} else if len(lvs) != 1 {
 		return false, fmt.Errorf("could not find single lim var for id: %d", variantID)
 	}
 
-	in, _, err := s.listRepo.CheckSavesList(customerID, variantID)
+	in, _, err := s.listRepo.CheckSavesList(dpi.CustomerID, variantID)
 	if err != nil {
 		return false, err
 	}
@@ -149,15 +149,15 @@ func (s *listService) GetSavesList(name string, customerID int, variantID int, p
 	return in, nil
 }
 
-func (s *listService) GetLastOrdersList(name string, customerID int, variantID int, ps *productService) (bool, *models.LastOrdersList, error) {
-	lvs, err := ps.GetLimitedVariants(name, []int{variantID})
+func (s *listService) GetLastOrdersList(dpi DataPassIn, variantID int, ps *productService) (bool, *models.LastOrdersList, error) {
+	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
 	if err != nil {
 		return false, nil, err
 	} else if len(lvs) != 1 {
 		return false, nil, fmt.Errorf("could not find single lim var for id: %d", variantID)
 	}
 
-	in, v, err := s.listRepo.CheckLastOrdersList(customerID, variantID)
+	in, v, err := s.listRepo.CheckLastOrdersList(dpi.CustomerID, variantID)
 	if err != nil {
 		return false, nil, err
 	} else if !in {
@@ -167,16 +167,16 @@ func (s *listService) GetLastOrdersList(name string, customerID int, variantID i
 	return true, v, nil
 }
 
-func (s *listService) GetLastOrdersListProd(name string, customerID int, productID int, ps *productService) (bool, *models.LastOrdersList, error) {
+func (s *listService) GetLastOrdersListProd(dpi DataPassIn, productID int, ps *productService) (bool, *models.LastOrdersList, error) {
 
-	in, v, err := s.listRepo.CheckLastOrdersList(customerID, productID)
+	in, v, err := s.listRepo.CheckLastOrdersList(dpi.CustomerID, productID)
 	if err != nil {
 		return false, nil, err
 	} else if !in {
 		return false, nil, nil
 	}
 
-	lvs, err := ps.GetLimitedVariants(name, []int{v.ProductID})
+	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{v.ProductID})
 	if err != nil {
 		return false, nil, err
 	} else if len(lvs) != 1 {
@@ -186,12 +186,12 @@ func (s *listService) GetLastOrdersListProd(name string, customerID int, product
 	return true, v, nil
 }
 
-func (s *listService) UpdateLastOrdersList(name string, customerID int, orderDate time.Time, orderID string, vids []int, ps *productService) error {
+func (s *listService) UpdateLastOrdersList(dpi DataPassIn, orderDate time.Time, orderID string, vids []int, ps *productService) error {
 	if len(vids) == 0 {
 		return nil
 	}
 
-	lvs, err := ps.GetLimitedVariants(name, vids)
+	lvs, err := ps.GetLimitedVariants(dpi.Store, vids)
 	if err != nil {
 		return err
 	} else if len(lvs) != len(vids) {
@@ -213,13 +213,13 @@ func (s *listService) UpdateLastOrdersList(name string, customerID int, orderDat
 		}
 	}
 
-	return s.listRepo.UpdateLastOrdersList(customerID, orderDate, orderID, use)
+	return s.listRepo.UpdateLastOrdersList(dpi.CustomerID, orderDate, orderID, use)
 }
 
-func (s *listService) GetFavesLineByPage(name string, customerID, page int, ps *productService) (models.FavesListRender, error) {
+func (s *listService) GetFavesLineByPage(dpi DataPassIn, page int, ps *productService) (models.FavesListRender, error) {
 	ret := models.FavesListRender{}
 
-	list, prev, next, err := s.listRepo.GetFavesLineByPage(customerID, page)
+	list, prev, next, err := s.listRepo.GetFavesLineByPage(dpi.CustomerID, page)
 	if err != nil {
 		return ret, err
 	}
@@ -234,7 +234,7 @@ func (s *listService) GetFavesLineByPage(name string, customerID, page int, ps *
 		return ret, nil
 	}
 
-	lvs, err := ps.GetLimitedVariants(name, vids)
+	lvs, err := ps.GetLimitedVariants(dpi.Store, vids)
 	if err != nil {
 		return ret, err
 	} else if len(lvs) != len(list) {
@@ -259,10 +259,10 @@ func (s *listService) GetFavesLineByPage(name string, customerID, page int, ps *
 	return ret, nil
 }
 
-func (s *listService) GetSavesListByPage(name string, customerID, page int, ps *productService) (models.SavesListRender, error) {
+func (s *listService) GetSavesListByPage(dpi DataPassIn, page int, ps *productService) (models.SavesListRender, error) {
 	ret := models.SavesListRender{}
 
-	list, prev, next, err := s.listRepo.GetSavesListByPage(customerID, page)
+	list, prev, next, err := s.listRepo.GetSavesListByPage(dpi.CustomerID, page)
 	if err != nil {
 		return ret, err
 	}
@@ -277,7 +277,7 @@ func (s *listService) GetSavesListByPage(name string, customerID, page int, ps *
 		return ret, nil
 	}
 
-	lvs, err := ps.GetLimitedVariants(name, vids)
+	lvs, err := ps.GetLimitedVariants(dpi.Store, vids)
 	if err != nil {
 		return ret, err
 	} else if len(lvs) != len(list) {
@@ -302,10 +302,10 @@ func (s *listService) GetSavesListByPage(name string, customerID, page int, ps *
 	return ret, nil
 }
 
-func (s *listService) GetLastOrdersListByPage(name string, customerID, page int, ps *productService) (models.LastOrderListRender, error) {
+func (s *listService) GetLastOrdersListByPage(dpi DataPassIn, page int, ps *productService) (models.LastOrderListRender, error) {
 	ret := models.LastOrderListRender{}
 
-	list, prev, next, err := s.listRepo.GetLastOrdersListByPage(customerID, page)
+	list, prev, next, err := s.listRepo.GetLastOrdersListByPage(dpi.CustomerID, page)
 	if err != nil {
 		return ret, err
 	}
@@ -320,7 +320,7 @@ func (s *listService) GetLastOrdersListByPage(name string, customerID, page int,
 		return ret, nil
 	}
 
-	lvs, err := ps.GetLimitedVariants(name, vids)
+	lvs, err := ps.GetLimitedVariants(dpi.Store, vids)
 	if err != nil {
 		return ret, err
 	} else if len(lvs) != len(list) {
@@ -357,7 +357,7 @@ func (s *listService) CartToSavesList(dpi DataPassIn, lineID int, ps *productSer
 		return models.SavesListRender{}, nil, err
 	}
 
-	sl, err := s.AddSavesListRender(dpi.Store, dpi.CustomerID, line.VariantID, 1, ps)
+	sl, err := s.AddSavesListRender(dpi, line.VariantID, 1, ps)
 	if err != nil {
 		return models.SavesListRender{}, nil, err
 	}

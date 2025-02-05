@@ -18,7 +18,7 @@ import (
 )
 
 type OrderService interface {
-	SubmitOrder(draftID, guestID, newPaymentMethod, store string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, ls *listService, ps *productService, mutexes *config.AllMutexes, tools *config.Tools) (error, error)
+	SubmitOrder(dpi DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, ls *listService, ps *productService, mutexes *config.AllMutexes, tools *config.Tools) (error, error)
 	UseDiscountsAndGiftCards(order *models.Order, guestID string, customerID int, ds *discountService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds *draftOrderService) error
 	RenderOrder(orderID, guestID string, customerID int) (*models.Order, bool, error)
@@ -34,16 +34,16 @@ func NewOrderService(orderRepo repositories.OrderRepository) OrderService {
 }
 
 // Charging error, internal error
-func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store string, customerID int, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, ls *listService, ps *productService, mutexes *config.AllMutexes, tools *config.Tools) (error, error) {
+func (s *orderService) SubmitOrder(dpi DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, ls *listService, ps *productService, mutexes *config.AllMutexes, tools *config.Tools) (error, error) {
 
-	draft, err := ds.GetDraftPtl(draftID, guestID, customerID)
+	draft, err := ds.GetDraftPtl(draftID, dpi.GuestID, dpi.CustomerID)
 	if err != nil {
 		return nil, err
 	}
 
 	var cust *models.Customer
-	if customerID > 0 && !draft.Guest {
-		cust, err = cs.GetCustomerByID(customerID)
+	if dpi.CustomerID > 0 && !draft.Guest {
+		cust, err = cs.GetCustomerByID(dpi.CustomerID)
 		if err != nil {
 			return nil, err
 		}
@@ -52,7 +52,7 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store str
 	if useExisting {
 		if draft.ExistingPaymentMethod.ID == "" {
 			return errors.New("requires a chosen payment method if using existing payment method"), nil
-		} else if !(customerID > 0 && !draft.Guest) {
+		} else if !(dpi.CustomerID > 0 && !draft.Guest) {
 			return errors.New("requires non guest order if using existing payment method"), nil
 		}
 	}
@@ -61,15 +61,15 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store str
 	for _, l := range draft.Lines {
 		varInt, err := strconv.Atoi(l.VariantID)
 		if err != nil {
-			log.Printf("Unable to convert variant ID: %s on order: %s, in store: %s to int\n", l.VariantID, draftID, store)
+			log.Printf("Unable to convert variant ID: %s on order: %s, in store: %s to int\n", l.VariantID, draftID, dpi.Store)
 			continue
 		}
 		dvids = append(dvids, varInt)
 	}
 
-	mapped, works, err := ps.ConfirmDraftOrderProducts(store, dvids)
+	mapped, works, err := ps.ConfirmDraftOrderProducts(dpi.Store, dvids)
 	if err != nil {
-		return nil, fmt.Errorf("unable to query lim vars for draft order: %s, store: %s,  err: %v", draftID, store, err)
+		return nil, fmt.Errorf("unable to query lim vars for draft order: %s, store: %s,  err: %v", draftID, dpi.Store, err)
 	} else if !works {
 		var builder strings.Builder
 		for id, val := range mapped {
@@ -79,7 +79,7 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store str
 			}
 		}
 		falseVarIDs := builder.String()
-		return nil, fmt.Errorf("non existant lim vars for draft order: %s, store: %s, list: %s", draftID, store, falseVarIDs)
+		return nil, fmt.Errorf("non existant lim vars for draft order: %s, store: %s, list: %s", draftID, dpi.Store, falseVarIDs)
 	}
 
 	order := orderhelp.CreateOrderFromDraft(draft)
@@ -92,7 +92,7 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store str
 	draft.DateConverted = time.Now()
 
 	if err := ds.draftOrderRepo.Update(draft); err != nil {
-		go emails.AlertRecoverableOrderSubmitError(store, draftID, order.ID.Hex(), "Error when updating draft for order on mongodb", tools, order, draft, nil, false, err)
+		go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Error when updating draft for order on mongodb", tools, order, draft, nil, false, err)
 	}
 
 	if useExisting && order.Total > 0 {
@@ -116,31 +116,31 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store str
 		order.StripePaymentIntentID = intent.ID
 	}
 
-	resp, err := orderhelp.PostOrderToPrintful(order, store, mutexes, tools)
+	resp, err := orderhelp.PostOrderToPrintful(order, dpi.Store, mutexes, tools)
 	if err != nil {
-		go emails.AlertRecoverableOrderSubmitError(store, draftID, order.ID.Hex(), "Unable to post order to printful after charging", tools, order, draft, resp, true, err)
+		go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Unable to post order to printful after charging", tools, order, draft, resp, true, err)
 	}
 
 	if err := orderhelp.ConfirmOrderPostResponse(resp, order); err != nil {
-		go emails.AlertRecoverableOrderSubmitError(store, draftID, order.ID.Hex(), "Bad response from posting order to printful after charging", tools, order, draft, resp, false, err)
+		go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Bad response from posting order to printful after charging", tools, order, draft, resp, false, err)
 	}
 
-	gcErr, discErr, worked := s.UseDiscountsAndGiftCards(order, guestID, customerID, dts)
+	gcErr, discErr, worked := s.UseDiscountsAndGiftCards(order, dpi.GuestID, dpi.CustomerID, dts)
 	if !worked {
 		if gcErr != nil {
-			go emails.AlertRecoverableOrderSubmitError(store, draftID, order.ID.Hex(), "Unable to post order to mark charging of gift cards after using", tools, order, draft, nil, true, gcErr)
+			go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Unable to post order to mark charging of gift cards after using", tools, order, draft, nil, true, gcErr)
 		}
 		if discErr != nil {
-			go emails.AlertRecoverableOrderSubmitError(store, draftID, order.ID.Hex(), "Unable to post order to mark use of of discount after using", tools, order, draft, nil, false, discErr)
+			go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Unable to post order to mark use of of discount after using", tools, order, draft, nil, false, discErr)
 		}
 	}
 
 	if err := s.MarkOrderAndDraftAsSuccess(order, draft, ds); err != nil {
-		go emails.AlertRecoverableOrderSubmitError(store, draftID, order.ID.Hex(), "Unable to save order and draft order after successful creation", tools, order, draft, nil, false, err)
+		go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Unable to save order and draft order after successful creation", tools, order, draft, nil, false, err)
 	}
 
-	if err := orderhelp.OrderEmailWithProfit(resp, order, tools, store); err != nil {
-		go emails.AlertRecoverableOrderSubmitError(store, draftID, order.ID.Hex(), "Unable to send email of success to creat the order", tools, order, draft, nil, false, err)
+	if err := orderhelp.OrderEmailWithProfit(resp, order, tools, dpi.Store); err != nil {
+		go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Unable to send email of success to creat the order", tools, order, draft, nil, false, err)
 	}
 
 	vids := []int{}
@@ -149,7 +149,7 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store str
 	for _, l := range order.Lines {
 		varInt, err := strconv.Atoi(l.VariantID)
 		if err != nil {
-			log.Printf("Unable to convert variant ID: %s on order: %s, in store: %s to int\n", l.VariantID, order.ID.Hex(), store)
+			log.Printf("Unable to convert variant ID: %s on order: %s, in store: %s to int\n", l.VariantID, order.ID.Hex(), dpi.Store)
 			continue
 		}
 		vids = append(vids, varInt)
@@ -161,12 +161,12 @@ func (s *orderService) SubmitOrder(draftID, guestID, newPaymentMethod, store str
 		}
 	}
 
-	if err := ps.SetInventoryFromOrder(store, dec, handles); err != nil {
-		log.Printf("Unable to update inventory for order: %s, in store: %s; error: %v\n", order.ID.Hex(), store, err)
+	if err := ps.SetInventoryFromOrder(dpi.Store, dec, handles); err != nil {
+		log.Printf("Unable to update inventory for order: %s, in store: %s; error: %v\n", order.ID.Hex(), dpi.Store, err)
 	}
 
-	if err := ls.UpdateLastOrdersList(store, customerID, order.DateCreated, order.ID.Hex(), vids, ps); err != nil {
-		log.Printf("Unable to update last orders list for order: %s, in store: %s; error: %v\n", order.ID.Hex(), store, err)
+	if err := ls.UpdateLastOrdersList(dpi, order.DateCreated, order.ID.Hex(), vids, ps); err != nil {
+		log.Printf("Unable to update last orders list for order: %s, in store: %s; error: %v\n", order.ID.Hex(), dpi.Store, err)
 	}
 
 	return nil, nil

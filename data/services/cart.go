@@ -474,7 +474,7 @@ func (s *cartService) DeleteGiftCard(dpi DataPassIn, lineID int, prodServ *produ
 
 func (s *cartService) SavesListToCart(dpi DataPassIn, varid int, handle string, ps *productService, ls *listService) (models.SavesListRender, *models.CartRender, error) {
 
-	sl, err := ls.DeleteSavesListRender(dpi.Store, dpi.CustomerID, varid, 1, ps)
+	sl, err := ls.DeleteSavesListRender(dpi, varid, 1, ps)
 	if err != nil {
 		dpi.Logger.SaveEvent(dpi.CustomerID, "", "Cart", "SavesListToCart", "Unable to delete off of saves list", "", "", "", "", strconv.Itoa(varid), "", "", "", "", "", "", "", []error{err})
 		return models.SavesListRender{}, nil, err
