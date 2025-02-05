@@ -7,13 +7,26 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+type PriceRender struct {
+	DollarPrice    string
+	IsOtherPrice   bool
+	OtherPrice     string
+	OtherPriceCode string
+}
+
 // Full collection equivalent info
 type CollectionRender struct {
-	Products []ProductInfo
-	URL      url.Values
-	SideBar  SideBar
-	TopWords TopWords
-	Paging   Paging
+	Products       []ProductInfo
+	PricedProducts []ProductWithPriceRender
+	URL            url.Values
+	SideBar        SideBar
+	TopWords       TopWords
+	Paging         Paging
+}
+
+type ProductWithPriceRender struct {
+	Product     ProductInfo
+	PriceRender PriceRender
 }
 
 // For sidebar filtering
@@ -73,6 +86,7 @@ type ProductRender struct {
 	FullName    string
 	HasVariants bool
 	Blocks      AllVariants
+	PriceRender PriceRender
 }
 
 // Cart
@@ -82,6 +96,7 @@ type CartRender struct {
 	Empty       bool
 	SumQuantity int
 	Subtotal    int
+	PriceRender PriceRender
 	Cart        Cart
 	CartLines   []CartLineRender
 }
@@ -91,6 +106,7 @@ type CartLineRender struct {
 	Variant       LimitedVariantRedis
 	QuantityMaxed bool
 	Subtotal      int
+	PriceRender   PriceRender
 }
 
 // Payment
@@ -178,11 +194,17 @@ type ReviewPageRender struct {
 }
 
 type ComparablesRender struct {
-	Handle    string
-	Title     string
-	ImageURL  string
-	Price     int
-	Inventory int
-	AvgRate   float64
-	RateCt    int
+	Handle      string
+	Title       string
+	ImageURL    string
+	Price       int
+	PriceRender PriceRender
+	Inventory   int
+	AvgRate     float64
+	RateCt      int
+}
+
+type DraftOrderRender struct {
+	DraftOrder  DraftOrder
+	PriceRender PriceRender
 }
