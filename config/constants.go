@@ -29,3 +29,4 @@ const LOWER_INV = 150
 const HIGHER_INV = 500
 
 const BASIS_PAGE = "https://domain.com"
+const CONV_RATES = "https://api.fxratesapi.com/latest"
