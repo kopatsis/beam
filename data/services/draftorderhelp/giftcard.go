@@ -1,6 +1,7 @@
 package draftorderhelp
 
 import (
+	"beam/config"
 	"beam/data/models"
 	"errors"
 )
@@ -153,7 +154,7 @@ func EnsureGiftCardSum(draftOrder *models.DraftOrder, newGiftCardSum, newPreGift
 			return errors.New("unable to apply gift cards correctly under current system")
 		}
 
-	} else if newTotal < 50 || checkIfUnappliedMaxedGC(draftOrder) {
+	} else if newTotal < config.MIN_ORDER_PRICE || checkIfUnappliedMaxedGC(draftOrder) {
 		for i, gc := range draftOrder.GiftCards {
 			if newTotal == 0 {
 				break
@@ -170,9 +171,9 @@ func EnsureGiftCardSum(draftOrder *models.DraftOrder, newGiftCardSum, newPreGift
 
 		if newTotal < 0 {
 			return errors.New("unable to apply gift cards correctly under current system")
-		} else if newTotal < 50 && newTotal > 0 {
-			newTotal, usedGiftCardSum, usedPreGiftCardTotal = between0And50Fix(draftOrder, newTotal, usedGiftCardSum, usedPreGiftCardTotal)
-			if newTotal < 0 || newTotal > 0 && newTotal < 50 {
+		} else if newTotal < config.MIN_ORDER_PRICE && newTotal > 0 {
+			newTotal, usedGiftCardSum, usedPreGiftCardTotal = minPriceFix(draftOrder, newTotal, usedGiftCardSum, usedPreGiftCardTotal)
+			if newTotal < 0 || newTotal > 0 && newTotal < config.MIN_ORDER_PRICE {
 				return errors.New("unable to apply gift cards correctly under current system")
 			}
 		}
@@ -197,14 +198,14 @@ func checkIfUnappliedMaxedGC(draftOrder *models.DraftOrder) bool {
 	return false
 }
 
-func between0And50Fix(draftOrder *models.DraftOrder, newTotal, usedGiftCardSum, usedPreGiftCardTotal int) (int, int, int) {
+func minPriceFix(draftOrder *models.DraftOrder, newTotal, usedGiftCardSum, usedPreGiftCardTotal int) (int, int, int) {
 	for i := len(draftOrder.GiftCards) - 1; i >= 0; i++ {
-		if newTotal >= 50 {
+		if newTotal >= config.MIN_ORDER_PRICE {
 			break
 		}
 		gc := draftOrder.GiftCards[i]
 		if !gc.UseFullAmount {
-			delta := 50 - newTotal
+			delta := config.MIN_ORDER_PRICE - newTotal
 			if gc.Charged < delta {
 				delta = gc.Charged
 			}
@@ -213,13 +214,13 @@ func between0And50Fix(draftOrder *models.DraftOrder, newTotal, usedGiftCardSum, 
 		}
 	}
 
-	if newTotal < 50 {
+	if newTotal < config.MIN_ORDER_PRICE {
 		for i := len(draftOrder.GiftCards) - 1; i >= 0; i++ {
-			if newTotal >= 50 {
+			if newTotal >= config.MIN_ORDER_PRICE {
 				break
 			}
 			gc := draftOrder.GiftCards[i]
-			delta := 50 - newTotal
+			delta := config.MIN_ORDER_PRICE - newTotal
 			if gc.Charged < delta {
 				delta = gc.Charged
 			}

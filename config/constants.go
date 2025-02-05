@@ -2,6 +2,8 @@ package config
 
 import "time"
 
+const MIN_ORDER_PRICE = 100
+
 const PAGELEN int = 20
 const ORDERLEN int = 6
 const REVIEWLEN int = 16
