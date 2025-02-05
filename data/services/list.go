@@ -4,7 +4,6 @@ import (
 	"beam/data/models"
 	"beam/data/repositories"
 	"fmt"
-	"strconv"
 	"time"
 )
 
@@ -31,7 +30,7 @@ type ListService interface {
 	GetSavesListByPage(name string, customerID, page int, ps *productService) (models.SavesListRender, error)
 	GetLastOrdersListByPage(name string, customerID, page int, ps *productService) (models.LastOrderListRender, error)
 
-	CartToSavesList(name, cartID, lineID string, ps *productService, cs *cartService, custID int, logger *eventService) (models.SavesListRender, *models.CartRender, error)
+	CartToSavesList(dpi DataPassIn, lineID int, ps *productService, cs *cartService) (models.SavesListRender, *models.CartRender, error)
 }
 
 type listService struct {
@@ -346,29 +345,19 @@ func (s *listService) GetLastOrdersListByPage(name string, customerID, page int,
 	return ret, nil
 }
 
-func (s *listService) CartToSavesList(name, cartID, lineID string, ps *productService, cs *cartService, custID int, logger *eventService) (models.SavesListRender, *models.CartRender, error) {
+func (s *listService) CartToSavesList(dpi DataPassIn, lineID int, ps *productService, cs *cartService) (models.SavesListRender, *models.CartRender, error) {
 
-	cid, err := strconv.Atoi(cartID)
+	line, err := cs.cartRepo.GetCartLineWithValidation(dpi.CustomerID, dpi.CartID, lineID)
 	if err != nil {
 		return models.SavesListRender{}, nil, err
 	}
 
-	lid, err := strconv.Atoi(lineID)
+	cr, err := cs.AdjustQuantity(dpi, lineID, 0, ps)
 	if err != nil {
 		return models.SavesListRender{}, nil, err
 	}
 
-	line, err := cs.cartRepo.GetCartLineWithValidation(custID, cid, lid)
-	if err != nil {
-		return models.SavesListRender{}, nil, err
-	}
-
-	cr, err := cs.AdjustQuantity(name, cartID, lineID, 0, ps, custID, "", logger)
-	if err != nil {
-		return models.SavesListRender{}, nil, err
-	}
-
-	sl, err := s.AddSavesListRender(name, custID, line.VariantID, 1, ps)
+	sl, err := s.AddSavesListRender(dpi.Store, dpi.CustomerID, line.VariantID, 1, ps)
 	if err != nil {
 		return models.SavesListRender{}, nil, err
 	}

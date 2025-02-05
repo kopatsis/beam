@@ -1,12 +1,14 @@
 package middleware
 
 import (
+	"beam/data"
 	"beam/data/models"
+	"beam/data/services"
 
 	"github.com/gin-gonic/gin"
 )
 
-func FormatDataForFunctions(c *gin.Context) models.DataPassIn {
+func FormatDataForFunctions(c *gin.Context, fullService *data.AllServices) services.DataPassIn {
 	clientCookie, sessionCookie, affiliateCookie := GetClientCookie(c), GetSessionCookie(c), GetAffiliateCookie(c)
 	if clientCookie == nil {
 		clientCookie = &models.ClientCookie{}
@@ -18,7 +20,7 @@ func FormatDataForFunctions(c *gin.Context) models.DataPassIn {
 		affiliateCookie = &models.AffiliateSession{}
 	}
 
-	return models.DataPassIn{
+	ret := services.DataPassIn{
 		Store:         clientCookie.Store,
 		CustomerID:    clientCookie.CustomerID,
 		GuestID:       clientCookie.GuestID,
@@ -28,4 +30,10 @@ func FormatDataForFunctions(c *gin.Context) models.DataPassIn {
 		AffiliateID:   affiliateCookie.ID,
 		AffiliateCode: affiliateCookie.ActualCode,
 	}
+
+	if serv, ok := fullService.Map[clientCookie.Store]; ok {
+		ret.Logger = serv.Event
+	}
+
+	return ret
 }

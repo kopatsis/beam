@@ -5,6 +5,18 @@ import (
 	"beam/data/repositories"
 )
 
+type DataPassIn struct {
+	Store         string
+	CustomerID    int
+	IsLoggedIn    bool
+	GuestID       string
+	CartID        int
+	SessionID     string
+	AffiliateID   int
+	AffiliateCode string
+	Logger        EventService
+}
+
 type EventService interface {
 	SaveEvent(
 		customerID int,

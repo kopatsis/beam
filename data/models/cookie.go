@@ -2,17 +2,6 @@ package models
 
 import "time"
 
-type DataPassIn struct {
-	Store         string
-	CustomerID    int
-	IsLoggedIn    bool
-	GuestID       string
-	CartID        int
-	SessionID     string
-	AffiliateID   int
-	AffiliateCode string
-}
-
 type ServerCookie struct {
 	Store      string    `json:"s"`
 	FirebaseID string    `json:"f"`
