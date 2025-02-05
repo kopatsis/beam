@@ -12,12 +12,14 @@ type ServerCookie struct {
 
 // Client
 type ClientCookie struct {
-	Store        string    `json:"s"`
-	CustomerID   int       `json:"c"`
-	CustomerSet  time.Time `json:"t"`
-	GuestID      string    `json:"g"`
-	CustomerCart int       `json:"a"`
-	GuestCart    int       `json:"r"`
+	Store         string    `json:"s"`
+	CustomerID    int       `json:"c"`
+	CustomerSet   time.Time `json:"t"`
+	GuestID       string    `json:"g"`
+	CustomerCart  int       `json:"a"`
+	GuestCart     int       `json:"r"`
+	OtherCurrency bool      `json:"o"`
+	Currency      string    `json:"u"`
 }
 
 // Session

@@ -40,13 +40,19 @@ type IsoCodesMutex struct {
 	States    models.StateCodes
 }
 
+type CurrencyMutex struct {
+	Mu   sync.RWMutex
+	List models.CurrencyCodes
+}
+
 type AllMutexes struct {
-	Store   StoreNamesWithMutex
-	Filters TotalFiltersWithMutex
-	Tags    TotalTagsWithMutex
-	Tax     TaxMutex
-	Api     APIKeyMutex
-	Iso     IsoCodesMutex
+	Store    StoreNamesWithMutex
+	Filters  TotalFiltersWithMutex
+	Tags     TotalTagsWithMutex
+	Tax      TaxMutex
+	Api      APIKeyMutex
+	Iso      IsoCodesMutex
+	Currency CurrencyMutex
 }
 
 func unmarshalJSONFile(filePath string, v interface{}) error {
@@ -68,12 +74,14 @@ func LoadAllData() *AllMutexes {
 	taxFile := "static/ref/tax.json"
 	countryFile := "static/ref/countryiso.json"
 	stateFile := "static/ref/stateiso.json"
+	currFile := "static/ref/currency.json"
 
 	var storeNames models.StoreNames
 	var totalFilters models.TotalFilters
 	var totalTags models.TotalTags
 	var countries models.CountryCodes
 	var states models.StateCodes
+	var currency models.CurrencyCodes
 	var tax map[string]float64
 
 	if err := unmarshalJSONFile(storeNamesFile, &storeNames); err != nil {
@@ -94,6 +102,9 @@ func LoadAllData() *AllMutexes {
 	if err := unmarshalJSONFile(stateFile, &states); err != nil {
 		log.Fatalf("Unable to load the state mutex vars: %v", err)
 	}
+	if err := unmarshalJSONFile(currFile, &currency); err != nil {
+		log.Fatalf("Unable to load the currency mutex vars: %v", err)
+	}
 
 	keyMap := map[string]string{}
 
@@ -108,11 +119,12 @@ func LoadAllData() *AllMutexes {
 	}
 
 	return &AllMutexes{
-		Store:   StoreNamesWithMutex{Store: storeNames},
-		Filters: TotalFiltersWithMutex{Filters: totalFilters},
-		Tags:    TotalTagsWithMutex{Tags: totalTags},
-		Tax:     TaxMutex{CATax: tax},
-		Api:     APIKeyMutex{KeyMap: keyMap},
-		Iso:     IsoCodesMutex{Countries: countries, States: states},
+		Store:    StoreNamesWithMutex{Store: storeNames},
+		Filters:  TotalFiltersWithMutex{Filters: totalFilters},
+		Tags:     TotalTagsWithMutex{Tags: totalTags},
+		Tax:      TaxMutex{CATax: tax},
+		Api:      APIKeyMutex{KeyMap: keyMap},
+		Iso:      IsoCodesMutex{Countries: countries, States: states},
+		Currency: CurrencyMutex{List: currency},
 	}
 }

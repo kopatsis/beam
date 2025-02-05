@@ -38,6 +38,10 @@ type CountryCodes struct {
 	List []CodeBlock `json:"List"`
 }
 
+type CurrencyCodes struct {
+	List []CodeBlock `json:"List"`
+}
+
 type StateCodes struct {
 	US []CodeBlock `json:"US"`
 	CA []CodeBlock `json:"CA"`
