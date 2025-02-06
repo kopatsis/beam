@@ -78,15 +78,16 @@ type AllVariants struct {
 }
 
 type ProductRender struct {
-	Price       string
-	CompareAt   string
-	VariantID   int
-	Inventory   int
-	VarImage    string
-	FullName    string
-	HasVariants bool
-	Blocks      AllVariants
-	PriceRender PriceRender
+	Price           int
+	CompareAt       int
+	VariantID       int
+	Inventory       int
+	VarImage        string
+	FullName        string
+	HasVariants     bool
+	Blocks          AllVariants
+	PriceRender     PriceRender
+	CompareAtRender PriceRender
 }
 
 // Cart
@@ -205,6 +206,6 @@ type ComparablesRender struct {
 }
 
 type DraftOrderRender struct {
-	DraftOrder  DraftOrder
-	PriceRender PriceRender
+	DraftOrder       *DraftOrder
+	TotalPriceRender PriceRender
 }

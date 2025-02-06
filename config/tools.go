@@ -110,7 +110,7 @@ func (t *Tools) saveRates(rates models.ConversionResponse) {
 	}
 }
 
-func (t *Tools) getRates() (map[string]float64, error) {
+func (t *Tools) GetRates() (map[string]float64, error) {
 	results, err := t.Redis.MGet(context.Background(), "CNV::RATES", "CNV::GETTING").Result()
 	if err == nil {
 		var stored models.ConversionStorage
