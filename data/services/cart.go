@@ -105,33 +105,22 @@ func (s *cartService) AddToCart(dpi *DataPassIn, handle string, vid, quant int, 
 func (s *cartService) GetCart(dpi *DataPassIn, prodServ *productService) (*models.CartRender, error) {
 	ret := models.CartRender{}
 
-	var err error
-	var cart models.Cart
-	var lines []models.CartLine
-	var exists bool
-
-	if dpi.CustomerID > 0 {
-		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByCustomerID(dpi.CustomerID)
-	} else if dpi.GuestID != "" {
-		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByGuestID(dpi.GuestID)
-	} else {
-		return nil, errors.New("no user id of either type provided")
-	}
-
+	id, cart, lines, err := s.GetCartWithLinesAndVerify(dpi)
 	if err != nil {
 		return nil, err
 	}
+	dpi.CartID = id
 
-	if !exists {
+	if len(lines) == 0 {
 		ret.Empty = true
 		return &ret, nil
 	}
 
 	for _, l := range lines {
-		ret.CartLines = append(ret.CartLines, models.CartLineRender{ActualLine: l})
+		ret.CartLines = append(ret.CartLines, models.CartLineRender{ActualLine: *l})
 	}
 
-	ret.Cart = cart
+	ret.Cart = *cart
 	if err := s.UpdateRender(dpi.Store, &ret, prodServ); err != nil {
 		return nil, err
 	}
