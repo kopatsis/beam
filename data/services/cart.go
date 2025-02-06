@@ -15,26 +15,26 @@ import (
 )
 
 type CartService interface {
-	AddToCart(dpi DataPassIn, handle string, vid, quant int, prodServ *productService) (*models.Cart, error)
-	GetCart(dpi DataPassIn, prodServ *productService) (*models.CartRender, error)
-	AdjustQuantity(dpi DataPassIn, lineID, quant int, prodServ *productService) (*models.CartRender, error)
-	ClearCart(dpi DataPassIn) (*models.CartRender, error)
-	AddGiftCard(dpi DataPassIn, message string, cents int, discService *discountService, tools *config.Tools) (*models.Cart, error)
-	DeleteGiftCard(dpi DataPassIn, lineID int, prodServ *productService) (*models.CartRender, error)
+	AddToCart(dpi *DataPassIn, handle string, vid, quant int, prodServ *productService) (*models.Cart, error)
+	GetCart(dpi *DataPassIn, prodServ *productService) (*models.CartRender, error)
+	AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodServ *productService) (*models.CartRender, error)
+	ClearCart(dpi *DataPassIn) (*models.CartRender, error)
+	AddGiftCard(dpi *DataPassIn, message string, cents int, discService *discountService, tools *config.Tools) (*models.Cart, error)
+	DeleteGiftCard(dpi *DataPassIn, lineID int, prodServ *productService) (*models.CartRender, error)
 	UpdateRender(name string, cart *models.CartRender, ps *productService) error
-	SavesListToCart(dpi DataPassIn, varid int, handle string, ps *productService, ls *listService) (models.SavesListRender, *models.CartRender, error)
+	SavesListToCart(dpi *DataPassIn, varid int, handle string, ps *productService, ls *listService) (models.SavesListRender, *models.CartRender, error)
 
 	CartMiddleware(cartID, custID int, guestID string) (int, error)
-	GetCartMain(dpi DataPassIn) (*models.Cart, error, bool)
-	GetCartAndVerify(dpi DataPassIn) (int, *models.Cart, error)
-	GetCartMainWithLines(dpi DataPassIn) (*models.Cart, []*models.CartLine, error, bool)
-	GetCartWithLinesAndVerify(dpi DataPassIn) (int, *models.Cart, []*models.CartLine, error)
-	CartCountCheck(dpi DataPassIn) (int, int, error)
-	OrderSuccessCart(dpi DataPassIn, orderLines []models.OrderLine) error
+	GetCartMain(dpi *DataPassIn) (*models.Cart, error, bool)
+	GetCartAndVerify(dpi *DataPassIn) (int, *models.Cart, error)
+	GetCartMainWithLines(dpi *DataPassIn) (*models.Cart, []*models.CartLine, error, bool)
+	GetCartWithLinesAndVerify(dpi *DataPassIn) (int, *models.Cart, []*models.CartLine, error)
+	CartCountCheck(dpi *DataPassIn) (int, int, error)
+	OrderSuccessCart(dpi *DataPassIn, orderLines []models.OrderLine) error
 
-	CopyCartWithLines(dpi DataPassIn) error
-	MoveCart(dpi DataPassIn) error
-	DirectCartRetrieval(dpi DataPassIn) (int, error, bool)
+	CopyCartWithLines(dpi *DataPassIn) error
+	MoveCart(dpi *DataPassIn) error
+	DirectCartRetrieval(dpi *DataPassIn) (int, error, bool)
 }
 
 type cartService struct {
@@ -45,7 +45,7 @@ func NewCartService(cartRepo repositories.CartRepository) CartService {
 	return &cartService{cartRepo: cartRepo}
 }
 
-func (s *cartService) AddToCart(dpi DataPassIn, handle string, vid, quant int, prodServ *productService) (*models.Cart, error) {
+func (s *cartService) AddToCart(dpi *DataPassIn, handle string, vid, quant int, prodServ *productService) (*models.Cart, error) {
 	p, r, err := prodServ.productRepo.GetFullProduct(dpi.Store, handle)
 	if err != nil {
 		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddToCart", "Error querying product", "", "", "", "", strconv.Itoa(vid), "", "", "", "", "", "", "", []error{err})
@@ -67,41 +67,22 @@ func (s *cartService) AddToCart(dpi DataPassIn, handle string, vid, quant int, p
 		return nil, errors.New("no matching variant by id to provided handle")
 	}
 
-	var cart models.Cart
-	var lines []models.CartLine
-	var exists bool
-
-	if dpi.CustomerID > 0 {
-		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByCustomerID(dpi.CustomerID)
-	} else if dpi.GuestID != "" {
-		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByGuestID(dpi.GuestID)
-	} else {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddToCart", "No customer id or guest ID", "", "", "", strconv.Itoa(p.PK), strconv.Itoa(vid), "", "", "", "", "", "", "", []error{errors.New("error retrieving cart unrelated to cart not existing")})
-		return nil, errors.New("error retrieving cart unrelated to cart not existing")
-	}
+	id, cart, lines, err := s.GetCartWithLinesAndVerify(dpi)
 	if err != nil {
 		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddToCart", "Unable to retrieve cart and lines", "", "", "", strconv.Itoa(p.PK), strconv.Itoa(vid), "", "", "", "", "", "", "", []error{err})
 		return nil, err
 	}
+	dpi.CartID = id
 
-	if !exists {
-		cart.Status = "Active"
-		if dpi.CustomerID > 0 {
-			cart.CustomerID = dpi.CustomerID
-		} else {
-			cart.GuestID = dpi.GuestID
-		}
-	}
-
-	var line models.CartLine
+	var line *models.CartLine
 	for _, l := range lines {
 		if l.ProductID == p.PK && l.VariantID == vid {
 			line = l
 		}
 	}
 
-	if line.ID == 0 {
-		line = models.CartLine{
+	if line == nil {
+		line = &models.CartLine{
 			ProductID:    p.PK,
 			VariantID:    vid,
 			NonDiscPrice: p.Variants[index].Price,
@@ -110,32 +91,18 @@ func (s *cartService) AddToCart(dpi DataPassIn, handle string, vid, quant int, p
 
 	line.Quantity += quant
 	line.Price = product.VolumeDiscPrice(p.Variants[index].Price, quant, p.VolumeDisc)
-
-	if !exists {
-		cart, err = s.cartRepo.CreateCart(cart)
-	}
-	if err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddToCart", "Unable to create cart for inexistent", "", "", "", strconv.Itoa(p.PK), strconv.Itoa(vid), "", "", "", "", "", "", "", []error{err})
-		return nil, err
-	}
-
 	line.CartID = cart.ID
 
-	if line.ID == 0 {
-		line, err = s.cartRepo.AddCartLine(line)
-	} else {
-		line, err = s.cartRepo.SaveCartLine(line)
-	}
-	if err != nil {
+	if err := s.cartRepo.SaveCartLineNew(line); err != nil {
 		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddToCart", "Unable to save or add line for cart", "", "", "", strconv.Itoa(p.PK), strconv.Itoa(vid), "", "", "", strconv.Itoa(cart.ID), "", "", "", []error{err})
 		return nil, err
 	}
 
 	dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddToCart", "Success", "", "", "", strconv.Itoa(p.PK), strconv.Itoa(vid), "", "", "", strconv.Itoa(cart.ID), "", "", "", nil)
-	return &cart, nil
+	return cart, nil
 }
 
-func (s *cartService) GetCart(dpi DataPassIn, prodServ *productService) (*models.CartRender, error) {
+func (s *cartService) GetCart(dpi *DataPassIn, prodServ *productService) (*models.CartRender, error) {
 	ret := models.CartRender{}
 
 	var err error
@@ -172,7 +139,7 @@ func (s *cartService) GetCart(dpi DataPassIn, prodServ *productService) (*models
 	return &ret, nil
 }
 
-func (s *cartService) AdjustQuantity(dpi DataPassIn, lineID, quant int, prodServ *productService) (*models.CartRender, error) {
+func (s *cartService) AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodServ *productService) (*models.CartRender, error) {
 	ret := models.CartRender{}
 
 	var cart models.Cart
@@ -302,7 +269,7 @@ func (s *cartService) AdjustQuantity(dpi DataPassIn, lineID, quant int, prodServ
 	return &ret, nil
 }
 
-func (s *cartService) ClearCart(dpi DataPassIn) (*models.CartRender, error) {
+func (s *cartService) ClearCart(dpi *DataPassIn) (*models.CartRender, error) {
 	ret := models.CartRender{}
 
 	var err error
@@ -348,7 +315,7 @@ func (s *cartService) ClearCart(dpi DataPassIn) (*models.CartRender, error) {
 	return &ret, nil
 }
 
-func (s *cartService) AddGiftCard(dpi DataPassIn, message string, cents int, discService *discountService, tools *config.Tools) (*models.Cart, error) {
+func (s *cartService) AddGiftCard(dpi *DataPassIn, message string, cents int, discService *discountService, tools *config.Tools) (*models.Cart, error) {
 	var err error
 	var cart models.Cart
 	var exists bool
@@ -407,7 +374,7 @@ func (s *cartService) AddGiftCard(dpi DataPassIn, message string, cents int, dis
 	return &cart, nil
 }
 
-func (s *cartService) DeleteGiftCard(dpi DataPassIn, lineID int, prodServ *productService) (*models.CartRender, error) {
+func (s *cartService) DeleteGiftCard(dpi *DataPassIn, lineID int, prodServ *productService) (*models.CartRender, error) {
 	ret := models.CartRender{}
 
 	var cart models.Cart
@@ -472,7 +439,7 @@ func (s *cartService) DeleteGiftCard(dpi DataPassIn, lineID int, prodServ *produ
 	return &ret, nil
 }
 
-func (s *cartService) SavesListToCart(dpi DataPassIn, varid int, handle string, ps *productService, ls *listService) (models.SavesListRender, *models.CartRender, error) {
+func (s *cartService) SavesListToCart(dpi *DataPassIn, varid int, handle string, ps *productService, ls *listService) (models.SavesListRender, *models.CartRender, error) {
 
 	sl, err := ls.DeleteSavesListRender(dpi, varid, 1, ps)
 	if err != nil {
@@ -574,7 +541,7 @@ func (s *cartService) CartMiddleware(cartID, custID int, guestID string) (int, e
 	return 0, errors.New("no one logged in")
 }
 
-func (s *cartService) GetCartMain(dpi DataPassIn) (*models.Cart, error, bool) {
+func (s *cartService) GetCartMain(dpi *DataPassIn) (*models.Cart, error, bool) {
 	cart, err := s.cartRepo.Read(dpi.CartID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -604,7 +571,7 @@ func (s *cartService) GetCartMain(dpi DataPassIn) (*models.Cart, error, bool) {
 	return cart, nil, false
 }
 
-func (s *cartService) GetCartAndVerify(dpi DataPassIn) (int, *models.Cart, error) {
+func (s *cartService) GetCartAndVerify(dpi *DataPassIn) (int, *models.Cart, error) {
 	cart, err, retry := s.GetCartMain(dpi)
 	if err != nil {
 		if retry {
@@ -620,7 +587,7 @@ func (s *cartService) GetCartAndVerify(dpi DataPassIn) (int, *models.Cart, error
 	return cart.ID, cart, nil
 }
 
-func (s *cartService) GetCartMainWithLines(dpi DataPassIn) (*models.Cart, []*models.CartLine, error, bool) {
+func (s *cartService) GetCartMainWithLines(dpi *DataPassIn) (*models.Cart, []*models.CartLine, error, bool) {
 
 	cart, err := s.cartRepo.ReadWithPreload(dpi.CartID)
 	if err != nil {
@@ -654,7 +621,7 @@ func (s *cartService) GetCartMainWithLines(dpi DataPassIn) (*models.Cart, []*mod
 	return cart, cartLines, nil, false
 }
 
-func (s *cartService) GetCartWithLinesAndVerify(dpi DataPassIn) (int, *models.Cart, []*models.CartLine, error) {
+func (s *cartService) GetCartWithLinesAndVerify(dpi *DataPassIn) (int, *models.Cart, []*models.CartLine, error) {
 	cart, lines, err, retry := s.GetCartMainWithLines(dpi)
 	if err != nil {
 		if retry {
@@ -671,7 +638,7 @@ func (s *cartService) GetCartWithLinesAndVerify(dpi DataPassIn) (int, *models.Ca
 }
 
 // Cart ID, count, err
-func (s *cartService) CartCountCheck(dpi DataPassIn) (int, int, error) {
+func (s *cartService) CartCountCheck(dpi *DataPassIn) (int, int, error) {
 	id, cart, err := s.GetCartAndVerify(dpi)
 	if err != nil {
 		return dpi.CustomerID, 0, err
@@ -682,7 +649,7 @@ func (s *cartService) CartCountCheck(dpi DataPassIn) (int, int, error) {
 	return id, count, err
 }
 
-func (s *cartService) OrderSuccessCart(dpi DataPassIn, orderLines []models.OrderLine) error {
+func (s *cartService) OrderSuccessCart(dpi *DataPassIn, orderLines []models.OrderLine) error {
 	var err error
 	var cart models.Cart
 	var lines []models.CartLine
@@ -730,14 +697,14 @@ func (s *cartService) OrderSuccessCart(dpi DataPassIn, orderLines []models.Order
 	return s.cartRepo.ReactivateCartWithLines(cart.ID, newLines)
 }
 
-func (s *cartService) CopyCartWithLines(dpi DataPassIn) error {
+func (s *cartService) CopyCartWithLines(dpi *DataPassIn) error {
 	return s.cartRepo.CopyCartWithLines(dpi.CartID, dpi.CustomerID)
 }
 
-func (s *cartService) MoveCart(dpi DataPassIn) error {
+func (s *cartService) MoveCart(dpi *DataPassIn) error {
 	return s.cartRepo.MoveCart(dpi.CartID, dpi.CustomerID)
 }
 
-func (s *cartService) DirectCartRetrieval(dpi DataPassIn) (int, error, bool) {
+func (s *cartService) DirectCartRetrieval(dpi *DataPassIn) (int, error, bool) {
 	return s.cartRepo.DirectCartRetrieval(dpi.CartID, dpi.CustomerID, dpi.GuestID)
 }

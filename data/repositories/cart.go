@@ -22,6 +22,7 @@ type CartRepository interface {
 	SaveCart(cart models.Cart) (models.Cart, error)
 	AddCartLine(cartLine models.CartLine) (models.CartLine, error)
 	SaveCartLine(cartLine models.CartLine) (models.CartLine, error)
+	SaveCartLineNew(cartLine *models.CartLine) error
 	DeleteCartWithLines(id int) error
 
 	GetCartLineWithValidation(customerID, cartID, lineID int) (*models.CartLine, error)
@@ -185,6 +186,10 @@ func (r *cartRepo) SaveCartLine(cartLine models.CartLine) (models.CartLine, erro
 		return models.CartLine{}, err
 	}
 	return cartLine, nil
+}
+
+func (r *cartRepo) SaveCartLineNew(cartLine *models.CartLine) error {
+	return r.db.Save(cartLine).Error
 }
 
 func (r *cartRepo) DeleteCartWithLines(id int) error {
