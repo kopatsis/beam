@@ -1,6 +1,6 @@
 {
   "List": [
-    { "Name": "US Dollar (Default)", "Code": "USD" },
+    { "Name": "US Dollar [Default]", "Code": "USD" },
     { "Name": "Australian Dollar", "Code": "AUD" },
     { "Name": "Canadian Dollar", "Code": "CAD" },
     { "Name": "Euro", "Code": "EUR" },

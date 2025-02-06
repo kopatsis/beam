@@ -38,6 +38,9 @@ type CustomerService interface {
 	GuestMiddleware(cookie *models.ClientCookie, store string)
 	FullMiddleware(cookie *models.ClientCookie, store string)
 	LogoutCookie(cookie *models.ClientCookie)
+
+	GetCookieCurrencies(mutex *config.AllMutexes) ([]models.CodeBlock, []models.CodeBlock)
+	SetCookieCurrency(c *models.ClientCookie, mutex *config.AllMutexes, choice string) error
 }
 
 type customerService struct {
@@ -395,4 +398,56 @@ func (s *customerService) FullMiddleware(cookie *models.ClientCookie, store stri
 func (s *customerService) LogoutCookie(cookie *models.ClientCookie) {
 	cookie.CustomerID = 0
 	cookie.CustomerSet = time.Time{}
+}
+
+func (s *customerService) GetCookieCurrencies(mutex *config.AllMutexes) ([]models.CodeBlock, []models.CodeBlock) {
+	mainCurrencies, otherCurrencies := []models.CodeBlock{}, []models.CodeBlock{}
+
+	mutex.Currency.Mu.RLock()
+
+	for i, b := range mutex.Currency.List.List {
+		if i < 5 {
+			mainCurrencies = append(mainCurrencies, b)
+		} else {
+			otherCurrencies = append(otherCurrencies, b)
+		}
+	}
+
+	mutex.Currency.Mu.RUnlock()
+
+	return mainCurrencies, otherCurrencies
+}
+
+func (s *customerService) SetCookieCurrency(c *models.ClientCookie, mutex *config.AllMutexes, choice string) error {
+
+	if c == nil {
+		return errors.New("nil cookie pointer")
+	}
+
+	mainCurrencies, otherCurrencies := s.GetCookieCurrencies(mutex)
+
+	in := false
+	for _, b := range mainCurrencies {
+		if b.Code == choice {
+			in = true
+			break
+		}
+	}
+	if !in {
+		for _, b := range otherCurrencies {
+			if b.Code == choice {
+				in = true
+				break
+			}
+		}
+	}
+
+	if !in {
+		return errors.New("not approved currency choice: " + choice)
+	}
+
+	c.Currency = choice
+	c.OtherCurrency = choice == "USD"
+
+	return nil
 }
