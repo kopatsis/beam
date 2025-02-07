@@ -106,32 +106,32 @@ type EventIDPassIn struct {
 }
 
 type Session struct {
-	ID            string `gorm:"primaryKey"`
-	CustomerID    int    `gorm:"index"` // On create, may be added/change
-	GuestID       string `gorm:"index"`
-	CreatedAt     time.Time
-	Referrer      string
-	IPAddress     string
-	InitialRoute  string
-	FullURL       string
-	SpecialStatus string
-	City          string
-	Country       string
-	Browser       string
-	OS            string
-	Platform      string
-	Mobile        bool
-	Bot           bool
+	ID            string    `gorm:"primaryKey" json:"i"`
+	CustomerID    int       `gorm:"index" json:"c"` // Upon creation
+	GuestID       string    `gorm:"index" json:"g"`
+	CreatedAt     time.Time `json:"ca"`
+	Referrer      string    `json:"r"`
+	IPAddress     string    `json:"ip"`
+	InitialRoute  string    `json:"ir"`
+	FullURL       string    `json:"fu"`
+	SpecialStatus string    `json:"ss"`
+	City          string    `json:"ct"`
+	Country       string    `json:"co"`
+	Browser       string    `json:"b"`
+	OS            string    `json:"os"`
+	Platform      string    `json:"p"`
+	Mobile        bool      `json:"m"`
+	Bot           bool      `json:"o"`
 }
 
 type SessionLine struct {
-	ID         int    `gorm:"primaryKey"`
-	SessionID  string `gorm:"index"`
-	CustomerID int    `gorm:"index"` // At time of line
-	Route      string
-	Accessed   time.Time
-	AnyError   bool
-	ErrorSt    string
+	ID         int       `gorm:"primaryKey" json:"i"`
+	SessionID  string    `gorm:"index" json:"si"`
+	CustomerID int       `gorm:"index" json:"ci"` // At the time of line
+	Route      string    `json:"r"`
+	Accessed   time.Time `json:"a"`
+	AnyError   bool      `json:"ae"`
+	ErrorSt    string    `json:"es"`
 }
 
 type Affiliate struct {

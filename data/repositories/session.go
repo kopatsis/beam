@@ -3,13 +3,16 @@ package repositories
 import (
 	"beam/config"
 	"beam/data/models"
+	"context"
+	"encoding/json"
 	"log"
 	"os"
 	"os/signal"
-	"sync"
+	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
 )
 
@@ -18,7 +21,6 @@ type SessionRepository interface {
 	Read(id string) (*models.Session, error)
 	Update(session *models.Session) error
 	Delete(id string) error
-	SaveBatch(sessions []*models.Session, lines []*models.SessionLine) (error, error)
 	AddToBatch(session *models.Session, line *models.SessionLine)
 	FlushBatch()
 	GetAffiliate(code string) (models.AffiliateSession, error)
@@ -28,19 +30,16 @@ type SessionRepository interface {
 
 type sessionRepo struct {
 	db         *gorm.DB
+	rdb        *redis.Client
 	store      string
-	sessionMu  sync.Mutex
-	lineMu     sync.Mutex
-	sessions   []models.Session
-	lines      []models.SessionLine
+	key        string
 	saveTicker *time.Ticker
 }
 
-func NewSessionRepository(db *gorm.DB, store string) SessionRepository {
+func NewSessionRepository(db *gorm.DB, rdb *redis.Client, store string) SessionRepository {
 	repo := &sessionRepo{
 		db:         db,
-		sessions:   make([]models.Session, 0),
-		lines:      make([]models.SessionLine, 0),
+		rdb:        rdb,
 		saveTicker: time.NewTicker(time.Duration(config.BATCH) * time.Second),
 		store:      store,
 	}
@@ -86,54 +85,102 @@ func (r *sessionRepo) Delete(id string) error {
 
 func (r *sessionRepo) AddToBatch(session *models.Session, line *models.SessionLine) {
 	if session != nil {
-		r.sessionMu.Lock()
-		r.sessions = append(r.sessions, *session)
-		r.sessionMu.Unlock()
+		data, err := json.Marshal(session)
+		if err == nil {
+			r.rdb.LPush(context.Background(), r.store+"::SSN::"+r.key, data)
+		} else {
+			log.Printf("Unable to push session to redis for store: %s; err: %v\n", r.store, err)
+		}
 	}
 
 	if line != nil {
-		r.lineMu.Lock()
-		r.lines = append(r.lines, *line)
-		r.lineMu.Unlock()
+		data, err := json.Marshal(line)
+		if err == nil {
+			r.rdb.LPush(context.Background(), r.store+"::SSL::"+r.key, data)
+		} else {
+			log.Printf("Unable to push session line to redis for store: %s; err: %v\n", r.store, err)
+		}
 	}
 }
 
 func (r *sessionRepo) FlushBatch() {
-	r.sessionMu.Lock()
-	sessionsToSave := append([]models.Session{}, r.sessions...)
-	r.sessions = r.sessions[:0]
-	r.sessionMu.Unlock()
+	oldKey := r.key
+	r.key = strconv.FormatInt(time.Now().Unix(), 10)
 
-	r.lineMu.Lock()
-	linesToSave := append([]models.SessionLine{}, r.lines...)
-	r.lines = r.lines[:0]
-	r.lineMu.Unlock()
+	ctx := context.Background()
+
+	sessionsData, err := r.rdb.LRange(ctx, r.store+"::SSN::"+oldKey, 0, -1).Result()
+	if err != nil {
+		log.Printf("Error retrieving sessions from Redis for store: %s; key: %s; error: %v", r.store, oldKey, err)
+	} else {
+		if err := r.rdb.Del(ctx, r.store+"::SSN::"+oldKey).Err(); err != nil {
+			log.Printf("Error deleting sessions for store: %s; key: %s; error: %v", r.store, oldKey, err)
+		}
+	}
+
+	linesData, err := r.rdb.LRange(ctx, r.store+"::SSL::"+oldKey, 0, -1).Result()
+	if err != nil {
+		log.Printf("Error retrieving lines for store: %s; key: %s; error: %v", r.store, oldKey, err)
+	} else {
+		if err := r.rdb.Del(ctx, r.store+"::SSL::"+oldKey).Err(); err != nil {
+			log.Printf("Error deleting session lines for store: %s; key: %s; error: %v", r.store, oldKey, err)
+		}
+	}
+
+	var sessionsToSave []models.Session
+	var linesToSave []models.SessionLine
+
+	if len(sessionsData) == 0 && len(linesData) == 0 {
+		return
+	}
+
+	for _, session := range sessionsData {
+		var s models.Session
+		if err := json.Unmarshal([]byte(session), &s); err != nil {
+			log.Printf("Error unmarshalling session for store: %s; key: %s; error: %v", r.store, oldKey, err)
+		} else {
+			sessionsToSave = append(sessionsToSave, s)
+		}
+	}
+
+	for _, line := range linesData {
+		var l models.SessionLine
+		if err := json.Unmarshal([]byte(line), &l); err != nil {
+			log.Printf("Error unmarshalling session line for store: %s; key: %s; error: %v", r.store, oldKey, err)
+		} else {
+			linesToSave = append(linesToSave, l)
+		}
+	}
+
+	if len(sessionsToSave) == 0 && len(linesToSave) == 0 {
+		return
+	}
 
 	if err := r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(sessionsToSave).Error; err != nil {
-			return err
+		if len(sessionsToSave) > 0 {
+			if err := tx.Save(sessionsToSave).Error; err != nil {
+				return err
+			}
 		}
-		if err := tx.Save(linesToSave).Error; err != nil {
-			return err
+		if len(linesToSave) > 0 {
+			if err := tx.Save(linesToSave).Error; err != nil {
+				return err
+			}
 		}
 		return nil
 	}); err != nil {
-		log.Printf("Unable to save sessions and lines in store %s due to error: %v", r.store, err)
-
-		r.sessionMu.Lock()
-		r.sessions = append(r.sessions, sessionsToSave...)
-		r.sessionMu.Unlock()
-
-		r.lineMu.Lock()
-		r.lines = append(r.lines, linesToSave...)
-		r.lineMu.Unlock()
+		log.Printf("Unable to save sessions and lines for store: %s; key: %s; error: %v", r.store, oldKey, err)
+		if len(sessionsToSave) > 0 {
+			if err := r.rdb.LPush(ctx, r.store+"::SSN::"+r.key, sessionsData).Err(); err != nil {
+				log.Printf("Error pushing back sessions for store: %s; key: %s; error: %v", r.store, r.key, err)
+			}
+		}
+		if len(linesToSave) > 0 {
+			if err := r.rdb.LPush(ctx, r.store+"::SSL::"+r.key, linesData).Err(); err != nil {
+				log.Printf("Error pushing back session lines for store: %s; key: %s; error: %v", r.store, r.key, err)
+			}
+		}
 	}
-}
-
-func (r *sessionRepo) SaveBatch(sessions []*models.Session, lines []*models.SessionLine) (error, error) {
-	errSessions := r.db.Save(sessions).Error
-	errLines := r.db.Save(lines).Error
-	return errSessions, errLines
 }
 
 func (r *sessionRepo) GetAffiliate(code string) (models.AffiliateSession, error) {

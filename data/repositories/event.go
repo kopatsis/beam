@@ -5,10 +5,14 @@ import (
 	"beam/data/models"
 	"context"
 	"log"
+	"os"
+	"os/signal"
 	"slices"
 	"sync"
+	"syscall"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -30,6 +34,7 @@ type EventRepository interface {
 
 type eventRepo struct {
 	coll       *mongo.Collection
+	client     *redis.Client
 	mutex      sync.Mutex
 	events     []*models.Event
 	eventsNew  []*models.EventNew
@@ -45,16 +50,21 @@ func NewEventRepository(mdb *mongo.Database, store string) EventRepository {
 		store:      store,
 	}
 
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
 	go func() {
-		for range repo.saveTicker.C {
-			repo.FlushBatch()
+		defer repo.saveTicker.Stop()
+		defer repo.FlushBatch()
+
+		for {
+			select {
+			case <-repo.saveTicker.C:
+				repo.FlushBatch()
+			case <-sigChan:
+				return
+			}
 		}
-	}()
-	defer func() {
-		for range repo.saveTicker.C {
-			repo.FlushBatch()
-		}
-		repo.saveTicker.Stop()
 	}()
 
 	return repo
