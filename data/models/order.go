@@ -13,8 +13,7 @@ type Order struct {
 	DraftOrderID           string             `bson:"draft_order_id" json:"draft_order_id"`
 	Status                 string             `bson:"status" json:"status"` // Created, Cancelled, Processed, Shipped, Delivered, ReturnedInit, ReturnedComp, AdminError
 	Email                  string             `bson:"email" json:"email"`
-	FirstName              string             `bson:"fname" json:"fname"`
-	LastName               string             `bson:"lname" json:"lname"`
+	Name                   string             `bson:"name" json:"name"`
 	DateCreated            time.Time          `bson:"date_created" json:"date_created"`
 	DateCancelled          time.Time          `bson:"date_cancelled" json:"date_cancelled"`
 	DateProcessedPrintful  time.Time          `bson:"date_processed_printful" json:"date_processed_printful"`
@@ -66,8 +65,7 @@ type DraftOrder struct {
 	Status                string                       `bson:"status" json:"status"` // Created (default), Modified, Expired, Abandoned, Attempted, Failed, Submitted, Succceeded
 	OrderID               string                       `bson:"order_id" json:"order_id"`
 	Email                 string                       `bson:"email" json:"email"`
-	FirstName             string                       `bson:"fname" json:"fname"`
-	LastName              string                       `bson:"lname" json:"lname"`
+	Name                  string                       `bson:"name" json:"name"`
 	DateCreated           time.Time                    `bson:"date_created" json:"date_created"`
 	DateConverted         time.Time                    `bson:"date_converted" json:"date_converted"`
 	DateSucceeded         time.Time                    `bson:"date_succeeded" json:"date_succeeded"`

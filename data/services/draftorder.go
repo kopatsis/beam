@@ -8,6 +8,7 @@ import (
 	"beam/data/services/draftorderhelp"
 	"errors"
 	"fmt"
+	"net/mail"
 	"sync"
 )
 
@@ -32,6 +33,9 @@ type DraftOrderService interface {
 	DeApplyGiftCard(draftID, guestID string, gcID, customerID int) (*models.DraftOrder, error)
 	RemoveGiftCard(draftID, guestID string, gcID, customerID int) (*models.DraftOrder, error)
 	CheckDiscountsAndGiftCards(draftID, guestID string, customerID int, ds *discountService) (error, error, error, bool)
+
+	AddGuestInfoToDraft(dpi *DataPassIn, draftID, name, email string) (*models.DraftOrder, error)
+	ChangeCustDraftName(dpi *DataPassIn, draftID, name string) (*models.DraftOrder, error)
 }
 
 type draftOrderService struct {
@@ -627,4 +631,50 @@ func (s *draftOrderService) CheckDiscountsAndGiftCards(draftID, guestID string, 
 	}
 
 	return nil, nil, nil, true
+}
+
+func (s *draftOrderService) AddGuestInfoToDraft(dpi *DataPassIn, draftID string, email, name string) (*models.DraftOrder, error) {
+	_, err := mail.ParseAddress(email)
+	if err != nil {
+		return nil, errors.New("Unable to parse email: " + err.Error())
+	}
+
+	if len(name) > 140 {
+		name = name[:139]
+	}
+
+	draft, err := s.GetDraftPtl(draftID, dpi.GuestID, dpi.CustomerID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !draft.Guest {
+		return nil, errors.New("must be guest order to change both name and email")
+	}
+
+	draft.Name = name
+	draft.Email = email
+
+	err = s.SaveAndUpdatePtl(draft)
+	return draft, err
+}
+
+func (s *draftOrderService) ChangeCustDraftName(dpi *DataPassIn, draftID, name string) (*models.DraftOrder, error) {
+	if len(name) > 140 {
+		name = name[:139]
+	}
+
+	draft, err := s.GetDraftPtl(draftID, dpi.GuestID, dpi.CustomerID)
+	if err != nil {
+		return nil, err
+	}
+
+	if draft.Guest {
+		return nil, errors.New("must be customer order, not guest")
+	}
+
+	draft.Name = name
+
+	err = s.SaveAndUpdatePtl(draft)
+	return draft, err
 }

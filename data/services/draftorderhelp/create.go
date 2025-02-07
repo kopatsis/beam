@@ -77,7 +77,6 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Car
 
 	draftOrder := &models.DraftOrder{
 		Status:             "Created",
-		LastName:           "",
 		DateCreated:        time.Now(),
 		Subtotal:           subtotal,
 		Shipping:           0,
@@ -100,7 +99,7 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Car
 	if customer != nil {
 		draftOrder.CustomerID = customer.ID
 		draftOrder.Email = customer.Email
-		draftOrder.FirstName = customer.DefaultName
+		draftOrder.Name = customer.DefaultName
 		pmid, err := CreatePaymentIntent(customer.StripeID, int64(draftOrder.Subtotal), "usd")
 		if err != nil {
 			return nil, err
