@@ -31,16 +31,16 @@ type sessionRepo struct {
 	store      string
 	sessionMu  sync.Mutex
 	lineMu     sync.Mutex
-	sessions   []*models.Session
-	lines      []*models.SessionLine
+	sessions   []models.Session
+	lines      []models.SessionLine
 	saveTicker *time.Ticker
 }
 
 func NewSessionRepository(db *gorm.DB, store string) SessionRepository {
 	repo := &sessionRepo{
 		db:         db,
-		sessions:   make([]*models.Session, 0),
-		lines:      make([]*models.SessionLine, 0),
+		sessions:   make([]models.Session, 0),
+		lines:      make([]models.SessionLine, 0),
 		saveTicker: time.NewTicker(time.Duration(config.BATCH) * time.Second),
 		store:      store,
 	}
@@ -87,44 +87,46 @@ func (r *sessionRepo) Delete(id string) error {
 func (r *sessionRepo) AddToBatch(session *models.Session, line *models.SessionLine) {
 	if session != nil {
 		r.sessionMu.Lock()
-		r.sessions = append(r.sessions, session)
+		r.sessions = append(r.sessions, *session)
 		r.sessionMu.Unlock()
 	}
 
 	if line != nil {
 		r.lineMu.Lock()
-		r.lines = append(r.lines, line)
+		r.lines = append(r.lines, *line)
 		r.lineMu.Unlock()
 	}
 }
 
 func (r *sessionRepo) FlushBatch() {
-	var errSessions, errLines error
-
 	r.sessionMu.Lock()
-	if len(r.sessions) > 0 {
-		errSessions = r.db.Save(r.sessions).Error
-		if errSessions == nil {
-			r.sessions = nil
-		}
-	}
+	sessionsToSave := append([]models.Session{}, r.sessions...)
+	r.sessions = r.sessions[:0]
 	r.sessionMu.Unlock()
 
 	r.lineMu.Lock()
-	if len(r.lines) > 0 {
-		errLines = r.db.Save(r.lines).Error
-		if errLines == nil {
-			r.lines = nil
-		}
-	}
+	linesToSave := append([]models.SessionLine{}, r.lines...)
+	r.lines = r.lines[:0]
 	r.lineMu.Unlock()
 
-	if errSessions != nil {
-		log.Printf("Unable to save the sessions in store %s here due to error: %v", r.store, errSessions)
-	}
+	if err := r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(sessionsToSave).Error; err != nil {
+			return err
+		}
+		if err := tx.Save(linesToSave).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		log.Printf("Unable to save sessions and lines in store %s due to error: %v", r.store, err)
 
-	if errLines != nil {
-		log.Printf("Unable to save the session lines in store %s here due to error: %v", r.store, errLines)
+		r.sessionMu.Lock()
+		r.sessions = append(r.sessions, sessionsToSave...)
+		r.sessionMu.Unlock()
+
+		r.lineMu.Lock()
+		r.lines = append(r.lines, linesToSave...)
+		r.lineMu.Unlock()
 	}
 }
 
