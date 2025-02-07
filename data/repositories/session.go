@@ -4,7 +4,10 @@ import (
 	"beam/config"
 	"beam/data/models"
 	"log"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"gorm.io/gorm"
@@ -42,16 +45,21 @@ func NewSessionRepository(db *gorm.DB, store string) SessionRepository {
 		store:      store,
 	}
 
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
 	go func() {
-		for range repo.saveTicker.C {
-			repo.FlushBatch()
+		defer repo.saveTicker.Stop()
+		defer repo.FlushBatch()
+
+		for {
+			select {
+			case <-repo.saveTicker.C:
+				repo.FlushBatch()
+			case <-sigChan:
+				return
+			}
 		}
-	}()
-	defer func() {
-		for range repo.saveTicker.C {
-			repo.FlushBatch()
-		}
-		repo.saveTicker.Stop()
 	}()
 
 	return repo
