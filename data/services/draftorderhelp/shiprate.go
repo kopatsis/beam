@@ -209,12 +209,7 @@ func EvaluateFreeShip(draftOrder *models.DraftOrder, customer *models.Customer, 
 	if (customer != nil && slices.Contains(customer.Tags, "FREESHIP")) || draftOrder.Subtotal >= freeShipSubtotal {
 		allAllowed := true
 		for _, l := range draftOrder.Lines {
-			pid, err := strconv.Atoi(l.ProductID)
-			if err != nil {
-				allAllowed = false
-				break
-			}
-			p, ok := products[pid]
+			p, ok := products[l.ProductID]
 			if !ok {
 				allAllowed = false
 				break

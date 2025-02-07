@@ -59,12 +59,7 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 
 	dvids := []int{}
 	for _, l := range draft.Lines {
-		varInt, err := strconv.Atoi(l.VariantID)
-		if err != nil {
-			log.Printf("Unable to convert variant ID: %s on order: %s, in store: %s to int\n", l.VariantID, draftID, dpi.Store)
-			continue
-		}
-		dvids = append(dvids, varInt)
+		dvids = append(dvids, l.VariantID)
 	}
 
 	mapped, works, err := ps.ConfirmDraftOrderProducts(dpi.Store, dvids)
@@ -147,14 +142,9 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 	dec := map[int]int{}
 	handles := []string{}
 	for _, l := range order.Lines {
-		varInt, err := strconv.Atoi(l.VariantID)
-		if err != nil {
-			log.Printf("Unable to convert variant ID: %s on order: %s, in store: %s to int\n", l.VariantID, order.ID.Hex(), dpi.Store)
-			continue
-		}
-		vids = append(vids, varInt)
+		vids = append(vids, l.VariantID)
 
-		dec[varInt] = l.Quantity
+		dec[l.VariantID] = l.Quantity
 
 		if !slices.Contains(handles, l.Handle) {
 			handles = append(handles, l.Handle)

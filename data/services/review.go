@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log"
 	"net/url"
-	"strconv"
 )
 
 type ReviewService interface {
@@ -258,13 +257,7 @@ func (s *reviewService) GetReviewIDOnly(customerID int, ID int) (*models.Review,
 func (s *reviewService) GetReviewsForOrder(order *models.Order) (map[int]*models.Review, error) {
 	pids := map[int]struct{}{}
 	for _, l := range order.Lines {
-		idInt, err := strconv.Atoi(l.ProductID)
-		if err != nil {
-			log.Printf("unable to convert product ID to int: %s\n", l.ProductID)
-			continue
-		}
-
-		pids[idInt] = struct{}{}
+		pids[l.ProductID] = struct{}{}
 	}
 
 	list := []int{}

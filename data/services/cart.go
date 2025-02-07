@@ -604,11 +604,7 @@ func (s *cartService) OrderSuccessCart(dpi *DataPassIn, orderLines []models.Orde
 		if l.IsGiftCard {
 			continue
 		}
-		varID, err := strconv.Atoi(l.VariantID)
-		if err != nil {
-			return err
-		}
-		varIDs[varID] = struct{}{}
+		varIDs[l.VariantID] = struct{}{}
 	}
 
 	newLines := []models.CartLine{}

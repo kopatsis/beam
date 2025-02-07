@@ -5,7 +5,6 @@ import (
 	"beam/data/models"
 	"beam/data/services/product"
 	"errors"
-	"strconv"
 	"time"
 )
 
@@ -23,8 +22,8 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Car
 				Handle:            config.GC_HANDLE,
 				Variant1Key:       "Message",
 				Variant1Value:     line.GiftCardMessage,
-				ProductID:         strconv.Itoa(line.ProductID),
-				VariantID:         strconv.Itoa(line.VariantID),
+				ProductID:         line.ProductID,
+				VariantID:         line.VariantID,
 				Quantity:          1,
 				UndiscountedPrice: line.Price,
 				Price:             line.Price,
@@ -63,8 +62,8 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Car
 				Variant2Value:     variant.Var2Value,
 				Variant3Key:       prod.Var3Key,
 				Variant3Value:     variant.Var3Value,
-				ProductID:         strconv.Itoa(line.ProductID),
-				VariantID:         strconv.Itoa(line.VariantID),
+				ProductID:         line.ProductID,
+				VariantID:         line.VariantID,
 				Quantity:          line.Quantity,
 				UndiscountedPrice: variant.Price,
 				Price:             vp,
