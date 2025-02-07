@@ -6,10 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -44,20 +41,11 @@ func NewSessionRepository(db *gorm.DB, rdb *redis.Client, store string) SessionR
 		store:      store,
 	}
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
 	go func() {
 		defer repo.saveTicker.Stop()
-		defer repo.FlushBatch()
 
-		for {
-			select {
-			case <-repo.saveTicker.C:
-				repo.FlushBatch()
-			case <-sigChan:
-				return
-			}
+		for range repo.saveTicker.C {
+			repo.FlushBatch()
 		}
 	}()
 
@@ -87,18 +75,22 @@ func (r *sessionRepo) AddToBatch(session *models.Session, line *models.SessionLi
 	if session != nil {
 		data, err := json.Marshal(session)
 		if err == nil {
-			r.rdb.LPush(context.Background(), r.store+"::SSN::"+r.key, data)
+			if err := r.rdb.LPush(context.Background(), r.store+"::SSN::"+r.key, data); err != nil {
+				log.Printf("Unable to push session to redis for store: %s; err: %v\n", r.store, err)
+			}
 		} else {
-			log.Printf("Unable to push session to redis for store: %s; err: %v\n", r.store, err)
+			log.Printf("Unable to create session for redis for store: %s; err: %v\n", r.store, err)
 		}
 	}
 
 	if line != nil {
 		data, err := json.Marshal(line)
 		if err == nil {
-			r.rdb.LPush(context.Background(), r.store+"::SSL::"+r.key, data)
+			if err := r.rdb.LPush(context.Background(), r.store+"::SSL::"+r.key, data); err != nil {
+				log.Printf("Unable to push session line to redis for store: %s; err: %v\n", r.store, err)
+			}
 		} else {
-			log.Printf("Unable to push session line to redis for store: %s; err: %v\n", r.store, err)
+			log.Printf("Unable to create session line for redis for store: %s; err: %v\n", r.store, err)
 		}
 	}
 }
