@@ -19,10 +19,10 @@ import (
 
 type OrderService interface {
 	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, ls *listService, ps *productService, mutexes *config.AllMutexes, tools *config.Tools) (error, error)
-	UseDiscountsAndGiftCards(order *models.Order, guestID string, customerID int, ds *discountService) (error, error, bool)
+	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds *discountService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds *draftOrderService) error
-	RenderOrder(orderID, guestID string, customerID int) (*models.Order, bool, error)
-	GetOrdersList(customerID int, fromURL url.Values) (models.OrderRender, error)
+	RenderOrder(dpi *DataPassIn, orderID string) (*models.Order, bool, error)
+	GetOrdersList(dpi *DataPassIn, fromURL url.Values) (models.OrderRender, error)
 }
 
 type orderService struct {
@@ -120,7 +120,7 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 		go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Bad response from posting order to printful after charging", tools, order, draft, resp, false, err)
 	}
 
-	gcErr, discErr, worked := s.UseDiscountsAndGiftCards(order, dpi.GuestID, dpi.CustomerID, dts)
+	gcErr, discErr, worked := s.UseDiscountsAndGiftCards(dpi, order, dts)
 	if !worked {
 		if gcErr != nil {
 			go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Unable to post order to mark charging of gift cards after using", tools, order, draft, nil, true, gcErr)
@@ -163,7 +163,7 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 }
 
 // Giftcard error, discount error, both worked
-func (s *orderService) UseDiscountsAndGiftCards(order *models.Order, guestID string, customerID int, ds *discountService) (error, error, bool) {
+func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds *discountService) (error, error, bool) {
 
 	gcErr, discErr := error(nil), error(nil)
 
@@ -184,7 +184,7 @@ func (s *orderService) UseDiscountsAndGiftCards(order *models.Order, guestID str
 
 	if order.OrderDiscount.DiscountCode != "" {
 
-		discErr = ds.CheckDiscountCode(order.OrderDiscount.DiscountCode, order.Subtotal, customerID, order.Guest)
+		discErr = ds.CheckDiscountCode(order.OrderDiscount.DiscountCode, order.Subtotal, dpi.CustomerID, order.Guest)
 
 		if discErr != nil {
 			return nil, discErr, false
@@ -215,13 +215,13 @@ func (s *orderService) MarkOrderAndDraftAsSuccess(order *models.Order, draft *mo
 }
 
 // Actual order, display order doesn't belong to this account (guest), error
-func (s *orderService) RenderOrder(orderID, guestID string, customerID int) (*models.Order, bool, error) {
+func (s *orderService) RenderOrder(dpi *DataPassIn, orderID string) (*models.Order, bool, error) {
 	o, err := s.orderRepo.Read(orderID)
 	if err != nil {
 		return nil, false, err
 	}
 
-	if !o.Guest && o.CustomerID != customerID {
+	if !o.Guest && o.CustomerID != dpi.CustomerID {
 		return nil, false, errors.New("order does not belong to customer")
 	}
 
@@ -229,14 +229,14 @@ func (s *orderService) RenderOrder(orderID, guestID string, customerID int) (*mo
 		return nil, false, errors.New("order does not exist yet")
 	}
 
-	if o.Guest && customerID > 0 {
+	if o.Guest && dpi.CustomerID > 0 {
 		return o, true, nil
 	}
 
 	return o, false, nil
 }
 
-func (s *orderService) GetOrdersList(customerID int, fromURL url.Values) (models.OrderRender, error) {
+func (s *orderService) GetOrdersList(dpi *DataPassIn, fromURL url.Values) (models.OrderRender, error) {
 	ret := models.OrderRender{}
 
 	sort, desc, page := orderhelp.ParseQueryParams(fromURL)
@@ -245,7 +245,7 @@ func (s *orderService) GetOrdersList(customerID int, fromURL url.Values) (models
 
 	offset := (perPage * page) - perPage
 
-	orders, err := s.orderRepo.GetOrders(customerID, perPage+1, offset, sort, desc)
+	orders, err := s.orderRepo.GetOrders(dpi.CustomerID, perPage+1, offset, sort, desc)
 	if err != nil {
 		return ret, err
 	}
