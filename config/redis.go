@@ -2,9 +2,11 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -34,4 +36,24 @@ func NewRedisClient() *redis.Client {
 
 	fmt.Println("Connected to Redis successfully")
 	return rdb
+}
+
+type FlushKey struct {
+	ActualKey string    `json:"a"`
+	CanFlush  time.Time `json:"c"`
+}
+
+func (f *FlushKey) Set() *FlushKey {
+	f.ActualKey = strconv.FormatInt(time.Now().Unix(), 10)
+	f.CanFlush = time.Now().Add(time.Duration(BATCH) * time.Second)
+	return f
+}
+
+func (f *FlushKey) ToJSON() string {
+	data, _ := json.Marshal(f)
+	return string(data)
+}
+
+func NewKey() string {
+	return (&FlushKey{}).Set().ToJSON()
 }

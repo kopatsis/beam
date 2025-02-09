@@ -135,9 +135,19 @@ func (r *eventRepo) AddToBatch(
 	event.AnyError = hasErr
 	event.AllErrorsSt = errList
 
+	fks, err := r.rdb.Get(context.Background(), r.store+"::EVE").Result()
+	if err != nil {
+		log.Printf("Unable to get key to push event to redis for store: %s; err: %v\n", r.store, err)
+	}
+
+	var flushKey config.FlushKey
+	if err := json.Unmarshal([]byte(fks), &flushKey); err != nil {
+		log.Printf("Unable to convert key to push event to redis for store: %s; err: %v\n", r.store, err)
+	}
+
 	data, err := json.Marshal(event)
 	if err == nil {
-		if err := r.rdb.LPush(context.Background(), r.store+"::EVE::"+r.key, data); err != nil {
+		if err := r.rdb.LPush(context.Background(), r.store+"::EVE::"+flushKey.ActualKey, data); err != nil {
 			log.Printf("Unable to push event to redis for store: %s; err: %v\n", r.store, err)
 		}
 	} else {

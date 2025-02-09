@@ -84,10 +84,25 @@ func (r *sessionRepo) Delete(id string) error {
 }
 
 func (r *sessionRepo) AddToBatch(session *models.Session, line *models.SessionLine) {
+
+	if session == nil && line == nil {
+		return
+	}
+
+	fks, err := r.rdb.Get(context.Background(), r.store+"::SLN").Result()
+	if err != nil {
+		log.Printf("Unable to get key to push event to redis for store: %s; err: %v\n", r.store, err)
+	}
+
+	var flushKey config.FlushKey
+	if err := json.Unmarshal([]byte(fks), &flushKey); err != nil {
+		log.Printf("Unable to convert key to push event to redis for store: %s; err: %v\n", r.store, err)
+	}
+
 	if session != nil {
 		data, err := json.Marshal(session)
 		if err == nil {
-			if err := r.rdb.LPush(context.Background(), r.store+"::SSN::"+r.key, data); err != nil {
+			if err := r.rdb.LPush(context.Background(), r.store+"::SSN::"+flushKey.ActualKey, data); err != nil {
 				log.Printf("Unable to push session to redis for store: %s; err: %v\n", r.store, err)
 			}
 		} else {
@@ -98,7 +113,7 @@ func (r *sessionRepo) AddToBatch(session *models.Session, line *models.SessionLi
 	if line != nil {
 		data, err := json.Marshal(line)
 		if err == nil {
-			if err := r.rdb.LPush(context.Background(), r.store+"::SSL::"+r.key, data); err != nil {
+			if err := r.rdb.LPush(context.Background(), r.store+"::SSL::"+flushKey.ActualKey, data); err != nil {
 				log.Printf("Unable to push session line to redis for store: %s; err: %v\n", r.store, err)
 			}
 		} else {
