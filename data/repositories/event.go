@@ -4,12 +4,10 @@ import (
 	"beam/config"
 	"beam/data/models"
 	"context"
+	"encoding/json"
 	"log"
-	"os"
-	"os/signal"
 	"slices"
-	"sync"
-	"syscall"
+	"strconv"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -34,10 +32,8 @@ type EventRepository interface {
 
 type eventRepo struct {
 	coll       *mongo.Collection
-	client     *redis.Client
-	mutex      sync.Mutex
-	events     []*models.Event
-	eventsNew  []*models.EventNew
+	rdb        *redis.Client
+	key        string
 	saveTicker *time.Ticker
 	store      string
 }
@@ -45,25 +41,15 @@ type eventRepo struct {
 func NewEventRepository(mdb *mongo.Database, store string) EventRepository {
 	repo := &eventRepo{
 		coll:       mdb.Collection("Event"),
-		events:     make([]*models.Event, 0),
 		saveTicker: time.NewTicker(time.Duration(config.BATCH) * time.Second),
 		store:      store,
 	}
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
 	go func() {
 		defer repo.saveTicker.Stop()
-		defer repo.FlushBatch()
 
-		for {
-			select {
-			case <-repo.saveTicker.C:
-				repo.FlushBatch()
-			case <-sigChan:
-				return
-			}
+		for range repo.saveTicker.C {
+			repo.FlushBatch()
 		}
 	}()
 
@@ -137,7 +123,14 @@ func (r *eventRepo) AddToBatch(
 	event.AnyError = hasErr
 	event.AllErrorsSt = errList
 
-	r.events = append(r.events, &event)
+	data, err := json.Marshal(event)
+	if err == nil {
+		if err := r.rdb.LPush(context.Background(), r.store+"::EVE::"+r.key, data); err != nil {
+			log.Printf("Unable to push event to redis for store: %s; err: %v\n", r.store, err)
+		}
+	} else {
+		log.Printf("Unable to create event for redis for store: %s; err: %v\n", r.store, err)
+	}
 }
 
 func (r *eventRepo) AddToBatchNew(eventClassification, eventDescription, eventDetails, specialNote string, ids models.EventIDPassIn, errors []error) {
@@ -184,22 +177,61 @@ func (r *eventRepo) AddToBatchNew(eventClassification, eventDescription, eventDe
 	event.AnyError = hasErr
 	event.AllErrorsSt = errList
 
-	r.eventsNew = append(r.eventsNew, &event)
+	data, err := json.Marshal(event)
+	if err == nil {
+		if err := r.rdb.LPush(context.Background(), r.store+"::EVE::"+r.key, data); err != nil {
+			log.Printf("Unable to push event to redis for store: %s; err: %v\n", r.store, err)
+		}
+	} else {
+		log.Printf("Unable to create event for redis for store: %s; err: %v\n", r.store, err)
+	}
 }
 
 func (r *eventRepo) FlushBatch() {
-	r.mutex.Lock()
-	if len(r.events) > 0 {
-		docs := []interface{}{}
-		for _, v := range r.eventsNew {
-			docs = append(docs, v)
-		}
-		if res, err := r.coll.InsertMany(context.Background(), docs); err != nil {
-			log.Printf("Unable to insert events for store: %s, error: %v\n", r.store, err)
-		} else {
-			log.Printf("Successfully inserted %d events\n", len(res.InsertedIDs))
-			r.events = nil
+	oldKey := r.key
+	r.key = strconv.FormatInt(time.Now().Unix(), 10)
+
+	ctx := context.Background()
+
+	eventsData, err := r.rdb.LRange(ctx, r.store+"::EVE::"+oldKey, 0, -1).Result()
+	if err != nil {
+		log.Printf("Error retrieving events for store: %s; key: %s; error: %v", r.store, oldKey, err)
+	} else {
+		if err := r.rdb.Del(ctx, r.store+"::EVE::"+oldKey).Err(); err != nil {
+			log.Printf("Error deleting events for store: %s; key: %s; error: %v", r.store, oldKey, err)
 		}
 	}
-	r.mutex.Unlock()
+
+	var eventsToSave []models.Event
+
+	if len(eventsData) == 0 {
+		return
+	}
+
+	for _, event := range eventsData {
+		var e models.Event
+		if err := json.Unmarshal([]byte(event), &e); err != nil {
+			log.Printf("Error unmarshalling event for store: %s; key: %s; error: %v", r.store, oldKey, err)
+		} else {
+			eventsToSave = append(eventsToSave, e)
+		}
+	}
+
+	if len(eventsToSave) == 0 {
+		return
+	}
+
+	var docs []interface{}
+	for _, e := range eventsToSave {
+		docs = append(docs, e)
+	}
+
+	if _, err := r.coll.InsertMany(ctx, docs); err != nil {
+		log.Printf("Unable to save events for store: %s; key: %s; error: %v", r.store, oldKey, err)
+		if len(eventsToSave) > 0 {
+			if err := r.rdb.LPush(ctx, r.store+"::EVE::"+r.key, eventsData).Err(); err != nil {
+				log.Printf("Error pushing back events for store: %s; key: %s; error: %v", r.store, r.key, err)
+			}
+		}
+	}
 }

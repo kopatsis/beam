@@ -16,24 +16,23 @@ import (
 )
 
 type CustomerService interface {
-	AddCustomer(customer models.Customer) error
 	GetCustomerByID(id int) (*models.Customer, error)
-	GetCustomerAndContacts(customerID int) (*models.Customer, []*models.Contact, error)
-	GetPaymentMethodsCust(customerID int) ([]models.PaymentMethodStripe, error)
-	AddAddressToCustomer(customerID int, contact *models.Contact, mutex *config.AllMutexes) error
-	AddAddressAndRender(customerID int, contact *models.Contact, mutex *config.AllMutexes, isDefault bool) ([]*models.Contact, error, error)
-	MakeAddressDefault(customerID, contactID int) error
-	MakeAddressDefaultAndRender(customerID, contactID int) ([]*models.Contact, error, error)
-	UpdateContact(customerID, contactID int, newContact *models.Contact, mutex *config.AllMutexes) error
-	UpdateContactAndRender(customerID, contactID int, newContact *models.Contact, mutex *config.AllMutexes, isDefault bool) ([]*models.Contact, error, error)
-	DeleteContact(customerID, contactID int) (int, error)
-	DeleteContactAndRender(customerID, contactID int) ([]*models.Contact, error, error)
-	CreateCustomer(customer *models.CustomerPost, firebaseID string, store string) (*models.Customer, *models.ServerCookie, error)
-	DeleteCustomer(custID int, store string) (*models.Customer, error)
-	UpdateCustomer(customer *models.CustomerPost, custID int) (*models.Customer, error)
+	GetCustomerAndContacts(dpi *DataPassIn) (*models.Customer, []*models.Contact, error)
+	GetPaymentMethodsCust(dpi *DataPassIn) ([]models.PaymentMethodStripe, error)
+	AddAddressToCustomer(dpi *DataPassIn, contact *models.Contact, mutex *config.AllMutexes) error
+	AddAddressAndRender(dpi *DataPassIn, contact *models.Contact, mutex *config.AllMutexes, isDefault bool) ([]*models.Contact, error, error)
+	MakeAddressDefault(dpi *DataPassIn, contactID int) error
+	MakeAddressDefaultAndRender(dpi *DataPassIn, contactID int) ([]*models.Contact, error, error)
+	UpdateContact(dpi *DataPassIn, contactID int, newContact *models.Contact, mutex *config.AllMutexes) error
+	UpdateContactAndRender(dpi *DataPassIn, contactID int, newContact *models.Contact, mutex *config.AllMutexes, isDefault bool) ([]*models.Contact, error, error)
+	DeleteContact(dpi *DataPassIn, contactID int) (int, error)
+	DeleteContactAndRender(dpi *DataPassIn, contactID int) ([]*models.Contact, error, error)
+	CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, firebaseID string) (*models.Customer, *models.ServerCookie, error)
+	DeleteCustomer(dpi *DataPassIn) (*models.Customer, error)
+	UpdateCustomer(dpi *DataPassIn, customer *models.CustomerPost) (*models.Customer, error)
 
-	LoginCookie(firebaseID, store string, guestID string) (*models.ClientCookie, error)
-	ResetPass(firebaseID, store string, guestID string) error
+	LoginCookie(dpi *DataPassIn, firebaseID string) (*models.ClientCookie, error)
+	ResetPass(dpi *DataPassIn, firebaseID string) error
 	CustomerMiddleware(cookie *models.ClientCookie)
 	GuestMiddleware(cookie *models.ClientCookie, store string)
 	FullMiddleware(cookie *models.ClientCookie, store string)
@@ -51,16 +50,12 @@ func NewCustomerService(customerRepo repositories.CustomerRepository) CustomerSe
 	return &customerService{customerRepo: customerRepo}
 }
 
-func (s *customerService) AddCustomer(customer models.Customer) error {
-	return s.customerRepo.Create(customer)
-}
-
 func (s *customerService) GetCustomerByID(id int) (*models.Customer, error) {
 	return s.customerRepo.Read(id)
 }
 
-func (s *customerService) GetCustomerAndContacts(customerID int) (*models.Customer, []*models.Contact, error) {
-	cust, cont, err := s.customerRepo.GetCustomerAndContacts(customerID)
+func (s *customerService) GetCustomerAndContacts(dpi *DataPassIn) (*models.Customer, []*models.Contact, error) {
+	cust, cont, err := s.customerRepo.GetCustomerAndContacts(dpi.CustomerID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -72,12 +67,12 @@ func (s *customerService) GetCustomerAndContacts(customerID int) (*models.Custom
 	return cust, cont, err
 }
 
-func (s *customerService) GetPaymentMethodsCust(customerID int) ([]models.PaymentMethodStripe, error) {
-	return s.customerRepo.GetPaymentMethodsCust(customerID)
+func (s *customerService) GetPaymentMethodsCust(dpi *DataPassIn) ([]models.PaymentMethodStripe, error) {
+	return s.customerRepo.GetPaymentMethodsCust(dpi.CustomerID)
 }
 
-func (s *customerService) AddAddressToCustomer(customerID int, contact *models.Contact, mutex *config.AllMutexes) error {
-	contact.CustomerID = customerID
+func (s *customerService) AddAddressToCustomer(dpi *DataPassIn, contact *models.Contact, mutex *config.AllMutexes) error {
+	contact.CustomerID = dpi.CustomerID
 
 	if err := custhelp.VerifyContact(contact, mutex); err != nil {
 		return err
@@ -87,42 +82,42 @@ func (s *customerService) AddAddressToCustomer(customerID int, contact *models.C
 }
 
 // Actual contacts, contact update error, contact retrieval error
-func (s *customerService) AddAddressAndRender(customerID int, contact *models.Contact, mutex *config.AllMutexes, isDefault bool) ([]*models.Contact, error, error) {
-	updateErr := s.AddAddressToCustomer(customerID, contact, mutex)
+func (s *customerService) AddAddressAndRender(dpi *DataPassIn, contact *models.Contact, mutex *config.AllMutexes, isDefault bool) ([]*models.Contact, error, error) {
+	updateErr := s.AddAddressToCustomer(dpi, contact, mutex)
 
 	if updateErr == nil && isDefault {
-		updateErr = s.customerRepo.UpdateCustomerDefault(customerID, contact.ID)
+		updateErr = s.customerRepo.UpdateCustomerDefault(dpi.CustomerID, contact.ID)
 	}
 
-	list, getErr := s.customerRepo.GetContactsWithDefault(customerID)
+	list, getErr := s.customerRepo.GetContactsWithDefault(dpi.CustomerID)
 
 	return list, updateErr, getErr
 }
 
-func (s *customerService) MakeAddressDefault(customerID, contactID int) error {
+func (s *customerService) MakeAddressDefault(dpi *DataPassIn, contactID int) error {
 	c, err := s.customerRepo.GetSingleContact(contactID)
 	if err != nil {
 		return err
 	} else if c == nil {
 		return fmt.Errorf("unable to find non-nil contact for id: %d", contactID)
-	} else if c.CustomerID != customerID {
-		return fmt.Errorf("customer id %d doesn't match contact customer id of %d for contact id: %d", customerID, c.CustomerID, contactID)
+	} else if c.CustomerID != dpi.CustomerID {
+		return fmt.Errorf("customer id %d doesn't match contact customer id of %d for contact id: %d", dpi.CustomerID, c.CustomerID, contactID)
 	}
 
-	return s.customerRepo.UpdateCustomerDefault(customerID, contactID)
+	return s.customerRepo.UpdateCustomerDefault(dpi.CustomerID, contactID)
 }
 
 // Actual contacts, contact update error, contact retrieval error
-func (s *customerService) MakeAddressDefaultAndRender(customerID, contactID int) ([]*models.Contact, error, error) {
-	updateErr := s.MakeAddressDefault(customerID, contactID)
+func (s *customerService) MakeAddressDefaultAndRender(dpi *DataPassIn, contactID int) ([]*models.Contact, error, error) {
+	updateErr := s.MakeAddressDefault(dpi, contactID)
 
-	list, getErr := s.customerRepo.GetContactsWithDefault(customerID)
+	list, getErr := s.customerRepo.GetContactsWithDefault(dpi.CustomerID)
 
 	return list, updateErr, getErr
 }
 
-func (s *customerService) UpdateContact(customerID, contactID int, newContact *models.Contact, mutex *config.AllMutexes) error {
-	newContact.CustomerID = customerID
+func (s *customerService) UpdateContact(dpi *DataPassIn, contactID int, newContact *models.Contact, mutex *config.AllMutexes) error {
+	newContact.CustomerID = dpi.CustomerID
 
 	if err := custhelp.VerifyContact(newContact, mutex); err != nil {
 		return err
@@ -131,8 +126,8 @@ func (s *customerService) UpdateContact(customerID, contactID int, newContact *m
 	oldContact, err := s.customerRepo.GetSingleContact(contactID)
 	if err != nil {
 		return err
-	} else if oldContact.CustomerID != customerID {
-		return fmt.Errorf("non matching customer id for update contacts, id provided: %d; id on contact: %d", customerID, oldContact.CustomerID)
+	} else if oldContact.CustomerID != dpi.CustomerID {
+		return fmt.Errorf("non matching customer id for update contacts, id provided: %d; id on contact: %d", dpi.CustomerID, oldContact.CustomerID)
 	}
 
 	newContact.ID = contactID
@@ -142,22 +137,22 @@ func (s *customerService) UpdateContact(customerID, contactID int, newContact *m
 }
 
 // Actual contacts, contact update error, contact retrieval error
-func (s *customerService) UpdateContactAndRender(customerID, contactID int, newContact *models.Contact, mutex *config.AllMutexes, isDefault bool) ([]*models.Contact, error, error) {
-	updateErr := s.UpdateContact(customerID, contactID, newContact, mutex)
+func (s *customerService) UpdateContactAndRender(dpi *DataPassIn, contactID int, newContact *models.Contact, mutex *config.AllMutexes, isDefault bool) ([]*models.Contact, error, error) {
+	updateErr := s.UpdateContact(dpi, contactID, newContact, mutex)
 
 	if updateErr == nil && isDefault {
-		updateErr = s.customerRepo.UpdateCustomerDefault(customerID, contactID)
+		updateErr = s.customerRepo.UpdateCustomerDefault(dpi.CustomerID, contactID)
 	}
 
-	list, getErr := s.customerRepo.GetContactsWithDefault(customerID)
+	list, getErr := s.customerRepo.GetContactsWithDefault(dpi.CustomerID)
 
 	return list, updateErr, getErr
 }
 
-func (s *customerService) DeleteContact(customerID, contactID int) (int, error) {
+func (s *customerService) DeleteContact(dpi *DataPassIn, contactID int) (int, error) {
 	newDefaultID := 0
 
-	list, err := s.customerRepo.GetContactsWithDefault(customerID)
+	list, err := s.customerRepo.GetContactsWithDefault(dpi.CustomerID)
 	if err != nil {
 		return newDefaultID, err
 	}
@@ -171,7 +166,7 @@ func (s *customerService) DeleteContact(customerID, contactID int) (int, error) 
 	}
 
 	if index == -1 {
-		return newDefaultID, fmt.Errorf("no contact of id: %d for customer: %d", contactID, customerID)
+		return newDefaultID, fmt.Errorf("no contact of id: %d for customer: %d", contactID, dpi.CustomerID)
 	}
 
 	if index == 0 && len(list) > 1 {
@@ -182,19 +177,19 @@ func (s *customerService) DeleteContact(customerID, contactID int) (int, error) 
 }
 
 // Actual contacts, contact update error, contact retrieval error
-func (s *customerService) DeleteContactAndRender(customerID, contactID int) ([]*models.Contact, error, error) {
-	newDefault, updateErr := s.DeleteContact(customerID, contactID)
+func (s *customerService) DeleteContactAndRender(dpi *DataPassIn, contactID int) ([]*models.Contact, error, error) {
+	newDefault, updateErr := s.DeleteContact(dpi, contactID)
 
 	if updateErr == nil && newDefault > 0 {
-		updateErr = s.customerRepo.UpdateCustomerDefault(customerID, newDefault)
+		updateErr = s.customerRepo.UpdateCustomerDefault(dpi.CustomerID, newDefault)
 	}
 
-	list, getErr := s.customerRepo.GetContactsWithDefault(customerID)
+	list, getErr := s.customerRepo.GetContactsWithDefault(dpi.CustomerID)
 
 	return list, updateErr, getErr
 }
 
-func (s *customerService) CreateCustomer(customer *models.CustomerPost, firebaseID string, store string) (*models.Customer, *models.ServerCookie, error) {
+func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, firebaseID string) (*models.Customer, *models.ServerCookie, error) {
 	validate := validator.New()
 	err := validate.Struct(customer)
 	if err != nil {
@@ -228,19 +223,19 @@ func (s *customerService) CreateCustomer(customer *models.CustomerPost, firebase
 		return nil, nil, err
 	}
 
-	c, err := s.customerRepo.CreateServerCookie(newCust.ID, firebaseID, store)
+	c, err := s.customerRepo.CreateServerCookie(newCust.ID, firebaseID, dpi.Store)
 
 	return newCust, c, err
 }
 
-func (s *customerService) DeleteCustomer(custID int, store string) (*models.Customer, error) {
-	cust, err := s.customerRepo.Read(custID)
+func (s *customerService) DeleteCustomer(dpi *DataPassIn) (*models.Customer, error) {
+	cust, err := s.customerRepo.Read(dpi.CustomerID)
 	if err != nil {
 		return nil, err
 	}
 
 	if cust.Status == "Archived" {
-		return nil, fmt.Errorf("already archived customer for id: %d", custID)
+		return nil, fmt.Errorf("already archived customer for id: %d", dpi.CustomerID)
 	}
 
 	cust.Status = "Archived"
@@ -248,7 +243,7 @@ func (s *customerService) DeleteCustomer(custID int, store string) (*models.Cust
 		return nil, err
 	}
 
-	cookie, err := s.customerRepo.GetServerCookie(custID, store)
+	cookie, err := s.customerRepo.GetServerCookie(dpi.CustomerID, dpi.Store)
 	if err != nil {
 		// log it
 		return nil, err
@@ -259,20 +254,20 @@ func (s *customerService) DeleteCustomer(custID int, store string) (*models.Cust
 	return cust, err
 }
 
-func (s *customerService) UpdateCustomer(customer *models.CustomerPost, custID int) (*models.Customer, error) {
+func (s *customerService) UpdateCustomer(dpi *DataPassIn, customer *models.CustomerPost) (*models.Customer, error) {
 	validate := validator.New()
 	err := validate.Struct(customer)
 	if err != nil {
 		return nil, err
 	}
 
-	cust, err := s.customerRepo.Read(custID)
+	cust, err := s.customerRepo.Read(dpi.CustomerID)
 	if err != nil {
 		return nil, err
 	}
 
 	if cust.Status == "Archived" {
-		return nil, fmt.Errorf("inactive customer for id: %d", custID)
+		return nil, fmt.Errorf("inactive customer for id: %d", dpi.CustomerID)
 	}
 
 	cust.Email = customer.Email
@@ -287,7 +282,7 @@ func (s *customerService) UpdateCustomer(customer *models.CustomerPost, custID i
 	return cust, nil
 }
 
-func (s *customerService) LoginCookie(firebaseID, store string, guestID string) (*models.ClientCookie, error) {
+func (s *customerService) LoginCookie(dpi *DataPassIn, firebaseID string) (*models.ClientCookie, error) {
 	customer, err := s.customerRepo.GetCustomerByFirebase(firebaseID)
 	if err != nil {
 		return nil, err
@@ -297,24 +292,24 @@ func (s *customerService) LoginCookie(firebaseID, store string, guestID string) 
 		return nil, fmt.Errorf("archived customer for firebase ID: %s", firebaseID)
 	}
 
-	serverCookie, err := s.customerRepo.GetServerCookie(customer.ID, store)
+	serverCookie, err := s.customerRepo.GetServerCookie(customer.ID, dpi.Store)
 	if err != nil {
 		return nil, err
 	} else if serverCookie == nil {
-		return nil, fmt.Errorf("no active server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, store)
+		return nil, fmt.Errorf("no active server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, dpi.Store)
 	} else if customer.Status == "Archived" {
-		return nil, fmt.Errorf("archived server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, store)
+		return nil, fmt.Errorf("archived server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, dpi.Store)
 	}
 
 	return &models.ClientCookie{
-		Store:       store,
+		Store:       dpi.Store,
 		CustomerID:  customer.ID,
 		CustomerSet: time.Now(),
-		GuestID:     guestID,
+		GuestID:     dpi.GuestID,
 	}, nil
 }
 
-func (s *customerService) ResetPass(firebaseID, store string, guestID string) error {
+func (s *customerService) ResetPass(dpi *DataPassIn, firebaseID string) error {
 	customer, err := s.customerRepo.GetCustomerByFirebase(firebaseID)
 	if err != nil {
 		return err
@@ -324,13 +319,13 @@ func (s *customerService) ResetPass(firebaseID, store string, guestID string) er
 		return fmt.Errorf("archived customer for firebase ID: %s", firebaseID)
 	}
 
-	serverCookie, err := s.customerRepo.GetServerCookie(customer.ID, store)
+	serverCookie, err := s.customerRepo.GetServerCookie(customer.ID, dpi.Store)
 	if err != nil {
 		return err
 	} else if serverCookie == nil {
-		return fmt.Errorf("no active server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, store)
+		return fmt.Errorf("no active server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, dpi.Store)
 	} else if customer.Status == "Archived" {
-		return fmt.Errorf("archived server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, store)
+		return fmt.Errorf("archived server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, dpi.Store)
 	}
 
 	reset := time.Now()
