@@ -20,6 +20,8 @@ type SessionService interface {
 	AddToSession(session *models.Session, line *models.SessionLine)
 	SessionMiddleware(cookie *models.SessionCookie, customerID int, guestID, store string, c *gin.Context, tools *config.Tools)
 	AffiliateMiddleware(cookie *models.AffiliateSession, sessionID, store string, c *gin.Context)
+
+	AddAffiliateSale(dpi *DataPassIn, orderID string)
 }
 
 type sessionService struct {
@@ -105,4 +107,16 @@ func (s *sessionService) AffiliateMiddleware(cookie *models.AffiliateSession, se
 			s.sessionRepo.AddAffiliateLine(line, store)
 		}()
 	}
+}
+
+func (s *sessionService) AddAffiliateSale(dpi *DataPassIn, orderID string) {
+	use := models.AffiliateSale{
+		AffiliateID: dpi.AffiliateID,
+		Code:        dpi.AffiliateCode,
+		SessionID:   dpi.SessionID,
+		OrderID:     orderID,
+		Timestamp:   time.Now(),
+	}
+
+	s.sessionRepo.AddAffiliateSale(&use, dpi.Store)
 }

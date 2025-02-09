@@ -12,15 +12,15 @@ import (
 )
 
 type ReviewService interface {
-	AddReview(customerID int, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error)
-	UpdateReview(customerID int, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error)
-	DeleteReview(customerID int, productID int, store string, ps *productService, tools *config.Tools) (*models.Review, error)
-	GetReview(customerID int, productID int) (*models.Review, error)
-	FirstThreeForProduct(customerID int, productID int) (firstThree []*models.Review, existingReview *models.Review, singleErr error, multiErr error)
-	ReviewsByProduct(customerID int, productID int, fromURL url.Values) (ret models.ReviewPageRender, singleErr error, multiErr error)
-	ReviewsByCustomer(customerID int, fromURL url.Values) (models.ReviewPageRender, error)
-	GetReviewIDOnly(customerID int, ID int) (*models.Review, error)
-	GetReviewsForOrder(order *models.Order) (map[int]*models.Review, error)
+	AddReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error)
+	UpdateReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error)
+	DeleteReview(dpi *DataPassIn, productID int, store string, ps *productService, tools *config.Tools) (*models.Review, error)
+	GetReview(dpi *DataPassIn, productID int) (*models.Review, error)
+	FirstThreeForProduct(dpi *DataPassIn, productID int) (firstThree []*models.Review, existingReview *models.Review, singleErr error, multiErr error)
+	ReviewsByProduct(dpi *DataPassIn, productID int, fromURL url.Values) (ret models.ReviewPageRender, singleErr error, multiErr error)
+	ReviewsByCustomer(dpi *DataPassIn, fromURL url.Values) (models.ReviewPageRender, error)
+	GetReviewIDOnly(dpi *DataPassIn, ID int) (*models.Review, error)
+	GetReviewsForOrder(dpi *DataPassIn, order *models.Order) (map[int]*models.Review, error)
 }
 
 type reviewService struct {
@@ -31,7 +31,7 @@ func NewReviewService(reviewRepo repositories.ReviewRepository) ReviewService {
 	return &reviewService{reviewRepo: reviewRepo}
 }
 
-func (s *reviewService) AddReview(customerID int, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error) {
+func (s *reviewService) AddReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error) {
 	if len(subject) > 280 {
 		subject = subject[:277] + "..."
 	}
@@ -40,9 +40,9 @@ func (s *reviewService) AddReview(customerID int, productID int, store string, s
 	}
 
 	if useDefaultName {
-		cust, err := cs.customerRepo.Read(customerID)
+		cust, err := cs.customerRepo.Read(dpi.CustomerID)
 		if err == nil {
-			log.Printf("Unable to get customer by customerid: %d", customerID)
+			log.Printf("Unable to get customer by customerid: %d", dpi.CustomerID)
 			displayName = cust.DefaultName
 		}
 	}
@@ -55,12 +55,12 @@ func (s *reviewService) AddReview(customerID int, productID int, store string, s
 		displayName = displayName[:140]
 	}
 
-	existingReview, err := s.reviewRepo.GetSingle(customerID, productID)
+	existingReview, err := s.reviewRepo.GetSingle(dpi.CustomerID, productID)
 	if err != nil {
 		return nil, err
 	}
 	if existingReview != nil {
-		return nil, fmt.Errorf("review already exists for customerID %d and productID %d", customerID, productID)
+		return nil, fmt.Errorf("review already exists for customerID %d and productID %d", dpi.CustomerID, productID)
 	}
 
 	if stars > 5 {
@@ -70,7 +70,7 @@ func (s *reviewService) AddReview(customerID int, productID int, store string, s
 	}
 
 	review := &models.Review{
-		CustomerID:  customerID,
+		CustomerID:  dpi.CustomerID,
 		ProductID:   productID,
 		DisplayName: displayName,
 		Stars:       stars,
@@ -83,12 +83,12 @@ func (s *reviewService) AddReview(customerID int, productID int, store string, s
 		return nil, err
 	}
 
-	go ps.UpdateRatings(productID, store, stars, 0, 1, tools)
+	go ps.UpdateRatings(dpi, productID, stars, 0, 1, tools)
 
 	return review, nil
 }
 
-func (s *reviewService) UpdateReview(customerID int, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error) {
+func (s *reviewService) UpdateReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error) {
 	if len(subject) > 280 {
 		subject = subject[:277] + "..."
 	}
@@ -97,9 +97,9 @@ func (s *reviewService) UpdateReview(customerID int, productID int, store string
 	}
 
 	if useDefaultName {
-		cust, err := cs.customerRepo.Read(customerID)
+		cust, err := cs.customerRepo.Read(dpi.CustomerID)
 		if err == nil {
-			log.Printf("Unable to get customer by customerid: %d", customerID)
+			log.Printf("Unable to get customer by customerid: %d", dpi.CustomerID)
 			displayName = cust.DefaultName
 		}
 	}
@@ -112,12 +112,12 @@ func (s *reviewService) UpdateReview(customerID int, productID int, store string
 		displayName = displayName[:140]
 	}
 
-	existingReview, err := s.reviewRepo.GetSingle(customerID, productID)
+	existingReview, err := s.reviewRepo.GetSingle(dpi.CustomerID, productID)
 	if err != nil {
 		return nil, err
 	}
 	if existingReview == nil {
-		return nil, fmt.Errorf("review does not exist for customerID %d and productID %d", customerID, productID)
+		return nil, fmt.Errorf("review does not exist for customerID %d and productID %d", dpi.CustomerID, productID)
 	}
 
 	if stars > 5 {
@@ -138,19 +138,19 @@ func (s *reviewService) UpdateReview(customerID int, productID int, store string
 		return nil, err
 	}
 
-	go ps.UpdateRatings(productID, store, stars, oldStars, 0, tools)
+	go ps.UpdateRatings(dpi, productID, stars, oldStars, 0, tools)
 
 	return existingReview, nil
 }
 
-func (s *reviewService) DeleteReview(customerID int, productID int, store string, ps *productService, tools *config.Tools) (*models.Review, error) {
+func (s *reviewService) DeleteReview(dpi *DataPassIn, productID int, store string, ps *productService, tools *config.Tools) (*models.Review, error) {
 
-	existingReview, err := s.reviewRepo.GetSingle(customerID, productID)
+	existingReview, err := s.reviewRepo.GetSingle(dpi.CustomerID, productID)
 	if err != nil {
 		return nil, err
 	}
 	if existingReview == nil {
-		return nil, fmt.Errorf("review does not exist for customerID %d and productID %d", customerID, productID)
+		return nil, fmt.Errorf("review does not exist for customerID %d and productID %d", dpi.CustomerID, productID)
 	}
 
 	stars := existingReview.Stars
@@ -159,19 +159,19 @@ func (s *reviewService) DeleteReview(customerID int, productID int, store string
 		return nil, err
 	}
 
-	go ps.UpdateRatings(productID, store, stars, 0, -1, tools)
+	go ps.UpdateRatings(dpi, productID, stars, 0, -1, tools)
 
 	return existingReview, nil
 }
 
-func (s *reviewService) GetReview(customerID int, productID int) (*models.Review, error) {
-	return s.reviewRepo.GetSingle(customerID, productID)
+func (s *reviewService) GetReview(dpi *DataPassIn, productID int) (*models.Review, error) {
+	return s.reviewRepo.GetSingle(dpi.CustomerID, productID)
 }
 
 // First 3 featured, customer review, error for featured, error for customer
-func (s *reviewService) FirstThreeForProduct(customerID int, productID int) (firstThree []*models.Review, existingReview *models.Review, singleErr error, multiErr error) {
+func (s *reviewService) FirstThreeForProduct(dpi *DataPassIn, productID int) (firstThree []*models.Review, existingReview *models.Review, singleErr error, multiErr error) {
 
-	existingReview, singleErr = s.reviewRepo.GetSingle(customerID, productID)
+	existingReview, singleErr = s.reviewRepo.GetSingle(dpi.CustomerID, productID)
 
 	if existingReview != nil {
 		firstThree, multiErr = s.reviewRepo.GetReviewsByProduct(productID, 0, 3, "stars", true, existingReview.CustomerID)
@@ -182,7 +182,7 @@ func (s *reviewService) FirstThreeForProduct(customerID int, productID int) (fir
 	return firstThree, existingReview, multiErr, singleErr
 }
 
-func (s *reviewService) ReviewsByProduct(customerID int, productID int, fromURL url.Values) (ret models.ReviewPageRender, singleErr error, multiErr error) {
+func (s *reviewService) ReviewsByProduct(dpi *DataPassIn, productID int, fromURL url.Values) (ret models.ReviewPageRender, singleErr error, multiErr error) {
 
 	var existingReview *models.Review
 	var allReviews []*models.Review
@@ -193,7 +193,7 @@ func (s *reviewService) ReviewsByProduct(customerID int, productID int, fromURL 
 
 	offset := (perPage * page) - perPage
 
-	existingReview, singleErr = s.reviewRepo.GetSingle(customerID, productID)
+	existingReview, singleErr = s.reviewRepo.GetSingle(dpi.CustomerID, productID)
 
 	allReviews, multiErr = s.reviewRepo.GetReviewsByProduct(productID, offset, perPage+1, sort, desc, 0)
 
@@ -214,7 +214,7 @@ func (s *reviewService) ReviewsByProduct(customerID int, productID int, fromURL 
 	return ret, multiErr, singleErr
 }
 
-func (s *reviewService) ReviewsByCustomer(customerID int, fromURL url.Values) (models.ReviewPageRender, error) {
+func (s *reviewService) ReviewsByCustomer(dpi *DataPassIn, fromURL url.Values) (models.ReviewPageRender, error) {
 
 	var ret models.ReviewPageRender
 
@@ -224,7 +224,7 @@ func (s *reviewService) ReviewsByCustomer(customerID int, fromURL url.Values) (m
 
 	offset := (perPage * page) - perPage
 
-	allReviews, err := s.reviewRepo.GetReviewsByCustomer(customerID, offset, perPage+1, sort, desc)
+	allReviews, err := s.reviewRepo.GetReviewsByCustomer(dpi.CustomerID, offset, perPage+1, sort, desc)
 
 	more := false
 	if len(allReviews) > perPage {
@@ -242,19 +242,19 @@ func (s *reviewService) ReviewsByCustomer(customerID int, fromURL url.Values) (m
 	return ret, err
 }
 
-func (s *reviewService) GetReviewIDOnly(customerID int, ID int) (*models.Review, error) {
+func (s *reviewService) GetReviewIDOnly(dpi *DataPassIn, ID int) (*models.Review, error) {
 	r, err := s.reviewRepo.GetSingleByID(ID)
 	if err != nil {
 		return nil, err
 	} else if r == nil {
 		return nil, errors.New("empty review")
-	} else if r.CustomerID != customerID {
-		return nil, fmt.Errorf("review doesn't belong to customer: %d", customerID)
+	} else if r.CustomerID != dpi.CustomerID {
+		return nil, fmt.Errorf("review doesn't belong to customer: %d", dpi.CustomerID)
 	}
 	return r, nil
 }
 
-func (s *reviewService) GetReviewsForOrder(order *models.Order) (map[int]*models.Review, error) {
+func (s *reviewService) GetReviewsForOrder(dpi *DataPassIn, order *models.Order) (map[int]*models.Review, error) {
 	pids := map[int]struct{}{}
 	for _, l := range order.Lines {
 		pids[l.ProductID] = struct{}{}

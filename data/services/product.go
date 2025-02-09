@@ -22,6 +22,7 @@ type ProductService interface {
 	GetProductByID(id int) (*models.Product, error)
 	UpdateProduct(product models.Product) error
 	DeleteProduct(id int) error
+
 	GetAllProductInfo(fromURL url.Values, Mutex *config.AllMutexes, name string) (models.CollectionRender, error)
 	GetProductAndProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRedis, models.ProductRender, string, error)
 	GetProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRender, string, error)
@@ -29,10 +30,12 @@ type ProductService interface {
 	GetProductByVariantID(name string, vid int) (models.ProductRedis, string, error)
 	GetProductsByVariantIDs(name string, vids []int) (map[int]*models.ProductRedis, error)
 	GetProductsMapFromCartLine(name string, cartLines []models.CartLine) (map[int]*models.ProductRedis, error)
-	UpdateRatings(pid int, name string, newRate, oldRate, plusMinus int, tools *config.Tools)
-	ConfirmDraftOrderProducts(name string, vids []int) (map[int]bool, bool, error)
+
+	UpdateRatings(dpi *DataPassIn, pid, newRate, oldRate, plusMinus int, tools *config.Tools)
+	ConfirmDraftOrderProducts(dpi *DataPassIn, vids []int) (map[int]bool, bool, error)
 	RenderComparables(name string, id int) ([]models.ComparablesRender, error)
-	SetInventoryFromOrder(name string, decrement map[int]int, handles []string) error
+
+	SetInventoryFromOrder(dpi *DataPassIn, decrement map[int]int, handles []string) error
 }
 
 type productService struct {
@@ -247,40 +250,40 @@ func (s *productService) GetProductsMapFromCartLine(name string, cartLines []mod
 }
 
 // Logistics error, DB error
-func (s *productService) UpdateRatings(pid int, name string, newRate, oldRate, plusMinus int, tools *config.Tools) {
+func (s *productService) UpdateRatings(dpi *DataPassIn, pid, newRate, oldRate, plusMinus int, tools *config.Tools) {
 	if plusMinus != -1 && plusMinus != 0 && plusMinus != 1 {
-		emails.AlertGeneralRatingsError(pid, "", name, true, errors.New("plusMinus must be -1 (delete), 0 (update), 1 (new)"), "plusMinus must be -1 (delete), 0 (update), 1 (new)", tools)
+		emails.AlertGeneralRatingsError(pid, "", dpi.Store, true, errors.New("plusMinus must be -1 (delete), 0 (update), 1 (new)"), "plusMinus must be -1 (delete), 0 (update), 1 (new)", tools)
 		return
 	}
 
 	if newRate < 1 || newRate > 5 || ((oldRate < 1 || oldRate > 5) && plusMinus == 0) {
-		emails.AlertGeneralRatingsError(pid, "", name, true, errors.New("ratings must be 1-5 inclusive"), "ratings must be 1-5 inclusive", tools)
+		emails.AlertGeneralRatingsError(pid, "", dpi.Store, true, errors.New("ratings must be 1-5 inclusive"), "ratings must be 1-5 inclusive", tools)
 		return
 	}
 
 	prod, err := s.productRepo.Read(pid)
 	if err != nil {
-		emails.AlertGeneralRatingsError(pid, "", name, false, err, "unable to read product from SQL", tools)
+		emails.AlertGeneralRatingsError(pid, "", dpi.Store, false, err, "unable to read product from SQL", tools)
 		return
 	}
 
-	prodRedis, rdr, err := s.productRepo.GetFullProduct(name, prod.Handle)
+	prodRedis, rdr, err := s.productRepo.GetFullProduct(dpi.Store, prod.Handle)
 	if err != nil {
-		emails.AlertGeneralRatingsError(pid, "", name, false, err, "unable to read product from redis", tools)
+		emails.AlertGeneralRatingsError(pid, "", dpi.Store, false, err, "unable to read product from redis", tools)
 		return
 	} else if rdr != "" {
-		emails.AlertGeneralRatingsError(pid, "", name, false, errors.New("product has redirect, no longer active"), "product has redirect, no longer active", tools)
+		emails.AlertGeneralRatingsError(pid, "", dpi.Store, false, errors.New("product has redirect, no longer active"), "product has redirect, no longer active", tools)
 		return
 	}
 
-	prodInfo, err := s.productRepo.GetAllProductInfo(name)
+	prodInfo, err := s.productRepo.GetAllProductInfo(dpi.Store)
 	if err != nil {
-		emails.AlertGeneralRatingsError(pid, "", name, false, err, "unable to read product info section from redis", tools)
+		emails.AlertGeneralRatingsError(pid, "", dpi.Store, false, err, "unable to read product info section from redis", tools)
 		return
 	}
 
 	if prod.Rating != prodRedis.Rating || prod.RatingCt != prodRedis.RatingCt {
-		emails.AlertRatingsMismatch(pid, prod.Handle, prod.Rating, prodRedis.Rating, prod.RatingCt, prodRedis.RatingCt, name, tools)
+		emails.AlertRatingsMismatch(pid, prod.Handle, prod.Rating, prodRedis.Rating, prod.RatingCt, prodRedis.RatingCt, dpi.Store, tools)
 	}
 
 	rate := prodRedis.Rating
@@ -324,22 +327,22 @@ func (s *productService) UpdateRatings(pid int, name string, newRate, oldRate, p
 	}
 
 	if !found {
-		emails.AlertProductNotInInfo(pid, prod.Handle, name, tools)
+		emails.AlertProductNotInInfo(pid, prod.Handle, dpi.Store, tools)
 	}
 
-	if err := s.productRepo.SaveProductInfoInTransaction(name, &prodRedis, prodInfo); err != nil {
-		emails.AlertGeneralRatingsError(pid, "", name, false, err, "unable to save product and product info in transaction redis", tools)
+	if err := s.productRepo.SaveProductInfoInTransaction(dpi.Store, &prodRedis, prodInfo); err != nil {
+		emails.AlertGeneralRatingsError(pid, "", dpi.Store, false, err, "unable to save product and product info in transaction redis", tools)
 		return
 	}
 
 	if err := s.productRepo.Update(*prod); err != nil {
-		emails.AlertGeneralRatingsError(pid, "", name, false, err, "unable to save product for sql", tools)
+		emails.AlertGeneralRatingsError(pid, "", dpi.Store, false, err, "unable to save product for sql", tools)
 		return
 	}
 }
 
-func (s *productService) ConfirmDraftOrderProducts(name string, vids []int) (map[int]bool, bool, error) {
-	lvl, err := s.productRepo.GetLimVars(name, vids)
+func (s *productService) ConfirmDraftOrderProducts(dpi *DataPassIn, vids []int) (map[int]bool, bool, error) {
+	lvl, err := s.productRepo.GetLimVars(dpi.Store, vids)
 	if err != nil {
 		return nil, false, err
 	}
@@ -417,9 +420,9 @@ func (s *productService) RenderComparables(name string, productID int) ([]models
 	return ret, nil
 }
 
-func (s *productService) SetInventoryFromOrder(name string, decrement map[int]int, handles []string) error {
+func (s *productService) SetInventoryFromOrder(dpi *DataPassIn, decrement map[int]int, handles []string) error {
 
-	prods, err := s.productRepo.GetFullProducts(name, handles)
+	prods, err := s.productRepo.GetFullProducts(dpi.Store, handles)
 	if err != nil {
 		return err
 	}
@@ -440,7 +443,7 @@ func (s *productService) SetInventoryFromOrder(name string, decrement map[int]in
 					v.Quantity = rand.Intn(rangeRand) + config.LOWER_INV
 				}
 				if v.Quantity < 0 {
-					log.Printf("Negative inventory for handle: %s; variant id: %d; store: %s; inventory: %d\n", p.Handle, v.PK, name, v.Quantity)
+					log.Printf("Negative inventory for handle: %s; variant id: %d; store: %s; inventory: %d\n", p.Handle, v.PK, dpi.Store, v.Quantity)
 				}
 				if salesCurrent, ok := salesInc[p.Handle]; ok {
 					salesInc[p.Handle] = salesCurrent + dec
@@ -457,7 +460,7 @@ func (s *productService) SetInventoryFromOrder(name string, decrement map[int]in
 		prods[i] = p
 	}
 
-	productInfo, err := s.productRepo.GetAllProductInfo(name)
+	productInfo, err := s.productRepo.GetAllProductInfo(dpi.Store)
 	if err != nil {
 		return err
 	}
@@ -478,9 +481,9 @@ func (s *productService) SetInventoryFromOrder(name string, decrement map[int]in
 
 	errSaveRedis := error(nil)
 	if modded {
-		errSaveRedis = s.productRepo.SaveProductInfoInTransactionMulti(name, prods, productInfo)
+		errSaveRedis = s.productRepo.SaveProductInfoInTransactionMulti(dpi.Store, prods, productInfo)
 	} else {
-		errSaveRedis = s.productRepo.SaveProducts(name, prods)
+		errSaveRedis = s.productRepo.SaveProducts(dpi.Store, prods)
 	}
 
 	if errSaveRedis != nil {

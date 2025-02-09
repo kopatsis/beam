@@ -62,7 +62,7 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 		dvids = append(dvids, l.VariantID)
 	}
 
-	mapped, works, err := ps.ConfirmDraftOrderProducts(dpi.Store, dvids)
+	mapped, works, err := ps.ConfirmDraftOrderProducts(dpi, dvids)
 	if err != nil {
 		return nil, fmt.Errorf("unable to query lim vars for draft order: %s, store: %s,  err: %v", draftID, dpi.Store, err)
 	} else if !works {
@@ -151,7 +151,7 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 		}
 	}
 
-	if err := ps.SetInventoryFromOrder(dpi.Store, dec, handles); err != nil {
+	if err := ps.SetInventoryFromOrder(dpi, dec, handles); err != nil {
 		log.Printf("Unable to update inventory for order: %s, in store: %s; error: %v\n", order.ID.Hex(), dpi.Store, err)
 	}
 
