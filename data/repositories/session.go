@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"strconv"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -123,10 +122,36 @@ func (r *sessionRepo) AddToBatch(session *models.Session, line *models.SessionLi
 }
 
 func (r *sessionRepo) FlushBatch() {
-	oldKey := r.key
-	r.key = strconv.FormatInt(time.Now().Unix(), 10)
 
 	ctx := context.Background()
+
+	fks, err := r.rdb.Get(ctx, r.store+"::SLN").Result()
+	if err != nil {
+		log.Printf("Unable to get key to push sessions and liines to redis for store: %s; err: %v\n", r.store, err)
+	}
+
+	var flushKey config.FlushKey
+	if err := json.Unmarshal([]byte(fks), &flushKey); err != nil {
+		log.Printf("Unable to convert key to push sessions and lines to redis for store: %s; err: %v\n", r.store, err)
+	}
+
+	if flushKey.CanFlush.After(time.Now()) {
+		return
+	}
+
+	oldKey := flushKey.ActualKey
+
+	ok, err := r.rdb.SetNX(ctx, r.store+"::SLN-L", "1", 60*time.Second).Result()
+	if err != nil || !ok {
+		return
+	}
+	defer r.rdb.Del(ctx, r.store+"::SLN-L")
+
+	if err := r.rdb.Set(ctx, r.store+"::SLN", config.NewKey(), 0).Err(); err != nil {
+		return
+	}
+
+	time.Sleep(333 * time.Millisecond) // To avoid anything that still is pushing with the old key
 
 	sessionsData, err := r.rdb.LRange(ctx, r.store+"::SSN::"+oldKey, 0, -1).Result()
 	if err != nil {

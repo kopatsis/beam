@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"log"
 	"slices"
-	"strconv"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -199,9 +198,19 @@ func (r *eventRepo) AddToBatchNew(eventClassification, eventDescription, eventDe
 	event.AnyError = hasErr
 	event.AllErrorsSt = errList
 
+	fks, err := r.rdb.Get(context.Background(), r.store+"::EVE").Result()
+	if err != nil {
+		log.Printf("Unable to get key to push event to redis for store: %s; err: %v\n", r.store, err)
+	}
+
+	var flushKey config.FlushKey
+	if err := json.Unmarshal([]byte(fks), &flushKey); err != nil {
+		log.Printf("Unable to convert key to push event to redis for store: %s; err: %v\n", r.store, err)
+	}
+
 	data, err := json.Marshal(event)
 	if err == nil {
-		if err := r.rdb.LPush(context.Background(), r.store+"::EVE::"+r.key, data); err != nil {
+		if err := r.rdb.LPush(context.Background(), r.store+"::EVE::"+flushKey.ActualKey, data); err != nil {
 			log.Printf("Unable to push event to redis for store: %s; err: %v\n", r.store, err)
 		}
 	} else {
@@ -210,10 +219,36 @@ func (r *eventRepo) AddToBatchNew(eventClassification, eventDescription, eventDe
 }
 
 func (r *eventRepo) FlushBatch() {
-	oldKey := r.key
-	r.key = strconv.FormatInt(time.Now().Unix(), 10)
 
 	ctx := context.Background()
+
+	fks, err := r.rdb.Get(ctx, r.store+"::EVE").Result()
+	if err != nil {
+		log.Printf("Unable to get key to push event to redis for store: %s; err: %v\n", r.store, err)
+	}
+
+	var flushKey config.FlushKey
+	if err := json.Unmarshal([]byte(fks), &flushKey); err != nil {
+		log.Printf("Unable to convert key to push event to redis for store: %s; err: %v\n", r.store, err)
+	}
+
+	if flushKey.CanFlush.After(time.Now()) {
+		return
+	}
+
+	oldKey := flushKey.ActualKey
+
+	ok, err := r.rdb.SetNX(ctx, r.store+"::EVE-L", "1", 60*time.Second).Result()
+	if err != nil || !ok {
+		return
+	}
+	defer r.rdb.Del(ctx, r.store+"::EVE-L")
+
+	if err := r.rdb.Set(ctx, r.store+"::EVE", config.NewKey(), 0).Err(); err != nil {
+		return
+	}
+
+	time.Sleep(333 * time.Millisecond) // To avoid anything that still is pushing with the old key
 
 	eventsData, err := r.rdb.LRange(ctx, r.store+"::EVE::"+oldKey, 0, -1).Result()
 	if err != nil {
