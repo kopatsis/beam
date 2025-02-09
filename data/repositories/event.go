@@ -38,7 +38,7 @@ type eventRepo struct {
 	store      string
 }
 
-func NewEventRepository(mdb *mongo.Database, store string) EventRepository {
+func NewEventRepository(mdb *mongo.Database, store string, ct, len int) EventRepository {
 	repo := &eventRepo{
 		coll:       mdb.Collection("Event"),
 		saveTicker: time.NewTicker(time.Duration(config.BATCH) * time.Second),
@@ -47,6 +47,18 @@ func NewEventRepository(mdb *mongo.Database, store string) EventRepository {
 
 	go func() {
 		defer repo.saveTicker.Stop()
+
+		if len > 0 && ct >= 0 {
+			delayFactor := float64(ct) / float64(len)
+			if delayFactor > 1 {
+				delayFactor = 1
+			} else if delayFactor < 0 {
+				delayFactor = 0
+			}
+
+			initialDelay := time.Duration(float64(config.BATCH) * delayFactor * float64(time.Second))
+			time.Sleep(initialDelay)
+		}
 
 		for range repo.saveTicker.C {
 			repo.FlushBatch()

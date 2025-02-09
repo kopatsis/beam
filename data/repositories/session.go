@@ -33,7 +33,7 @@ type sessionRepo struct {
 	saveTicker *time.Ticker
 }
 
-func NewSessionRepository(db *gorm.DB, rdb *redis.Client, store string) SessionRepository {
+func NewSessionRepository(db *gorm.DB, rdb *redis.Client, store string, ct, len int) SessionRepository {
 	repo := &sessionRepo{
 		db:         db,
 		rdb:        rdb,
@@ -43,6 +43,18 @@ func NewSessionRepository(db *gorm.DB, rdb *redis.Client, store string) SessionR
 
 	go func() {
 		defer repo.saveTicker.Stop()
+
+		if len > 0 && ct >= 0 {
+			delayFactor := float64(ct) / float64(len)
+			if delayFactor > 1 {
+				delayFactor = 1
+			} else if delayFactor < 0 {
+				delayFactor = 0
+			}
+
+			initialDelay := time.Duration(float64(config.BATCH) * delayFactor * float64(time.Second))
+			time.Sleep(initialDelay)
+		}
 
 		for range repo.saveTicker.C {
 			repo.FlushBatch()
