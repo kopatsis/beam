@@ -18,7 +18,7 @@ import (
 )
 
 type OrderService interface {
-	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, ls *listService, ps *productService, mutexes *config.AllMutexes, tools *config.Tools) (error, error)
+	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, ls *listService, ps *productService, ss *sessionService, mutexes *config.AllMutexes, tools *config.Tools) (error, error)
 	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds *discountService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds *draftOrderService) error
 	RenderOrder(dpi *DataPassIn, orderID string) (*models.Order, bool, error)
@@ -34,7 +34,7 @@ func NewOrderService(orderRepo repositories.OrderRepository) OrderService {
 }
 
 // Charging error, internal error
-func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, ls *listService, ps *productService, mutexes *config.AllMutexes, tools *config.Tools) (error, error) {
+func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, ls *listService, ps *productService, ss *sessionService, mutexes *config.AllMutexes, tools *config.Tools) (error, error) {
 
 	draft, err := ds.GetDraftPtl(draftID, dpi.GuestID, dpi.CustomerID)
 	if err != nil {
@@ -158,6 +158,8 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 	if err := ls.UpdateLastOrdersList(dpi, order.DateCreated, order.ID.Hex(), vids, ps); err != nil {
 		log.Printf("Unable to update last orders list for order: %s, in store: %s; error: %v\n", order.ID.Hex(), dpi.Store, err)
 	}
+
+	ss.AddAffiliateSale(dpi, order.ID.Hex())
 
 	return nil, nil
 }
