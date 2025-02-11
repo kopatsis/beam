@@ -29,6 +29,7 @@ const GC_NAME string = "Gift Card"
 const INV_ALWAYS_UP = true
 const LOWER_INV = 150
 const HIGHER_INV = 500
+const LOWEST_INV = 75
 
 const BASIS_PAGE = "https://domain.com"
 const CONV_RATES = "https://api.fxratesapi.com/latest"

@@ -35,7 +35,7 @@ type ProductService interface {
 	ConfirmDraftOrderProducts(dpi *DataPassIn, vids []int) (map[int]bool, bool, error)
 	RenderComparables(name string, id int) ([]models.ComparablesRender, error)
 
-	SetInventoryFromOrder(dpi *DataPassIn, decrement map[int]int, handles []string) error
+	SetInventoryFromOrder(dpi *DataPassIn, decrement map[int]int, handles []string, orderID string) error
 }
 
 type productService struct {
@@ -420,7 +420,7 @@ func (s *productService) RenderComparables(name string, productID int) ([]models
 	return ret, nil
 }
 
-func (s *productService) SetInventoryFromOrder(dpi *DataPassIn, decrement map[int]int, handles []string) error {
+func (s *productService) SetInventoryFromOrder(dpi *DataPassIn, decrement map[int]int, handles []string, orderID string) error {
 
 	prods, err := s.productRepo.GetFullProducts(dpi.Store, handles)
 	if err != nil {
@@ -429,22 +429,43 @@ func (s *productService) SetInventoryFromOrder(dpi *DataPassIn, decrement map[in
 
 	maxEach := map[string]int{}
 	salesInc := map[string]int{}
+	history := []models.InventoryAdjustment{}
 
 	for i, p := range prods {
 		maxCurrent := 0
 		for j, v := range p.Variants {
 			if dec, ok := decrement[v.PK]; ok {
+
+				old := v.Quantity
+				alwaysUpAdj := false
+				alwaysUpAdjQty := 0
+
 				v.Quantity -= dec
-				if config.INV_ALWAYS_UP && v.Quantity < 50 {
+				if config.INV_ALWAYS_UP && v.Quantity < config.LOWEST_INV {
 					rangeRand := config.HIGHER_INV - config.LOWER_INV + 1
 					if rangeRand < 0 {
 						rangeRand = 0
 					}
-					v.Quantity = rand.Intn(rangeRand) + config.LOWER_INV
+					alwaysUpAdjQty = rand.Intn(rangeRand) + config.LOWER_INV
+					v.Quantity = alwaysUpAdjQty
+					alwaysUpAdj = true
 				}
 				if v.Quantity < 0 {
 					log.Printf("Negative inventory for handle: %s; variant id: %d; store: %s; inventory: %d\n", p.Handle, v.PK, dpi.Store, v.Quantity)
 				}
+
+				history = append(history, models.InventoryAdjustment{
+					ProductID:       p.PK,
+					VariantID:       v.PK,
+					PreviousInv:     old,
+					EndInv:          v.Quantity,
+					FromOrder:       true,
+					OrderID:         orderID,
+					InitialOrderDec: -1 * dec,
+					AlwaysUpAdj:     alwaysUpAdj,
+					AlwaysUpInc:     alwaysUpAdjQty,
+				})
+
 				if salesCurrent, ok := salesInc[p.Handle]; ok {
 					salesInc[p.Handle] = salesCurrent + dec
 				} else {
@@ -490,5 +511,9 @@ func (s *productService) SetInventoryFromOrder(dpi *DataPassIn, decrement map[in
 		return errSaveRedis
 	}
 
-	return s.productRepo.DecrementQuantitiesSQL(decrement)
+	if err := s.productRepo.DecrementQuantitiesSQL(decrement); err != nil {
+		return err
+	}
+
+	return s.productRepo.SaveInvHistory(history)
 }

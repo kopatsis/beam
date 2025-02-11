@@ -160,3 +160,21 @@ type AffiliateSale struct {
 	OrderID     string `gorm:"index"`
 	Timestamp   time.Time
 }
+
+type InventoryAdjustment struct {
+	ID              int    `gorm:"primaryKey"`
+	ProductID       int    `gorm:"index"`
+	VariantID       int    `gorm:"index"`
+	PreviousInv     int    // Previous inventory
+	EndInv          int    // End inventory
+	FromOrder       bool   // ORDER: If originated from successful order
+	OrderID         string // ORDER: Order ID
+	InitialOrderDec int    // ORDER: (Negative) initial change from order aka qty ordered
+	AlwaysUpAdj     bool   // ORDER: Setting to always have inventory occurred
+	AlwaysUpInc     int    // ORDER: How much always up incremented by
+	FromCommand     bool   // COMMAND: If originated from an Excel command
+	CommandID       string // COMMAND: UUID generated for command
+	CommandName     string // COMMAND: "+", "-", or "SET"
+	CommandValue    int    // (COMMAND: Negative or positive) value for inventory adjustment
+
+}

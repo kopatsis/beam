@@ -26,6 +26,8 @@ type ProductRepository interface {
 	DecrementQuantitiesSQL(updates map[int]int) error
 	SaveProductInfoInTransactionMulti(name string, prods []*models.ProductRedis, info []models.ProductInfo) error
 	SaveProducts(name string, prods []*models.ProductRedis) error
+
+	SaveInvHistory(hist []models.InventoryAdjustment) error
 }
 
 type productRepo struct {
@@ -239,4 +241,8 @@ func (r *productRepo) SaveProducts(name string, prods []*models.ProductRedis) er
 
 	_, err := r.rdb.MSet(context.Background(), msetData...).Result()
 	return err
+}
+
+func (r *productRepo) SaveInvHistory(hist []models.InventoryAdjustment) error {
+	return r.db.Save(hist).Error
 }

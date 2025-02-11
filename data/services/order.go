@@ -151,7 +151,7 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 		}
 	}
 
-	if err := ps.SetInventoryFromOrder(dpi, dec, handles); err != nil {
+	if err := ps.SetInventoryFromOrder(dpi, dec, handles, order.ID.Hex()); err != nil {
 		log.Printf("Unable to update inventory for order: %s, in store: %s; error: %v\n", order.ID.Hex(), dpi.Store, err)
 	}
 
