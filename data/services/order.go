@@ -188,7 +188,7 @@ func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.O
 
 	if order.OrderDiscount.DiscountCode != "" {
 
-		discErr = ds.CheckDiscountCode(order.OrderDiscount.DiscountCode, order.Subtotal, dpi.CustomerID, order.Guest)
+		discErr = ds.UseDiscountCode(order.OrderDiscount.DiscountCode, order.Subtotal, dpi.CustomerID, order.Guest)
 
 		if discErr != nil {
 			return nil, discErr, false

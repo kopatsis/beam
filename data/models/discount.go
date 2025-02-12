@@ -43,3 +43,28 @@ type GiftCard struct {
 	LeftoverCents int
 	ShortMessage  string
 }
+
+type DiscountUseLine struct {
+	ID           int    `gorm:"primaryKey"`
+	DiscountID   int    `gorm:"index"`
+	DiscountCode string `gorm:"index"`
+	OrderID      string `gorm:"index"`
+	Date         time.Time
+	CustomerID   int
+	GuestID      string
+	SessionID    string
+}
+
+type GiftCardUseLine struct {
+	ID             int    `gorm:"primaryKey"`
+	GiftCardID     int    `gorm:"index"`
+	GiftCardCode   string `gorm:"index"`
+	OrderID        string `gorm:"index"`
+	Date           time.Time
+	CustomerID     int
+	GuestID        string
+	SessionID      string
+	PreviousAmount int
+	AmountApplied  int
+	EndAmount      int
+}
