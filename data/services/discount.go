@@ -18,14 +18,16 @@ type DiscountService interface {
 	GetDiscountByID(id int) (*models.Discount, error)
 	UpdateDiscount(discount models.Discount) error
 	DeleteDiscount(id int) error
-	CreateGiftCard(cents int, message string, store string, tools *config.Tools) (int, string, error)
-	RenderGiftCard(code string) (*models.GiftCardRender, error)
-	RetrieveGiftCard(code string) (*models.GiftCard, error)
-	CheckMultipleGiftCards(codesAndAmounts map[string]int) error
+
+	CreateGiftCard(cents int, message string, store string, tools *config.Tools) (int, string, error) // [4]string
+	RenderGiftCard(code string) (*models.GiftCardRender, error)                                       // [4]string
+	RetrieveGiftCard(code string) (*models.GiftCard, error)                                           // [4]string
+	CheckMultipleGiftCards(codesAndAmounts map[string]int) error                                      // [4]string
 	CheckDiscountCode(code string, subtotal int, cust int, noCustomer bool) error
-	CheckGiftCardsAndDiscountCodes(codesAndAmounts map[string]int, code string, subtotal int, cust int, noCustomer bool) (error, error)
+	CheckGiftCardsAndDiscountCodes(codesAndAmounts map[string]int, code string, subtotal int, cust int, noCustomer bool) (error, error) // [4]string
 	GetDiscountCodeForDraft(code string, subtotal, cust int, noCustomer bool) (*models.Discount, []*models.DiscountUser, error)
-	UseMultipleGiftCards(codesAndAmounts map[string]int, customderID int, guestID, orderID, sessionID string) error
+
+	UseMultipleGiftCards(codesAndAmounts map[string]int, customderID int, guestID, orderID, sessionID string) error // [4]string
 	UseDiscountCode(code, guestID, orderID, sessionID string, subtotal int, cust int, noCustomer bool) error
 }
 
