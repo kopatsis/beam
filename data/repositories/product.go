@@ -28,6 +28,8 @@ type ProductRepository interface {
 	SaveProducts(name string, prods []*models.ProductRedis) error
 
 	SaveInvHistory(hist []models.InventoryAdjustment) error
+
+	GetVarsSQL(vids []int) ([]models.Variant, error)
 }
 
 type productRepo struct {
@@ -245,4 +247,10 @@ func (r *productRepo) SaveProducts(name string, prods []*models.ProductRedis) er
 
 func (r *productRepo) SaveInvHistory(hist []models.InventoryAdjustment) error {
 	return r.db.Save(hist).Error
+}
+
+func (r *productRepo) GetVarsSQL(vids []int) ([]models.Variant, error) {
+	var variants []models.Variant
+	err := r.db.Where("pk IN ?", vids).Find(&variants).Error
+	return variants, err
 }

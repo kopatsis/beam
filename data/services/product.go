@@ -32,7 +32,7 @@ type ProductService interface {
 	GetProductsMapFromCartLine(name string, cartLines []models.CartLine) (map[int]*models.ProductRedis, error)
 
 	UpdateRatings(dpi *DataPassIn, pid, newRate, oldRate, plusMinus int, tools *config.Tools)
-	ConfirmDraftOrderProducts(dpi *DataPassIn, vids []int) (map[int]bool, bool, error)
+	ConfirmDraftOrderProducts(dpi *DataPassIn, vinv map[int]int, vids []int) (map[int]models.InvRetrieval, bool, error)
 	RenderComparables(name string, id int) ([]models.ComparablesRender, error)
 
 	SetInventoryFromOrder(dpi *DataPassIn, decrement map[int]int, handles []string, orderID string) error
@@ -341,25 +341,35 @@ func (s *productService) UpdateRatings(dpi *DataPassIn, pid, newRate, oldRate, p
 	}
 }
 
-func (s *productService) ConfirmDraftOrderProducts(dpi *DataPassIn, vids []int) (map[int]bool, bool, error) {
-	lvl, err := s.productRepo.GetLimVars(dpi.Store, vids)
+func (s *productService) ConfirmDraftOrderProducts(dpi *DataPassIn, vinv map[int]int, vids []int) (map[int]models.InvRetrieval, bool, error) {
+	vars, err := s.productRepo.GetVarsSQL(vids)
 	if err != nil {
 		return nil, false, err
 	}
 
-	result := map[int]bool{}
+	result := map[int]models.InvRetrieval{}
 	anyFalse := false
-	variantIDSet := map[int]struct{}{}
-	for _, variant := range lvl {
-		variantIDSet[variant.VariantID] = struct{}{}
-	}
 
-	for _, vid := range vids {
-		_, exists := variantIDSet[vid]
-		result[vid] = exists
-		if !exists {
+	for varid, qty := range vinv {
+		add := models.InvRetrieval{OnOrder: qty}
+		found := false
+		for _, v := range vars {
+			if v.PK == varid {
+				add.OnProduct = v.Quantity
+				if add.OnOrder > add.OnProduct {
+					anyFalse = true
+				} else {
+					add.Possible = true
+				}
+				found = true
+				break
+			}
+		}
+		add.Exists = found
+		if !found {
 			anyFalse = true
 		}
+		result[varid] = add
 	}
 
 	return result, anyFalse, nil

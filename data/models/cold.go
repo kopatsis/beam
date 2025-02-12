@@ -176,5 +176,4 @@ type InventoryAdjustment struct {
 	CommandID       string // COMMAND: UUID generated for command
 	CommandName     string // COMMAND: "+", "-", or "SET"
 	CommandValue    int    // (COMMAND: Negative or positive) value for inventory adjustment
-
 }

@@ -58,23 +58,25 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 	}
 
 	dvids := []int{}
+	vinv := map[int]int{}
 	for _, l := range draft.Lines {
 		dvids = append(dvids, l.VariantID)
+		vinv[l.VariantID] += l.Quantity
 	}
 
-	mapped, works, err := ps.ConfirmDraftOrderProducts(dpi, dvids)
+	mapped, works, err := ps.ConfirmDraftOrderProducts(dpi, vinv, dvids)
 	if err != nil {
 		return nil, fmt.Errorf("unable to query lim vars for draft order: %s, store: %s,  err: %v", draftID, dpi.Store, err)
 	} else if !works {
 		var builder strings.Builder
 		for id, val := range mapped {
-			if !val {
+			if !val.Possible {
 				builder.WriteString(strconv.Itoa(id))
 				builder.WriteString(",")
 			}
 		}
 		falseVarIDs := builder.String()
-		return nil, fmt.Errorf("non existant lim vars for draft order: %s, store: %s, list: %s", draftID, dpi.Store, falseVarIDs)
+		return nil, fmt.Errorf("nonexistent or low inventory vars for draft order: %s, store: %s, list: %s", draftID, dpi.Store, falseVarIDs)
 	}
 
 	order := orderhelp.CreateOrderFromDraft(draft)

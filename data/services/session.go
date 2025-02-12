@@ -110,6 +110,10 @@ func (s *sessionService) AffiliateMiddleware(cookie *models.AffiliateSession, se
 }
 
 func (s *sessionService) AddAffiliateSale(dpi *DataPassIn, orderID string) {
+	if dpi.AffiliateID == 0 {
+		return
+	}
+
 	use := models.AffiliateSale{
 		AffiliateID: dpi.AffiliateID,
 		Code:        dpi.AffiliateCode,

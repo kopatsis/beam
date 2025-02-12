@@ -72,3 +72,10 @@ type OriginalProduct struct {
 	OriginalVariantID string
 	SKU               string
 }
+
+type InvRetrieval struct {
+	Exists    bool
+	Possible  bool
+	OnOrder   int
+	OnProduct int
+}
