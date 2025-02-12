@@ -25,8 +25,8 @@ type DiscountService interface {
 	CheckDiscountCode(code string, subtotal int, cust int, noCustomer bool) error
 	CheckGiftCardsAndDiscountCodes(codesAndAmounts map[string]int, code string, subtotal int, cust int, noCustomer bool) (error, error)
 	GetDiscountCodeForDraft(code string, subtotal, cust int, noCustomer bool) (*models.Discount, []*models.DiscountUser, error)
-	UseMultipleGiftCards(codesAndAmounts map[string]int) error
-	UseDiscountCode(code string, subtotal int, cust int, noCustomer bool) error
+	UseMultipleGiftCards(codesAndAmounts map[string]int, customderID int, guestID, orderID, sessionID string) error
+	UseDiscountCode(code, guestID, orderID, sessionID string, subtotal int, cust int, noCustomer bool) error
 }
 
 type discountService struct {
@@ -257,7 +257,7 @@ func (s *discountService) GetDiscountCodeForDraft(code string, subtotal, cust in
 	return disc, users, nil
 }
 
-func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[string]int) error {
+func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[string]int, customderID int, guestID, orderID, sessionID string) error {
 	codesAndAmounts = discount.ConvertMapKeysToLowerCase(codesAndAmounts)
 
 	allCodes := []string{}
@@ -279,6 +279,8 @@ func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[string]int) e
 		return fmt.Errorf("issue with checking codes: queried %d, got %d", len(allCards), len(allCodes))
 	}
 
+	uses := []*models.GiftCardUseLine{}
+
 	for _, idCode := range allCodes {
 
 		amount := codesAndAmounts[idCode]
@@ -293,6 +295,7 @@ func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[string]int) e
 		if gc == nil {
 			return fmt.Errorf("one of the provided id codes not represented: %s", idCode)
 		}
+		prev := gc.LeftoverCents
 
 		if gc.Status == "Draft" {
 			return fmt.Errorf("not yet paid for: %s", idCode)
@@ -316,12 +319,31 @@ func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[string]int) e
 			gc.Status = "Spent"
 			gc.Spent = time.Now()
 		}
+
+		use := &models.GiftCardUseLine{
+			GiftCardID:     gc.ID,
+			GiftCardCode:   idCode,
+			OrderID:        orderID,
+			Date:           gc.Spent,
+			CustomerID:     customderID,
+			GuestID:        guestID,
+			SessionID:      sessionID,
+			PreviousAmount: prev,
+			AmountApplied:  amount,
+			EndAmount:      gc.LeftoverCents,
+		}
+
+		uses = append(uses, use)
 	}
+
+	go func() {
+		s.discountRepo.GiftCardUseLines(uses)
+	}()
 
 	return s.discountRepo.SaveGiftCards(allCards)
 }
 
-func (s *discountService) UseDiscountCode(code string, subtotal int, cust int, noCustomer bool) error {
+func (s *discountService) UseDiscountCode(code, guestID, orderID, sessionID string, subtotal int, cust int, noCustomer bool) error {
 
 	disc, users, err := s.GetDiscountCodeForDraft(code, subtotal, cust, noCustomer)
 	if err != nil {
@@ -352,5 +374,23 @@ func (s *discountService) UseDiscountCode(code string, subtotal int, cust int, n
 	if disc.HasUserList {
 		return s.discountRepo.SaveDiscountWithUser(disc, saveUser)
 	}
-	return s.discountRepo.SaveDiscount(disc)
+
+	if err := s.discountRepo.SaveDiscount(disc); err != nil {
+		return err
+	}
+
+	go func() {
+		use := &models.DiscountUseLine{
+			DiscountID:   disc.ID,
+			DiscountCode: code,
+			OrderID:      orderID,
+			CustomerID:   cust,
+			GuestID:      guestID,
+			SessionID:    sessionID,
+			Date:         time.Now(),
+		}
+		s.discountRepo.DiscountUseLine(use)
+	}()
+
+	return nil
 }

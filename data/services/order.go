@@ -178,7 +178,7 @@ func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.O
 			gcsAndAmounts[gc.Code] = gc.Charged
 		}
 
-		gcErr = ds.UseMultipleGiftCards(gcsAndAmounts)
+		gcErr = ds.UseMultipleGiftCards(gcsAndAmounts, dpi.CustomerID, dpi.GuestID, order.ID.Hex(), dpi.SessionID)
 
 		if gcErr != nil {
 			return gcErr, nil, false
@@ -188,7 +188,7 @@ func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.O
 
 	if order.OrderDiscount.DiscountCode != "" {
 
-		discErr = ds.UseDiscountCode(order.OrderDiscount.DiscountCode, order.Subtotal, dpi.CustomerID, order.Guest)
+		discErr = ds.UseDiscountCode(order.OrderDiscount.DiscountCode, dpi.GuestID, order.ID.Hex(), dpi.SessionID, order.Subtotal, dpi.CustomerID, order.Guest)
 
 		if discErr != nil {
 			return nil, discErr, false

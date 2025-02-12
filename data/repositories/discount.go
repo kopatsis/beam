@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"log"
 	"time"
 
 	"beam/data/models"
@@ -23,6 +24,9 @@ type DiscountRepository interface {
 	SaveDiscount(discount *models.Discount) error
 	SaveDiscountWithUser(discount *models.Discount, discountUser *models.DiscountUser) error
 	SaveGiftCards(giftCards []*models.GiftCard) error
+
+	DiscountUseLine(use *models.DiscountUseLine)
+	GiftCardUseLines(uses []*models.GiftCardUseLine)
 }
 
 type discountRepo struct {
@@ -135,4 +139,26 @@ func (r *discountRepo) SaveDiscountWithUser(discount *models.Discount, discountU
 
 func (r *discountRepo) SaveGiftCards(giftCards []*models.GiftCard) error {
 	return r.db.Save(giftCards).Error
+}
+
+func (r *discountRepo) DiscountUseLine(use *models.DiscountUseLine) {
+
+	if use == nil {
+		return
+	}
+
+	if err := r.db.Save(use).Error; err != nil {
+		log.Printf("Unable to save discount use line, err: %v; discount ID: %d; orderID: %s\n", err, use.DiscountID, use.OrderID)
+	}
+
+}
+
+func (r *discountRepo) GiftCardUseLines(uses []*models.GiftCardUseLine) {
+	if len(uses) == 0 {
+		return
+	}
+
+	if err := r.db.Save(uses).Error; err != nil {
+		log.Printf("Unable to save gift card use lines, err: %v\n", err)
+	}
 }
