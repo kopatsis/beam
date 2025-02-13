@@ -8,7 +8,6 @@ import (
 	"beam/data/services/discount"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 )
@@ -19,15 +18,15 @@ type DiscountService interface {
 	UpdateDiscount(discount models.Discount) error
 	DeleteDiscount(id int) error
 
-	CreateGiftCard(cents int, message string, store string, tools *config.Tools) (int, string, error) // [4]string
-	RenderGiftCard(code string) (*models.GiftCardRender, error)                                       // [4]string
-	RetrieveGiftCard(code string) (*models.GiftCard, error)                                           // [4]string
-	CheckMultipleGiftCards(codesAndAmounts map[string]int) error                                      // [4]string
+	CreateGiftCard(cents int, message string, store string, tools *config.Tools) (int, string, error)
+	RenderGiftCard(code string) (*models.GiftCardRender, error)
+	RetrieveGiftCard(code string) (*models.GiftCard, error)
+	CheckMultipleGiftCards(codesAndAmounts map[string]int) error
 	CheckDiscountCode(code string, subtotal int, cust int, noCustomer bool) error
-	CheckGiftCardsAndDiscountCodes(codesAndAmounts map[string]int, code string, subtotal int, cust int, noCustomer bool) (error, error) // [4]string
+	CheckGiftCardsAndDiscountCodes(codesAndAmounts map[string]int, code string, subtotal int, cust int, noCustomer bool) (error, error)
 	GetDiscountCodeForDraft(code string, subtotal, cust int, noCustomer bool) (*models.Discount, []*models.DiscountUser, error)
 
-	UseMultipleGiftCards(codesAndAmounts map[string]int, customderID int, guestID, orderID, sessionID string) error // [4]string
+	UseMultipleGiftCards(codesAndAmounts map[string]int, customderID int, guestID, orderID, sessionID string) error
 	UseDiscountCode(code, guestID, orderID, sessionID string, subtotal int, cust int, noCustomer bool) error
 }
 
@@ -60,7 +59,7 @@ func (s *discountService) CreateGiftCard(cents int, message string, store string
 		message = message[:255]
 	}
 
-	if cents < 100 {
+	if cents < 250 {
 		return 0, "", errors.New("not a large enough amount for gift card")
 	} else if cents >= 100000000 {
 		return 0, "", errors.New("too large amount for gift card")
@@ -88,12 +87,10 @@ func (s *discountService) CreateGiftCard(cents int, message string, store string
 		return 0, "", err
 	}
 
-	return idDB, idSt, nil
+	return idDB, discount.SpaceDisplayGC(idSt), nil
 }
 
 func (s *discountService) RetrieveGiftCard(code string) (*models.GiftCard, error) {
-	code = strings.ToLower(code)
-
 	if !discount.CheckID(code) {
 		return nil, errors.New("invalid gift card code")
 	}
@@ -119,7 +116,10 @@ func (s *discountService) RetrieveGiftCard(code string) (*models.GiftCard, error
 }
 
 func (s *discountService) RenderGiftCard(code string) (*models.GiftCardRender, error) {
-	code = strings.ToLower(code)
+	if !discount.CheckID(code) {
+		return nil, errors.New("invalid gift card code")
+	}
+
 	gc, err := s.discountRepo.GetGiftCard(code)
 	if err != nil {
 		return nil, err
@@ -128,14 +128,18 @@ func (s *discountService) RenderGiftCard(code string) (*models.GiftCardRender, e
 }
 
 func (s *discountService) CheckMultipleGiftCards(codesAndAmounts map[string]int) error {
-	codesAndAmounts = discount.ConvertMapKeysToLowerCase(codesAndAmounts)
-
 	allCodes := []string{}
 	for idCode, amt := range codesAndAmounts {
 		if amt <= 0 {
 			continue
+		} else if !discount.CheckID(idCode) {
+			continue
 		}
 		allCodes = append(allCodes, idCode)
+	}
+
+	if len(allCodes) == 0 {
+		return nil
 	}
 
 	allCards, err := s.discountRepo.GetGiftCardsByIDCodes(allCodes)
@@ -260,11 +264,11 @@ func (s *discountService) GetDiscountCodeForDraft(code string, subtotal, cust in
 }
 
 func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[string]int, customderID int, guestID, orderID, sessionID string) error {
-	codesAndAmounts = discount.ConvertMapKeysToLowerCase(codesAndAmounts)
-
 	allCodes := []string{}
 	for idCode, amt := range codesAndAmounts {
 		if amt <= 0 {
+			continue
+		} else if !discount.CheckID(idCode) {
 			continue
 		}
 		allCodes = append(allCodes, idCode)

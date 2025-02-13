@@ -6,14 +6,14 @@ import (
 	"math/rand"
 )
 
-const Vals = "0123456789abcdefghijklmnopqrstuvwxyz"
+const Vals = "0123456789"
 
 func GenerateCartID() string {
 	slice := make([]int, 14)
 
 	sum1, sum2 := 0, 0
 	for i := range slice {
-		v := rand.Intn(36)
+		v := rand.Intn(10)
 		slice[i] = v
 		if i%2 == 0 {
 			sum1 += v * 1
@@ -24,8 +24,8 @@ func GenerateCartID() string {
 		}
 	}
 
-	cd1 := sum1 % 36
-	cd2 := (sum2 + cd1*2) % 36
+	cd1 := sum1 % 10
+	cd2 := (sum2 + cd1*2) % 10
 
 	slice = append(slice, cd1)
 	slice = append(slice, cd2)
@@ -33,7 +33,18 @@ func GenerateCartID() string {
 	var builder strings.Builder
 	for i, num := range slice {
 		if i > 0 && i%4 == 0 {
-			builder.WriteString("-")
+			builder.WriteString(" ")
+		}
+		builder.WriteByte(Vals[num])
+	}
+	return builder.String()
+}
+
+func SpaceDisplayGC(st string) string {
+	var builder strings.Builder
+	for i, num := range st {
+		if i > 0 && i%4 == 0 {
+			builder.WriteString(" ")
 		}
 		builder.WriteByte(Vals[num])
 	}
@@ -41,7 +52,7 @@ func GenerateCartID() string {
 }
 
 func CheckID(id string) bool {
-	replID := strings.ReplaceAll(id, "-", "")
+	replID := strings.ReplaceAll(strings.ReplaceAll(id, "-", ""), " ", "")
 	if len(replID) != 16 {
 		return false
 	}
@@ -69,11 +80,11 @@ func CheckID(id string) bool {
 		}
 	}
 
-	if slice[14] != sum1%36 {
+	if slice[14] != sum1%10 {
 		return false
 	}
 
-	return slice[15] == (sum2+slice[14]*2)%36
+	return slice[15] == (sum2+slice[14]*2)%10
 }
 
 func ConvertMapKeysToLowerCase(m map[string]int) map[string]int {
