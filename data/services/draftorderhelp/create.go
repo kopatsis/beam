@@ -106,14 +106,14 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Car
 		}
 		draftOrder.StripePaymentIntentID = pmid
 	} else if guestID != "" {
-		draftOrder.GuestID = &guestID
+		draftOrder.GuestID = guestID
 		pmid, err := CreatePaymentIntent("", int64(draftOrder.Subtotal), "usd")
 		if err != nil {
 			return nil, err
 		}
 		draftOrder.StripePaymentIntentID = pmid
 	} else {
-		draftOrder.GuestID = &cart.GuestID
+		draftOrder.GuestID = cart.GuestID
 		pmid, err := CreatePaymentIntent("", int64(draftOrder.Subtotal), "usd")
 		if err != nil {
 			return nil, err

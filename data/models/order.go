@@ -39,8 +39,11 @@ type Order struct {
 	Tags                   []string           `bson:"tags" json:"tags"`
 	ShippingIdentification string             `bson:"shipping_identification" json:"shipping_identification"`
 	Guest                  bool               `bson:"guest" json:"guest"`
-	GuestID                *string            `bson:"guest_id,omitempty" json:"guest_id,omitempty"`
-	GuestStripeID          *string            `bson:"guest_stripe,omitempty" json:"guest_stripe,omitempty"`
+	GuestID                string             `bson:"guest_id" json:"guest_id"`
+	GuestStripeID          string             `bson:"guest_stripe" json:"guest_stripe"`
+	SessionID              string             `bson:"session" json:"session"`
+	AffiliateID            int                `bson:"affiliate_id" json:"affiliate_id"`
+	AffiliateCode          string             `bson:"affiliate_code" json:"affiliate_code"`
 	External               bool               `bson:"external" json:"external"`
 	ExternalPlatform       string             `bson:"external_platform" json:"external_platform"`
 	ExternalID             string             `bson:"external_id" json:"external_id"`
@@ -88,8 +91,8 @@ type DraftOrder struct {
 	GiftCards             []OrderGiftCard              `bson:"gift_cards" json:"gift_cards"`
 	Tags                  []string                     `bson:"tags" json:"tags"`
 	Guest                 bool                         `bson:"guest" json:"guest"`
-	GuestID               *string                      `bson:"guest_id,omitempty" json:"guest_id,omitempty"`
-	GuestStripeID         *string                      `bson:"guest_stripe,omitempty" json:"guest_stripe,omitempty"`
+	GuestID               string                       `bson:"guest_id" json:"guest_id"`
+	GuestStripeID         string                       `bson:"guest_stripe" json:"guest_stripe"`
 	ActualRate            ShippingRate                 `bson:"ship_actual" json:"ship_actual"`
 	CurrentShipping       []ShippingRate               `bson:"ship_current" json:"ship_current"`
 	AllShippingRates      map[string][]ShippingRate    `bson:"ship_all" json:"ship_all"`

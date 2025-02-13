@@ -30,7 +30,7 @@ func CopyContact(c *models.Contact) *models.Contact {
 	return &copy
 }
 
-func CreateOrderFromDraft(draft *models.DraftOrder) *models.Order {
+func CreateOrderFromDraft(draft *models.DraftOrder, sessionID, affiliateCode string, affiliateID int) *models.Order {
 	return &models.Order{
 		PrintfulID:         draft.PrintfulID,
 		CustomerID:         draft.CustomerID,
@@ -55,8 +55,11 @@ func CreateOrderFromDraft(draft *models.DraftOrder) *models.Order {
 		GiftCards:          draft.GiftCards,
 		Tags:               draft.Tags,
 		Guest:              draft.Guest,
-		GuestID:            CopyString(draft.GuestID),
-		GuestStripeID:      CopyString(draft.GuestStripeID),
+		GuestID:            draft.GuestID,
+		GuestStripeID:      draft.GuestStripeID,
+		AffiliateCode:      affiliateCode,
+		AffiliateID:        affiliateID,
+		SessionID:          sessionID,
 		ActualRate:         draft.ActualRate,
 		GiftSubject:        draft.GiftSubject,
 		GiftMessage:        draft.GiftMessage,

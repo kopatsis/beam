@@ -19,7 +19,7 @@ import (
 
 type OrderService interface {
 	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, ps *productService, tools *config.Tools) (error, error)
-	CompleteOrder(store, orderID string, ds *draftOrderService, dts *discountService, ls *listService, ps *productService, ss *sessionService, mutexes *config.AllMutexes, tools *config.Tools) error
+	CompleteOrder(store, orderID string, ds *draftOrderService, dts *discountService, ls *listService, ps *productService, ss *sessionService, mutexes *config.AllMutexes, tools *config.Tools)
 	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds *discountService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds *draftOrderService) error
 	RenderOrder(dpi *DataPassIn, orderID string) (*models.Order, bool, error)
@@ -82,7 +82,7 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 		return nil, fmt.Errorf("nonexistent or low inventory vars for draft order: %s, store: %s, list: %s", draftID, dpi.Store, falseVarIDs)
 	}
 
-	order := orderhelp.CreateOrderFromDraft(draft)
+	order := orderhelp.CreateOrderFromDraft(draft, dpi.SessionID, dpi.AffiliateCode, dpi.AffiliateID)
 
 	if err := s.orderRepo.CreateOrder(order); err != nil {
 		return nil, err
@@ -103,7 +103,7 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 		draft.StripePaymentIntentID = intent.ID
 		order.StripePaymentIntentID = intent.ID
 	} else if order.Guest && order.Total > 0 {
-		intent, err := draftorderhelp.ChargePaymentIntent(order.StripePaymentIntentID, newPaymentMethod, false, *order.GuestStripeID)
+		intent, err := draftorderhelp.ChargePaymentIntent(order.StripePaymentIntentID, newPaymentMethod, false, order.GuestStripeID)
 		if err != nil {
 			return err, nil
 		}
@@ -125,22 +125,27 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 
 }
 
-func (s *orderService) CompleteOrder(store, orderID string, ds *draftOrderService, dts *discountService, ls *listService, ps *productService, ss *sessionService, mutexes *config.AllMutexes, tools *config.Tools) error {
+func (s *orderService) CompleteOrder(store, orderID string, ds *draftOrderService, dts *discountService, ls *listService, ps *productService, ss *sessionService, mutexes *config.AllMutexes, tools *config.Tools) {
 
 	order, err := s.orderRepo.Read(orderID)
 	if err != nil {
-		return err
+		log.Printf("Unable to retrieve order from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
+		return
 	}
 
-	draft, err := ds.GetDraftPtl(order.DraftOrderID, *order.GuestID, order.CustomerID)
+	draft, err := ds.GetDraftPtl(order.DraftOrderID, order.GuestID, order.CustomerID)
 	if err != nil {
-		return err
+		log.Printf("Unable to retrieve draft order from ID for order confirmation; store; %s; orderID: %s; draft orderID: %s; err: %v\n", store, orderID, order.DraftOrderID, err)
+		return
 	}
 
 	dpi := &DataPassIn{
-		Store:      store,
-		GuestID:    *order.GuestID,
-		CustomerID: order.CustomerID,
+		Store:         store,
+		GuestID:       order.GuestID,
+		CustomerID:    order.CustomerID,
+		SessionID:     order.SessionID,
+		AffiliateID:   order.AffiliateID,
+		AffiliateCode: order.AffiliateCode,
 	}
 
 	resp, err := orderhelp.PostOrderToPrintful(order, dpi.Store, mutexes, tools)
@@ -192,8 +197,6 @@ func (s *orderService) CompleteOrder(store, orderID string, ds *draftOrderServic
 	}
 
 	ss.AddAffiliateSale(dpi, order.ID.Hex())
-
-	return nil
 }
 
 // Giftcard error, discount error, both worked

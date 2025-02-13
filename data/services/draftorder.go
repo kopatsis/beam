@@ -175,7 +175,7 @@ func (s *draftOrderService) GetDraftOrder(dpi *DataPassIn, draftID string, cts *
 			go s.draftOrderRepo.Update(draft)
 		}
 	} else {
-		if draft.GuestID != &dpi.GuestID {
+		if draft.GuestID != dpi.GuestID {
 			return draft, "", errors.New("incorrect id for guest customer")
 		}
 	}
@@ -294,7 +294,7 @@ func (s *draftOrderService) GetDraftPtl(draftID, guestID string, custID int) (*m
 			return draft, errors.New("draft does not belong to customer")
 		}
 	} else {
-		if draft.GuestID != &guestID {
+		if draft.GuestID != guestID {
 			return draft, errors.New("draft does not belong to customer")
 		}
 	}

@@ -52,12 +52,12 @@ func ConfirmPaymentIntentDraft(draftOrder *models.DraftOrder, customer *models.C
 		if guestID == "" {
 			return custChange, draftChange, errors.New("no guest and no customer")
 		}
-		if *draftOrder.GuestStripeID == "" {
+		if draftOrder.GuestStripeID == "" {
 			c, err := CreateCustomer("", "")
 			if err != nil {
 				return custChange, draftChange, err
 			}
-			draftOrder.GuestStripeID = &c.ID
+			draftOrder.GuestStripeID = c.ID
 			draftChange = true
 		}
 	} else if customer.StripeID == "" {
@@ -71,7 +71,7 @@ func ConfirmPaymentIntentDraft(draftOrder *models.DraftOrder, customer *models.C
 
 	useID := ""
 	if customer == nil {
-		useID = *draftOrder.GuestStripeID
+		useID = draftOrder.GuestStripeID
 	} else {
 		useID = customer.StripeID
 	}
