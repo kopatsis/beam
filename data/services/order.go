@@ -18,7 +18,8 @@ import (
 )
 
 type OrderService interface {
-	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, ls *listService, ps *productService, ss *sessionService, mutexes *config.AllMutexes, tools *config.Tools) (error, error)
+	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, ps *productService, tools *config.Tools) (error, error)
+	CompleteOrder(store, orderID string, ds *draftOrderService, dts *discountService, ls *listService, ps *productService, ss *sessionService, mutexes *config.AllMutexes, tools *config.Tools) error
 	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds *discountService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds *draftOrderService) error
 	RenderOrder(dpi *DataPassIn, orderID string) (*models.Order, bool, error)
@@ -34,7 +35,9 @@ func NewOrderService(orderRepo repositories.OrderRepository) OrderService {
 }
 
 // Charging error, internal error
-func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, dts *discountService, ls *listService, ps *productService, ss *sessionService, mutexes *config.AllMutexes, tools *config.Tools) (error, error) {
+func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, ps *productService, tools *config.Tools) (error, error) {
+
+	start := time.Now()
 
 	draft, err := ds.GetDraftPtl(draftID, dpi.GuestID, dpi.CustomerID)
 	if err != nil {
@@ -113,31 +116,58 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 		order.StripePaymentIntentID = intent.ID
 	}
 
+	elapsed := time.Since(start)
+	if elapsed < 5*time.Second {
+		time.Sleep(5*time.Second - elapsed)
+	}
+
+	return nil, nil
+
+}
+
+func (s *orderService) CompleteOrder(store, orderID string, ds *draftOrderService, dts *discountService, ls *listService, ps *productService, ss *sessionService, mutexes *config.AllMutexes, tools *config.Tools) error {
+
+	order, err := s.orderRepo.Read(orderID)
+	if err != nil {
+		return err
+	}
+
+	draft, err := ds.GetDraftPtl(order.DraftOrderID, *order.GuestID, order.CustomerID)
+	if err != nil {
+		return err
+	}
+
+	dpi := &DataPassIn{
+		Store:      store,
+		GuestID:    *order.GuestID,
+		CustomerID: order.CustomerID,
+	}
+
 	resp, err := orderhelp.PostOrderToPrintful(order, dpi.Store, mutexes, tools)
 	if err != nil {
-		go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Unable to post order to printful after charging", tools, order, draft, resp, true, err)
+		go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to post order to printful after charging", tools, order, draft, resp, true, err)
 	}
 
 	if err := orderhelp.ConfirmOrderPostResponse(resp, order); err != nil {
-		go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Bad response from posting order to printful after charging", tools, order, draft, resp, false, err)
+		go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Bad response from posting order to printful after charging", tools, order, draft, resp, false, err)
 	}
 
 	gcErr, discErr, worked := s.UseDiscountsAndGiftCards(dpi, order, dts)
 	if !worked {
 		if gcErr != nil {
-			go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Unable to post order to mark charging of gift cards after using", tools, order, draft, nil, true, gcErr)
+			go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to post order to mark charging of gift cards after using", tools, order, draft, nil, true, gcErr)
 		}
 		if discErr != nil {
-			go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Unable to post order to mark use of of discount after using", tools, order, draft, nil, false, discErr)
+			go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to post order to mark use of of discount after using", tools, order, draft, nil, false, discErr)
 		}
 	}
 
 	if err := s.MarkOrderAndDraftAsSuccess(order, draft, ds); err != nil {
-		go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Unable to save order and draft order after successful creation", tools, order, draft, nil, false, err)
+		go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to save order and draft order after successful creation", tools, order, draft, nil, false, err)
 	}
 
 	if err := orderhelp.OrderEmailWithProfit(resp, order, tools, dpi.Store); err != nil {
-		go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Unable to send email of success to creat the order", tools, order, draft, nil, false, err)
+		go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to send email of success to creat the order", tools, order, draft, nil, false, err)
 	}
 
 	vids := []int{}
@@ -163,7 +193,7 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 
 	ss.AddAffiliateSale(dpi, order.ID.Hex())
 
-	return nil, nil
+	return nil
 }
 
 // Giftcard error, discount error, both worked
