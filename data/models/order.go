@@ -37,7 +37,7 @@ type Order struct {
 	ShippingContact        *Contact           `bson:"shipping_contact" json:"shipping_contact"`
 	Lines                  []OrderLine        `bson:"lines" json:"lines"`
 	GiftCardBuyLines       []GiftCardBuyLine  `bson:"gc_lines" json:"gc_lines"`     // For purchasing
-	GiftCards              []OrderGiftCard    `bson:"gift_cards" json:"gift_cards"` // To apply towards order
+	GiftCards              [3]*OrderGiftCard  `bson:"gift_cards" json:"gift_cards"` // To apply towards order
 	Tags                   []string           `bson:"tags" json:"tags"`
 	ShippingIdentification string             `bson:"shipping_identification" json:"shipping_identification"`
 	Guest                  bool               `bson:"guest" json:"guest"`
@@ -92,7 +92,7 @@ type DraftOrder struct {
 	ShippingContact       *Contact                     `bson:"shipping_contact" json:"shipping_contact"`
 	Lines                 []OrderLine                  `bson:"lines" json:"lines"`
 	GiftCardBuyLines      []GiftCardBuyLine            `bson:"gc_lines" json:"gc_lines"`     // For purchasing
-	GiftCards             []OrderGiftCard              `bson:"gift_cards" json:"gift_cards"` // To apply towards order
+	GiftCards             [3]*OrderGiftCard            `bson:"gift_cards" json:"gift_cards"` // To apply towards order
 	Tags                  []string                     `bson:"tags" json:"tags"`
 	Guest                 bool                         `bson:"guest" json:"guest"`
 	GuestID               string                       `bson:"guest_id" json:"guest_id"`

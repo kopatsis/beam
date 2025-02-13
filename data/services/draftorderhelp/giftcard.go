@@ -11,13 +11,24 @@ func AddGiftCardToOrder(giftCard *models.GiftCard, draftOrder *models.DraftOrder
 		return errors.New("nothing to pay for with this card")
 	}
 
-	draftOrder.GiftCards = append(draftOrder.GiftCards, models.OrderGiftCard{
+	var i int
+	if draftOrder.GiftCards[0] == nil {
+		i = 0
+	} else if draftOrder.GiftCards[1] == nil {
+		i = 1
+	} else if draftOrder.GiftCards[2] == nil {
+		i = 2
+	} else {
+		return errors.New("all gift card slots filled")
+	}
+
+	draftOrder.GiftCards[i] = &models.OrderGiftCard{
 		GiftCardID:      giftCard.ID,
 		Code:            giftCard.IDCode,
 		AmountAvailable: giftCard.LeftoverCents,
 		Charged:         0,
 		Message:         giftCard.ShortMessage,
-	})
+	}
 
 	return nil
 }
@@ -31,7 +42,7 @@ func ApplyGiftCardToOrder(gcID, cents int, fullAmount bool, draftOrder *models.D
 		return errors.New("must be positive cents")
 	}
 
-	var gc models.OrderGiftCard
+	var gc *models.OrderGiftCard
 	ind := -1
 	for i, g := range draftOrder.GiftCards {
 		if g.GiftCardID == gcID {
@@ -66,7 +77,7 @@ func ApplyGiftCardToOrder(gcID, cents int, fullAmount bool, draftOrder *models.D
 
 func RemoveGiftCardFromOrder(gcID int, draftOrder *models.DraftOrder) error {
 
-	var gc models.OrderGiftCard
+	var gc *models.OrderGiftCard
 	ind := -1
 	for i, g := range draftOrder.GiftCards {
 		if g.GiftCardID == gcID {
@@ -79,7 +90,16 @@ func RemoveGiftCardFromOrder(gcID int, draftOrder *models.DraftOrder) error {
 		return errors.New("no matching gift card with that id")
 	}
 
-	draftOrder.GiftCards = append(draftOrder.GiftCards[:ind], draftOrder.GiftCards[ind+1:]...)
+	draftOrder.GiftCards[ind] = nil
+
+	if ind == 0 {
+		draftOrder.GiftCards[0] = draftOrder.GiftCards[1]
+		draftOrder.GiftCards[1] = draftOrder.GiftCards[2]
+		draftOrder.GiftCards[2] = nil
+	} else if ind == 1 {
+		draftOrder.GiftCards[1] = draftOrder.GiftCards[2]
+		draftOrder.GiftCards[2] = nil
+	}
 
 	if gc.Charged != 0 {
 		return EnsureGiftCardSum(draftOrder, draftOrder.GiftCardSum-gc.Charged, 0, true)
