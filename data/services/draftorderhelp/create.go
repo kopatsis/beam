@@ -8,30 +8,23 @@ import (
 	"time"
 )
 
-func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Cart, cartLines []models.CartLine, products map[int]*models.ProductRedis, contacts []*models.Contact) (*models.DraftOrder, error) {
+func CreateDraftOrder(customer *models.Customer, guestID string, cart *models.Cart, cartLines []*models.CartLine, products map[int]*models.ProductRedis, contacts []*models.Contact) (*models.DraftOrder, error) {
 
-	orderLines := []models.OrderLine{}
-	subtotal := 0
+	orderLines, gcLines := []models.OrderLine{}, []models.GiftCardBuyLine{}
+	subtotal, gcTotal := 0, 0
 	for _, line := range cartLines {
-		var orderLine models.OrderLine
-
 		if line.IsGiftCard {
-			orderLine = models.OrderLine{
-				ImageURL:          config.GC_IMG,
-				ProductTitle:      config.GC_NAME,
-				Handle:            config.GC_HANDLE,
-				Variant1Key:       "Message",
-				Variant1Value:     line.GiftCardMessage,
-				ProductID:         line.ProductID,
-				VariantID:         line.VariantID,
-				Quantity:          1,
-				UndiscountedPrice: line.Price,
-				Price:             line.Price,
-				EndPrice:          line.Price,
-				LineTotal:         line.Price,
-				IsGiftCard:        true,
+			orderLine := models.GiftCardBuyLine{
+				ImageURL:     config.GC_IMG,
+				ProductTitle: config.GC_NAME,
+				Handle:       config.GC_HANDLE,
+				Message:      line.GiftCardMessage,
+				CardID:       line.VariantID,
+				CardCode:     line.GiftCardCode,
+				Price:        line.Price,
 			}
-			subtotal += line.Quantity * line.Price
+			gcTotal += line.Price
+			gcLines = append(gcLines, orderLine)
 		} else {
 			prod, ok := products[line.ProductID]
 			if !ok {
@@ -51,7 +44,7 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Car
 
 			vp := product.VolumeDiscPrice(variant.Price, line.Quantity, prod.VolumeDisc)
 
-			orderLine = models.OrderLine{
+			orderLine := models.OrderLine{
 				ImageURL:          prod.ImageURL,
 				ProductTitle:      prod.Title,
 				Handle:            prod.Handle,
@@ -71,8 +64,10 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Car
 				LineTotal:         line.Quantity * vp,
 			}
 			subtotal += line.Quantity * vp
+
+			orderLines = append(orderLines, orderLine)
 		}
-		orderLines = append(orderLines, orderLine)
+
 	}
 
 	draftOrder := &models.DraftOrder{
@@ -85,9 +80,11 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Car
 		Tip:                0,
 		PreGiftCardTotal:   subtotal,
 		PostTaxTotal:       subtotal,
+		GiftCardBuyTotal:   gcTotal,
 		GiftCardSum:        0,
-		Total:              subtotal,
+		Total:              subtotal + gcTotal,
 		Lines:              orderLines,
+		GiftCardBuyLines:   gcLines,
 		Guest:              false,
 	}
 
@@ -100,21 +97,21 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart models.Car
 		draftOrder.CustomerID = customer.ID
 		draftOrder.Email = customer.Email
 		draftOrder.Name = customer.DefaultName
-		pmid, err := CreatePaymentIntent(customer.StripeID, int64(draftOrder.Subtotal), "usd")
+		pmid, err := CreatePaymentIntent(customer.StripeID, int64(draftOrder.Total), "usd")
 		if err != nil {
 			return nil, err
 		}
 		draftOrder.StripePaymentIntentID = pmid
 	} else if guestID != "" {
 		draftOrder.GuestID = guestID
-		pmid, err := CreatePaymentIntent("", int64(draftOrder.Subtotal), "usd")
+		pmid, err := CreatePaymentIntent("", int64(draftOrder.Total), "usd")
 		if err != nil {
 			return nil, err
 		}
 		draftOrder.StripePaymentIntentID = pmid
 	} else {
 		draftOrder.GuestID = cart.GuestID
-		pmid, err := CreatePaymentIntent("", int64(draftOrder.Subtotal), "usd")
+		pmid, err := CreatePaymentIntent("", int64(draftOrder.Total), "usd")
 		if err != nil {
 			return nil, err
 		}

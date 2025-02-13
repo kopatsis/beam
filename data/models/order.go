@@ -30,12 +30,14 @@ type Order struct {
 	PostTaxTotal           int                `bson:"post_tax_total" json:"post_tax_total"`
 	Tip                    int                `bson:"tip" json:"tip"`
 	PreGiftCardTotal       int                `bson:"pgc_total" json:"pgc_total"`
-	GiftCardSum            int                `bson:"gc_sum" json:"gc_sum"`
+	GiftCardSum            int                `bson:"gc_sum" json:"gc_sum"`     // To apply towards order
+	GiftCardBuyTotal       int                `bson:"gc_total" json:"gc_total"` // For purchasing
 	Total                  int                `bson:"total" json:"total"`
 	OrderDiscount          OrderDiscount      `bson:"non_stacking_discount_code" json:"non_stacking_discount_code"`
 	ShippingContact        *Contact           `bson:"shipping_contact" json:"shipping_contact"`
 	Lines                  []OrderLine        `bson:"lines" json:"lines"`
-	GiftCards              []OrderGiftCard    `bson:"gift_cards" json:"gift_cards"`
+	GiftCardBuyLines       []GiftCardBuyLine  `bson:"gc_lines" json:"gc_lines"`     // For purchasing
+	GiftCards              []OrderGiftCard    `bson:"gift_cards" json:"gift_cards"` // To apply towards order
 	Tags                   []string           `bson:"tags" json:"tags"`
 	ShippingIdentification string             `bson:"shipping_identification" json:"shipping_identification"`
 	Guest                  bool               `bson:"guest" json:"guest"`
@@ -83,12 +85,14 @@ type DraftOrder struct {
 	PostTaxTotal          int                          `bson:"post_tax_total" json:"post_tax_total"`
 	Tip                   int                          `bson:"tip" json:"tip"`
 	PreGiftCardTotal      int                          `bson:"pgc_total" json:"pgc_total"`
-	GiftCardSum           int                          `bson:"gc_sum" json:"gc_sum"`
+	GiftCardSum           int                          `bson:"gc_sum" json:"gc_sum"`     // To apply towards order
+	GiftCardBuyTotal      int                          `bson:"gc_total" json:"gc_total"` // For purchasing
 	Total                 int                          `bson:"total" json:"total"`
 	OrderDiscount         OrderDiscount                `bson:"non_stacking_discount_code" json:"non_stacking_discount_code"`
 	ShippingContact       *Contact                     `bson:"shipping_contact" json:"shipping_contact"`
 	Lines                 []OrderLine                  `bson:"lines" json:"lines"`
-	GiftCards             []OrderGiftCard              `bson:"gift_cards" json:"gift_cards"`
+	GiftCardBuyLines      []GiftCardBuyLine            `bson:"gc_lines" json:"gc_lines"`     // For purchasing
+	GiftCards             []OrderGiftCard              `bson:"gift_cards" json:"gift_cards"` // To apply towards order
 	Tags                  []string                     `bson:"tags" json:"tags"`
 	Guest                 bool                         `bson:"guest" json:"guest"`
 	GuestID               string                       `bson:"guest_id" json:"guest_id"`
@@ -142,7 +146,6 @@ type OrderLine struct {
 	Variant3Key       string                 `bson:"variant_3_key" json:"variant_3_key"`
 	Variant3Value     string                 `bson:"variant_3_value" json:"variant_3_value"`
 	ProductID         int                    `bson:"product_id" json:"product_id"`
-	IsGiftCard        bool                   `bson:"gift_card" json:"gift_card"`
 	VariantID         int                    `bson:"variant_id" json:"variant_id"`
 	Quantity          int                    `bson:"quantity" json:"quantity"`
 	UndiscountedPrice int                    `bson:"undiscounted_price" json:"undiscounted_price"`
@@ -150,6 +153,16 @@ type OrderLine struct {
 	LineLevelDiscount int                    `bson:"line_level_discount" json:"line_level_discount"`
 	EndPrice          int                    `bson:"end_price" json:"end_price"`
 	LineTotal         int                    `bson:"line_total" json:"line_total"`
+}
+
+type GiftCardBuyLine struct {
+	ImageURL     string `bson:"image_url" json:"image_url"`
+	ProductTitle string `bson:"product_title" json:"product_title"`
+	Handle       string `bson:"handle" json:"handle"`
+	Message      string `bson:"message" json:"message"`
+	CardID       int    `bson:"card_id" json:"card_id"`
+	CardCode     string `bson:"card_code" json:"card_code"`
+	Price        int    `bson:"price" json:"price"`
 }
 
 type ShippingRate struct {

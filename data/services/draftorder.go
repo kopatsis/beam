@@ -49,12 +49,12 @@ func NewDraftOrderService(draftRepo repositories.DraftOrderRepository) DraftOrde
 func (s *draftOrderService) CreateDraftOrder(dpi *DataPassIn, crs *cartService, pds *productService, cts *customerService) (*models.DraftOrder, error) {
 	var wg sync.WaitGroup
 
-	cart := models.Cart{}
-	cartLines := []models.CartLine{}
+	cart := &models.Cart{}
+	cartLines := []*models.CartLine{}
 	contacts := []*models.Contact{}
 	cust := &models.Customer{}
 	pMap := map[int]*models.ProductRedis{}
-	exists := false
+	id := 0
 
 	cartErr, customerErr, contactsErr, productErr := error(nil), error(nil), error(nil), error(nil)
 
@@ -62,11 +62,7 @@ func (s *draftOrderService) CreateDraftOrder(dpi *DataPassIn, crs *cartService, 
 
 	go func() {
 		defer wg.Done()
-		if dpi.CustomerID == 0 && dpi.GuestID != "" {
-			cart, cartLines, exists, cartErr = crs.cartRepo.GetCartWithLinesByGuestID(dpi.GuestID)
-		} else {
-			cart, cartLines, exists, cartErr = crs.cartRepo.GetCartWithLinesByCustomerID(dpi.CustomerID)
-		}
+		id, cart, cartLines, cartErr = crs.GetCartWithLinesAndVerify(dpi)
 	}()
 
 	go func() {
@@ -98,7 +94,7 @@ func (s *draftOrderService) CreateDraftOrder(dpi *DataPassIn, crs *cartService, 
 	if productErr != nil {
 		return nil, productErr
 	}
-	if !exists {
+	if id != dpi.CartID {
 		return nil, errors.New("no existing cart")
 	}
 

@@ -601,9 +601,6 @@ func (s *cartService) OrderSuccessCart(dpi *DataPassIn, orderLines []models.Orde
 
 	varIDs := map[int]struct{}{}
 	for _, l := range orderLines {
-		if l.IsGiftCard {
-			continue
-		}
 		varIDs[l.VariantID] = struct{}{}
 	}
 

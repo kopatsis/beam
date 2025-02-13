@@ -29,7 +29,7 @@ type ProductService interface {
 	GetLimitedVariants(name string, vids []int) ([]*models.LimitedVariantRedis, error)
 	GetProductByVariantID(name string, vid int) (models.ProductRedis, string, error)
 	GetProductsByVariantIDs(name string, vids []int) (map[int]*models.ProductRedis, error)
-	GetProductsMapFromCartLine(name string, cartLines []models.CartLine) (map[int]*models.ProductRedis, error)
+	GetProductsMapFromCartLine(name string, cartLines []*models.CartLine) (map[int]*models.ProductRedis, error)
 
 	UpdateRatings(dpi *DataPassIn, pid, newRate, oldRate, plusMinus int, tools *config.Tools)
 	ConfirmDraftOrderProducts(dpi *DataPassIn, vinv map[int]int, vids []int) (map[int]models.InvRetrieval, bool, error)
@@ -237,7 +237,7 @@ func (s *productService) GetProductsByVariantIDs(name string, vids []int) (map[i
 	return ret, nil
 }
 
-func (s *productService) GetProductsMapFromCartLine(name string, cartLines []models.CartLine) (map[int]*models.ProductRedis, error) {
+func (s *productService) GetProductsMapFromCartLine(name string, cartLines []*models.CartLine) (map[int]*models.ProductRedis, error) {
 	vids := []int{}
 
 	for _, cl := range cartLines {
