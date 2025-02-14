@@ -6,6 +6,14 @@ import (
 	"errors"
 )
 
+func MoreGiftCardsAllowed(draftOrder *models.DraftOrder) bool {
+	if draftOrder == nil {
+		return false
+	}
+
+	return draftOrder.GiftCards[0] == nil || draftOrder.GiftCards[1] == nil || draftOrder.GiftCards[2] == nil
+}
+
 func AddGiftCardToOrder(giftCard *models.GiftCard, draftOrder *models.DraftOrder) error {
 	if draftOrder.Total <= 0 {
 		return errors.New("nothing to pay for with this card")
@@ -64,11 +72,6 @@ func ApplyGiftCardToOrder(gcID, cents int, fullAmount bool, draftOrder *models.D
 	if delta == 0 {
 		return nil
 	}
-
-	// if draftOrder.Total+delta < 0 {
-	// 	delta = -1 * draftOrder.Total
-	// 	cents = gc.Charged - delta
-	// }
 
 	draftOrder.GiftCards[ind].Charged = cents
 	draftOrder.GiftCards[ind].UseFullAmount = fullAmount

@@ -521,6 +521,10 @@ func (s *draftOrderService) AddGiftCard(dpi *DataPassIn, draftID, gcCode, pin st
 		return draft, err
 	}
 
+	if !draftorderhelp.MoreGiftCardsAllowed(draft) {
+		return draft, errors.New("maximum number of gift cards to add reached")
+	}
+
 	gc, err := ds.RetrieveGiftCard(gcCode, pin)
 	if err != nil {
 		return draft, err
