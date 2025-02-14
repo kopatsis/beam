@@ -288,107 +288,32 @@ func (s *discountService) GetDiscountCodeForDraft(code string, subtotal, cust in
 }
 
 func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[[2]string]int, customderID int, guestID, orderID, sessionID string) error {
-	allCodes := []string{}
 	for idCode, amt := range codesAndAmounts {
 		if amt <= 0 {
 			continue
 		} else if !discount.CheckID(idCode[0]) {
-			continue
+			return errors.New("incorrectly formatted id code: " + idCode[0])
 		} else if matched, _ := regexp.MatchString(`^\d{3}$`, idCode[1]); !matched {
-			continue
+			return fmt.Errorf("incorrectly formatted pin: %s, for id code: %s", idCode[0], idCode[1])
 		}
-		allCodes = append(allCodes, idCode[0])
 	}
 
-	if len(allCodes) == 0 {
+	if len(codesAndAmounts) == 0 {
 		return nil
+	} else if len(codesAndAmounts) > 3 {
+		return errors.New("maximum 3 allowed gift cards to pay for an order")
 	}
 
-	allCards, err := s.discountRepo.GetGiftCardsByIDCodes(allCodes)
+	uses, err := s.discountRepo.UseGiftCards(codesAndAmounts, orderID, guestID, sessionID, customderID)
 	if err != nil {
 		return err
-	} else if len(allCards) != len(allCodes) {
-		return fmt.Errorf("issue with checking codes: queried %d, got %d", len(allCards), len(allCodes))
-	}
-
-	uses := []*models.GiftCardUseLine{}
-
-	for _, idCode := range allCodes {
-
-		found, pin, amount := false, "", 0
-		for codes, amt := range codesAndAmounts {
-			if codes[0] == idCode {
-				found = true
-				pin = codes[1]
-				amount = amt
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("one of the provided id codes not represented: %s", idCode)
-		}
-
-		var gc *models.GiftCard
-		for _, c := range allCards {
-			if c.IDCode == idCode {
-				gc = c
-			}
-		}
-
-		if gc == nil {
-			return fmt.Errorf("one of the provided id codes not represented: %s", idCode)
-		}
-
-		if gc.Pin != pin {
-			return fmt.Errorf("incorrect pin: %s", idCode)
-		}
-
-		prev := gc.LeftoverCents
-
-		if gc.Status == "Draft" {
-			return fmt.Errorf("not yet paid for: %s", idCode)
-		}
-
-		if gc.Status == "Spent" || gc.LeftoverCents == 0 {
-			return fmt.Errorf("giftcard spent: %s", idCode)
-		}
-
-		if gc.Expired.Before(time.Now()) {
-			return fmt.Errorf("expired: %s", idCode)
-		}
-
-		if gc.LeftoverCents < amount {
-			return fmt.Errorf("cents left over: %d, cents needed: %d", gc.LeftoverCents, amount)
-		}
-
-		gc.LeftoverCents -= amount
-
-		if gc.LeftoverCents == 0 {
-			gc.Status = "Spent"
-			gc.Spent = time.Now()
-		}
-
-		use := &models.GiftCardUseLine{
-			GiftCardID:     gc.ID,
-			GiftCardCode:   idCode,
-			OrderID:        orderID,
-			Date:           gc.Spent,
-			CustomerID:     customderID,
-			GuestID:        guestID,
-			SessionID:      sessionID,
-			PreviousAmount: prev,
-			AmountApplied:  amount,
-			EndAmount:      gc.LeftoverCents,
-		}
-
-		uses = append(uses, use)
 	}
 
 	go func() {
 		s.discountRepo.GiftCardUseLines(uses)
 	}()
 
-	return s.discountRepo.SaveGiftCards(allCards)
+	return nil
 }
 
 func (s *discountService) UseDiscountCode(code, guestID, orderID, sessionID string, subtotal int, cust int, noCustomer bool) error {

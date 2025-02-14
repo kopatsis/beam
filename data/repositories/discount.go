@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"math/rand"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type DiscountRepository interface {
@@ -30,6 +32,9 @@ type DiscountRepository interface {
 
 	DiscountUseLine(use *models.DiscountUseLine)
 	GiftCardUseLines(uses []*models.GiftCardUseLine)
+
+	UseGiftCard(idCode, pin string, amount int) (int, int, int, error)
+	UseGiftCards(data map[[2]string]int, orderID, guestID, sessionID string, customerID int) ([]*models.GiftCardUseLine, error)
 }
 
 type discountRepo struct {
@@ -167,4 +172,152 @@ func (r *discountRepo) GiftCardUseLines(uses []*models.GiftCardUseLine) {
 	if err := r.db.Save(uses).Error; err != nil {
 		log.Printf("Unable to save gift card use lines, err: %v\n", err)
 	}
+}
+
+// ID, Previous balance, new balance, any error)
+func (r *discountRepo) UseGiftCard(idCode, pin string, amount int) (int, int, int, error) {
+	var gc models.GiftCard
+	tx := r.db.Begin()
+
+	if err := tx.Where("id_code = ?", idCode).Clauses(clause.Locking{Strength: "UPDATE"}).First(&gc).Error; err != nil {
+		tx.Rollback()
+		return 0, 0, 0, err
+	}
+
+	if gc.Pin != pin {
+		return 0, 0, 0, fmt.Errorf("incorrect pin: %s", idCode)
+	}
+
+	prev := gc.LeftoverCents
+	id := gc.ID
+
+	if gc.Status == "Draft" {
+		return 0, 0, 0, fmt.Errorf("not yet paid for: %s", idCode)
+	}
+
+	if gc.Status == "Spent" || gc.LeftoverCents == 0 {
+		return 0, 0, 0, fmt.Errorf("giftcard spent: %s", idCode)
+	}
+
+	if gc.Expired.Before(time.Now()) {
+		return 0, 0, 0, fmt.Errorf("expired: %s", idCode)
+	}
+
+	if gc.LeftoverCents < amount {
+		return 0, 0, 0, fmt.Errorf("cents left over: %d, cents needed: %d", gc.LeftoverCents, amount)
+	}
+
+	gc.LeftoverCents -= amount
+	new := gc.LeftoverCents
+
+	if gc.LeftoverCents == 0 {
+		gc.Status = "Spent"
+		gc.Spent = time.Now()
+	}
+
+	if err := tx.Save(&gc).Error; err != nil {
+		tx.Rollback()
+		return 0, 0, 0, err
+	}
+
+	return id, prev, new, tx.Commit().Error
+}
+
+func (r *discountRepo) UseGiftCards(data map[[2]string]int, orderID, guestID, sessionID string, customerID int) ([]*models.GiftCardUseLine, error) {
+
+	if len(data) > 3 {
+		return nil, errors.New("maximum 3 gift cards can be applied at a time")
+	}
+
+	var giftCards []models.GiftCard
+	idCodes := make([]string, 0, len(data))
+	for key := range data {
+		idCodes = append(idCodes, key[0])
+	}
+
+	uses := []*models.GiftCardUseLine{}
+
+	tx := r.db.Begin()
+
+	if err := tx.Where("id_code IN (?)", idCodes).Clauses(clause.Locking{Strength: "UPDATE"}).Find(&giftCards).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	giftCardMap := make(map[string]*models.GiftCard)
+	for i := range giftCards {
+		giftCardMap[giftCards[i].IDCode] = &giftCards[i]
+	}
+
+	save := []*models.GiftCard{}
+	for key, amount := range data {
+		idCode := key[0]
+		pin := key[1]
+		gc, exists := giftCardMap[idCode]
+		if !exists {
+			tx.Rollback()
+			return nil, fmt.Errorf("gift card not found: %s", idCode)
+		}
+
+		if gc.Pin != pin {
+			tx.Rollback()
+			return nil, fmt.Errorf("incorrect pin: %s", idCode)
+		}
+
+		if gc.Status == "Draft" {
+			tx.Rollback()
+			return nil, fmt.Errorf("not yet paid for: %s", idCode)
+		}
+
+		if gc.Status == "Spent" || gc.LeftoverCents == 0 {
+			tx.Rollback()
+			return nil, fmt.Errorf("giftcard spent: %s", idCode)
+		}
+
+		if gc.Expired.Before(time.Now()) {
+			tx.Rollback()
+			return nil, fmt.Errorf("expired: %s", idCode)
+		}
+
+		if gc.LeftoverCents < amount {
+			tx.Rollback()
+			return nil, fmt.Errorf("cents left over: %d, cents needed: %d", gc.LeftoverCents, amount)
+		}
+
+		prev := gc.LeftoverCents
+		gc.LeftoverCents -= amount
+
+		if gc.LeftoverCents == 0 {
+			gc.Status = "Spent"
+			gc.Spent = time.Now()
+		}
+
+		save = append(save, gc)
+
+		use := &models.GiftCardUseLine{
+			GiftCardID:     gc.ID,
+			GiftCardCode:   key[0],
+			OrderID:        orderID,
+			Date:           time.Now(),
+			CustomerID:     customerID,
+			GuestID:        guestID,
+			SessionID:      sessionID,
+			PreviousAmount: prev,
+			AmountApplied:  amount,
+			EndAmount:      gc.LeftoverCents,
+		}
+
+		uses = append(uses, use)
+	}
+
+	if err := tx.Save(&save).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return uses, nil
 }
