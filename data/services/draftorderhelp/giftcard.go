@@ -28,6 +28,7 @@ func AddGiftCardToOrder(giftCard *models.GiftCard, draftOrder *models.DraftOrder
 		AmountAvailable: giftCard.LeftoverCents,
 		Charged:         0,
 		Message:         giftCard.ShortMessage,
+		Pin:             giftCard.Pin,
 	}
 
 	return nil

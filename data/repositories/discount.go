@@ -1,10 +1,13 @@
 package repositories
 
 import (
+	"fmt"
 	"log"
 	"time"
 
 	"beam/data/models"
+
+	"math/rand"
 
 	"gorm.io/gorm"
 )
@@ -14,7 +17,7 @@ type DiscountRepository interface {
 	Read(id int) (*models.Discount, error)
 	Update(discount models.Discount) error
 	Delete(id int) error
-	CreateGiftCard(idCode string, cents int, message string) (int, error)
+	CreateGiftCard(idCode string, cents int, message string) (int, string, error)
 	IDCodeExists(idCode string) (bool, error)
 	GetGiftCard(idCode string) (*models.GiftCard, error)
 	GetGiftCardsByIDCodes(idCodes []string) ([]*models.GiftCard, error)
@@ -55,7 +58,9 @@ func (r *discountRepo) Delete(id int) error {
 	return r.db.Delete(&models.Discount{}, id).Error
 }
 
-func (r *discountRepo) CreateGiftCard(idCode string, cents int, message string) (int, error) {
+func (r *discountRepo) CreateGiftCard(idCode string, cents int, message string) (int, string, error) {
+
+	pin := fmt.Sprintf("%03d", rand.Intn(1000))
 	giftCard := models.GiftCard{
 		IDCode:        idCode,
 		Created:       time.Now(),
@@ -64,11 +69,12 @@ func (r *discountRepo) CreateGiftCard(idCode string, cents int, message string) 
 		OriginalCents: cents,
 		LeftoverCents: cents,
 		ShortMessage:  message,
+		Pin:           pin,
 	}
 	if err := r.db.Create(&giftCard).Error; err != nil {
-		return 0, err
+		return 0, "", err
 	}
-	return giftCard.ID, nil
+	return giftCard.ID, pin, nil
 }
 
 func (r *discountRepo) IDCodeExists(idCode string) (bool, error) {

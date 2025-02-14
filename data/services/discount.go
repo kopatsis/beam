@@ -8,6 +8,7 @@ import (
 	"beam/data/services/discount"
 	"errors"
 	"fmt"
+	"regexp"
 	"sync"
 	"time"
 )
@@ -18,15 +19,15 @@ type DiscountService interface {
 	UpdateDiscount(discount models.Discount) error
 	DeleteDiscount(id int) error
 
-	CreateGiftCard(cents int, message string, store string, tools *config.Tools) (int, string, error)
+	CreateGiftCard(cents int, message string, store string, tools *config.Tools) (int, string, string, error)
 	RenderGiftCard(code string) (*models.GiftCardRender, error)
-	RetrieveGiftCard(code string) (*models.GiftCard, error)
-	CheckMultipleGiftCards(codesAndAmounts map[string]int) error
+	RetrieveGiftCard(code, pin string) (*models.GiftCard, error)
+	CheckMultipleGiftCards(codesAndAmounts map[[2]string]int) error
 	CheckDiscountCode(code string, subtotal int, cust int, noCustomer bool) error
-	CheckGiftCardsAndDiscountCodes(codesAndAmounts map[string]int, code string, subtotal int, cust int, noCustomer bool) (error, error)
+	CheckGiftCardsAndDiscountCodes(codesAndAmounts map[[2]string]int, code string, subtotal int, cust int, noCustomer bool) (error, error)
 	GetDiscountCodeForDraft(code string, subtotal, cust int, noCustomer bool) (*models.Discount, []*models.DiscountUser, error)
 
-	UseMultipleGiftCards(codesAndAmounts map[string]int, customderID int, guestID, orderID, sessionID string) error
+	UseMultipleGiftCards(codesAndAmounts map[[2]string]int, customderID int, guestID, orderID, sessionID string) error
 	UseDiscountCode(code, guestID, orderID, sessionID string, subtotal int, cust int, noCustomer bool) error
 }
 
@@ -54,15 +55,15 @@ func (s *discountService) DeleteDiscount(id int) error {
 	return s.discountRepo.Delete(id)
 }
 
-func (s *discountService) CreateGiftCard(cents int, message string, store string, tools *config.Tools) (int, string, error) {
+func (s *discountService) CreateGiftCard(cents int, message string, store string, tools *config.Tools) (int, string, string, error) {
 	if len(message) > 256 {
 		message = message[:255]
 	}
 
 	if cents < 250 {
-		return 0, "", errors.New("not a large enough amount for gift card")
+		return 0, "", "", errors.New("not a large enough amount for gift card")
 	} else if cents >= 100000000 {
-		return 0, "", errors.New("too large amount for gift card")
+		return 0, "", "", errors.New("too large amount for gift card")
 	}
 
 	var err error
@@ -71,7 +72,7 @@ func (s *discountService) CreateGiftCard(cents int, message string, store string
 		idSt = discount.GenerateCartID()
 		exists, err = s.discountRepo.IDCodeExists(idSt)
 		if err != nil {
-			return 0, "", err
+			return 0, "", "", err
 		}
 		if !exists {
 			emails.AlertGiftCardID(idSt, iter, store, tools)
@@ -79,25 +80,31 @@ func (s *discountService) CreateGiftCard(cents int, message string, store string
 	}
 
 	if !exists {
-		return 0, "", errors.New("severe issue: could not create an id for gift card in 10 attempts")
+		return 0, "", "", errors.New("severe issue: could not create an id for gift card in 10 attempts")
 	}
 
-	idDB, err := s.discountRepo.CreateGiftCard(idSt, cents, message)
+	idDB, pin, err := s.discountRepo.CreateGiftCard(idSt, cents, message)
 	if err != nil {
-		return 0, "", err
+		return 0, "", "", err
 	}
 
-	return idDB, discount.SpaceDisplayGC(idSt), nil
+	return idDB, discount.SpaceDisplayGC(idSt), pin, nil
 }
 
-func (s *discountService) RetrieveGiftCard(code string) (*models.GiftCard, error) {
+func (s *discountService) RetrieveGiftCard(code, pin string) (*models.GiftCard, error) {
 	if !discount.CheckID(code) {
 		return nil, errors.New("invalid gift card code")
+	} else if matched, _ := regexp.MatchString(`^\d{3}$`, pin); !matched {
+		return nil, errors.New("invalid pin code")
 	}
 
 	gc, err := s.discountRepo.GetGiftCard(code)
 	if err != nil {
 		return nil, err
+	}
+
+	if gc.Pin != pin {
+		return nil, errors.New("pins do not match")
 	}
 
 	if gc.Status == "Draft" {
@@ -127,15 +134,17 @@ func (s *discountService) RenderGiftCard(code string) (*models.GiftCardRender, e
 	return &models.GiftCardRender{GiftCard: *gc, Expired: gc.Expired.Before(time.Now())}, nil
 }
 
-func (s *discountService) CheckMultipleGiftCards(codesAndAmounts map[string]int) error {
+func (s *discountService) CheckMultipleGiftCards(codesAndAmounts map[[2]string]int) error {
 	allCodes := []string{}
 	for idCode, amt := range codesAndAmounts {
 		if amt <= 0 {
 			continue
-		} else if !discount.CheckID(idCode) {
+		} else if !discount.CheckID(idCode[0]) {
+			continue
+		} else if matched, _ := regexp.MatchString(`^\d{3}$`, idCode[1]); !matched {
 			continue
 		}
-		allCodes = append(allCodes, idCode)
+		allCodes = append(allCodes, idCode[0])
 	}
 
 	if len(allCodes) == 0 {
@@ -151,7 +160,18 @@ func (s *discountService) CheckMultipleGiftCards(codesAndAmounts map[string]int)
 
 	for _, idCode := range allCodes {
 
-		amount := codesAndAmounts[idCode]
+		found, pin, amount := false, "", 0
+		for codes, amt := range codesAndAmounts {
+			if codes[0] == idCode {
+				found = true
+				pin = codes[1]
+				amount = amt
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("one of the provided id codes not represented: %s", idCode)
+		}
 
 		var gc *models.GiftCard
 		for _, c := range allCards {
@@ -162,6 +182,10 @@ func (s *discountService) CheckMultipleGiftCards(codesAndAmounts map[string]int)
 
 		if gc == nil {
 			return fmt.Errorf("one of the provided id codes not represented: %s", idCode)
+		}
+
+		if gc.Pin != pin {
+			return fmt.Errorf("incorrect pin: %s", idCode)
 		}
 
 		if gc.Status == "Draft" {
@@ -190,7 +214,7 @@ func (s *discountService) CheckDiscountCode(code string, subtotal int, cust int,
 	return err
 }
 
-func (s *discountService) CheckGiftCardsAndDiscountCodes(codesAndAmounts map[string]int, code string, subtotal int, cust int, noCustomer bool) (error, error) {
+func (s *discountService) CheckGiftCardsAndDiscountCodes(codesAndAmounts map[[2]string]int, code string, subtotal int, cust int, noCustomer bool) (error, error) {
 	var errGiftCards, errDiscountCodes error
 
 	wg := sync.WaitGroup{}
@@ -263,15 +287,17 @@ func (s *discountService) GetDiscountCodeForDraft(code string, subtotal, cust in
 	return disc, users, nil
 }
 
-func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[string]int, customderID int, guestID, orderID, sessionID string) error {
+func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[[2]string]int, customderID int, guestID, orderID, sessionID string) error {
 	allCodes := []string{}
 	for idCode, amt := range codesAndAmounts {
 		if amt <= 0 {
 			continue
-		} else if !discount.CheckID(idCode) {
+		} else if !discount.CheckID(idCode[0]) {
+			continue
+		} else if matched, _ := regexp.MatchString(`^\d{3}$`, idCode[1]); !matched {
 			continue
 		}
-		allCodes = append(allCodes, idCode)
+		allCodes = append(allCodes, idCode[0])
 	}
 
 	if len(allCodes) == 0 {
@@ -289,7 +315,18 @@ func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[string]int, c
 
 	for _, idCode := range allCodes {
 
-		amount := codesAndAmounts[idCode]
+		found, pin, amount := false, "", 0
+		for codes, amt := range codesAndAmounts {
+			if codes[0] == idCode {
+				found = true
+				pin = codes[1]
+				amount = amt
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("one of the provided id codes not represented: %s", idCode)
+		}
 
 		var gc *models.GiftCard
 		for _, c := range allCards {
@@ -301,6 +338,11 @@ func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[string]int, c
 		if gc == nil {
 			return fmt.Errorf("one of the provided id codes not represented: %s", idCode)
 		}
+
+		if gc.Pin != pin {
+			return fmt.Errorf("incorrect pin: %s", idCode)
+		}
+
 		prev := gc.LeftoverCents
 
 		if gc.Status == "Draft" {

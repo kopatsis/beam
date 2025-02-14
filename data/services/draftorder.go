@@ -28,7 +28,7 @@ type DraftOrderService interface {
 	SetTip(dpi *DataPassIn, draftID string, tip int) (*models.DraftOrder, error)
 	RemoveTip(dpi *DataPassIn, draftID string) (*models.DraftOrder, error)
 	AddGiftSubjectAndMessage(dpi *DataPassIn, draftID, subject, message string) (*models.DraftOrder, error)
-	AddGiftCard(dpi *DataPassIn, draftID, gcCode string, ds *discountService) (*models.DraftOrder, error)
+	AddGiftCard(dpi *DataPassIn, draftID, gcCode, pin string, ds *discountService) (*models.DraftOrder, error)
 	ApplyGiftCard(dpi *DataPassIn, draftID string, gcID, amount int, useMax bool) (*models.DraftOrder, error)
 	DeApplyGiftCard(dpi *DataPassIn, draftID string, gcID int) (*models.DraftOrder, error)
 	RemoveGiftCard(dpi *DataPassIn, draftID string, gcID int) (*models.DraftOrder, error)
@@ -515,13 +515,13 @@ func (s *draftOrderService) AddGiftSubjectAndMessage(dpi *DataPassIn, draftID, s
 	return draft, err
 }
 
-func (s *draftOrderService) AddGiftCard(dpi *DataPassIn, draftID, gcCode string, ds *discountService) (*models.DraftOrder, error) {
+func (s *draftOrderService) AddGiftCard(dpi *DataPassIn, draftID, gcCode, pin string, ds *discountService) (*models.DraftOrder, error) {
 	draft, err := s.GetDraftPtl(draftID, dpi.GuestID, dpi.CustomerID)
 	if err != nil {
 		return draft, err
 	}
 
-	gc, err := ds.RetrieveGiftCard(gcCode)
+	gc, err := ds.RetrieveGiftCard(gcCode, pin)
 	if err != nil {
 		return draft, err
 	}
@@ -589,9 +589,9 @@ func (s *draftOrderService) CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID 
 
 	if draft.OrderDiscount.DiscountCode != "" && len(draft.GiftCards) != 0 {
 
-		gcsAndAmounts := map[string]int{}
+		gcsAndAmounts := map[[2]string]int{}
 		for _, gc := range draft.GiftCards {
-			gcsAndAmounts[gc.Code] = gc.Charged
+			gcsAndAmounts[[2]string{gc.Code, gc.Pin}] = gc.Charged
 		}
 
 		gcErr, draftErr := ds.CheckGiftCardsAndDiscountCodes(gcsAndAmounts, draft.OrderDiscount.DiscountCode, draft.Subtotal, dpi.CustomerID, draft.Guest)
@@ -603,9 +603,9 @@ func (s *draftOrderService) CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID 
 
 	} else if len(draft.GiftCards) != 0 {
 
-		gcsAndAmounts := map[string]int{}
+		gcsAndAmounts := map[[2]string]int{}
 		for _, gc := range draft.GiftCards {
-			gcsAndAmounts[gc.Code] = gc.Charged
+			gcsAndAmounts[[2]string{gc.Code, gc.Pin}] = gc.Charged
 		}
 
 		gcErr := ds.CheckMultipleGiftCards(gcsAndAmounts)

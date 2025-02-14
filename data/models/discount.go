@@ -42,6 +42,7 @@ type GiftCard struct {
 	OriginalCents int
 	LeftoverCents int
 	ShortMessage  string
+	Pin           string
 }
 
 type DiscountUseLine struct {

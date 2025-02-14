@@ -115,6 +115,7 @@ type DraftOrder struct {
 type OrderGiftCard struct {
 	GiftCardID      int    `bson:"gc_id" json:"gc_id"`
 	Code            string `bson:"gc_code" json:"gc_code"`
+	Pin             string `bson:"pin" json:"pin"`
 	AmountAvailable int    `bson:"available" json:"available"`
 	Charged         int    `bson:"charged" json:"charged"`
 	Message         string `bson:"message" json:"message"`

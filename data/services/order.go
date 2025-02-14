@@ -206,9 +206,9 @@ func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.O
 
 	if len(order.GiftCards) != 0 {
 
-		gcsAndAmounts := map[string]int{}
+		gcsAndAmounts := map[[2]string]int{}
 		for _, gc := range order.GiftCards {
-			gcsAndAmounts[gc.Code] = gc.Charged
+			gcsAndAmounts[[2]string{gc.Code, gc.Pin}] = gc.Charged
 		}
 
 		gcErr = ds.UseMultipleGiftCards(gcsAndAmounts, dpi.CustomerID, dpi.GuestID, order.ID.Hex(), dpi.SessionID)
