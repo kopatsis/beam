@@ -349,9 +349,16 @@ func (s *productService) UpdateRatings(dpi *DataPassIn, pid, newRate, oldRate, p
 }
 
 func (s *productService) ConfirmDraftOrderProducts(dpi *DataPassIn, vinv map[int]int, vids []int) (map[int]models.InvRetrieval, bool, error) {
-	vars, err := s.productRepo.GetVarsSQL(vids)
+	prods, err := s.GetProductsByVariantIDs(dpi.Store, vids)
 	if err != nil {
 		return nil, false, err
+	}
+
+	vidToPid := map[int]int{}
+	for _, p := range prods {
+		for _, v := range p.Variants {
+			vidToPid[v.PK] = p.PK
+		}
 	}
 
 	result := map[int]models.InvRetrieval{}
@@ -359,23 +366,38 @@ func (s *productService) ConfirmDraftOrderProducts(dpi *DataPassIn, vinv map[int
 
 	for varid, qty := range vinv {
 		add := models.InvRetrieval{OnOrder: qty}
+
+		pid, ok := vidToPid[varid]
+		if !ok {
+			anyFalse, add.Exists = true, false
+			result[varid] = add
+			continue
+		}
+
+		prod, ok := prods[pid]
+		if !ok || prod == nil {
+			anyFalse, add.Exists = true, false
+			result[varid] = add
+			continue
+		}
+
 		found := false
-		for _, v := range vars {
-			if v.PK == varid {
-				add.OnProduct = v.Quantity
-				if add.OnOrder > add.OnProduct {
-					anyFalse = true
-				} else {
-					add.Possible = true
-				}
-				found = true
-				break
+		for _, v := range prod.Variants {
+			if v.PK != varid {
+				continue
 			}
+			found, add.OnProduct = true, v.Quantity
+			add.Possible = add.OnOrder <= add.OnProduct
+			if !add.Possible {
+				anyFalse = true
+			}
+			break
 		}
-		add.Exists = found
+
 		if !found {
-			anyFalse = true
+			anyFalse, add.Exists = true, false
 		}
+
 		result[varid] = add
 	}
 
@@ -448,9 +470,13 @@ func (s *productService) SetInventoryFromOrder(dpi *DataPassIn, decrement map[in
 		return err
 	}
 
-	prods, err := s.productRepo.GetFullProducts(dpi.Store, handles)
+	prodMap, err := s.GetProductsByVariantIDs(dpi.Store, vids)
 	if err != nil {
 		return err
+	}
+	prods := []*models.ProductRedis{}
+	for _, p := range prodMap {
+		prods = append(prods, p)
 	}
 
 	maxEach := map[string]int{}
