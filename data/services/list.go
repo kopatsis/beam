@@ -24,7 +24,7 @@ type ListService interface {
 	DeleteFavesLineRender(dpi *DataPassIn, variantID int, page int, ps *productService) (models.FavesListRender, error)
 	DeleteSavesListRender(dpi *DataPassIn, variantID int, page int, ps *productService) (models.SavesListRender, error)
 
-	UpdateLastOrdersList(dpi *DataPassIn, orderDate time.Time, orderID string, vids []int, ps *productService) error
+	UpdateLastOrdersList(dpi *DataPassIn, orderDate time.Time, orderID string, vids []int, ps ProductService) error
 
 	GetFavesLineByPage(dpi *DataPassIn, page int, ps *productService) (models.FavesListRender, error)
 	GetSavesListByPage(dpi *DataPassIn, page int, ps *productService) (models.SavesListRender, error)
@@ -186,7 +186,7 @@ func (s *listService) GetLastOrdersListProd(dpi *DataPassIn, productID int, ps *
 	return true, v, nil
 }
 
-func (s *listService) UpdateLastOrdersList(dpi *DataPassIn, orderDate time.Time, orderID string, vids []int, ps *productService) error {
+func (s *listService) UpdateLastOrdersList(dpi *DataPassIn, orderDate time.Time, orderID string, vids []int, ps ProductService) error {
 	if len(vids) == 0 {
 		return nil
 	}

@@ -19,9 +19,9 @@ import (
 
 type OrderService interface {
 	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, ps *productService, tools *config.Tools) (error, error)
-	CompleteOrder(store, orderID string, ds *draftOrderService, dts *discountService, ls *listService, ps *productService, ss *sessionService, mutexes *config.AllMutexes, tools *config.Tools)
-	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds *discountService) (error, error, bool)
-	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds *draftOrderService) error
+	CompleteOrder(store, orderID string, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools)
+	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService) (error, error, bool)
+	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error
 	RenderOrder(dpi *DataPassIn, orderID string) (*models.Order, bool, error)
 	GetOrdersList(dpi *DataPassIn, fromURL url.Values) (models.OrderRender, error)
 }
@@ -129,7 +129,7 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 
 }
 
-func (s *orderService) CompleteOrder(store, orderID string, ds *draftOrderService, dts *discountService, ls *listService, ps *productService, ss *sessionService, mutexes *config.AllMutexes, tools *config.Tools) {
+func (s *orderService) CompleteOrder(store, orderID string, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools) {
 
 	order, err := s.orderRepo.Read(orderID)
 	if err != nil {
@@ -228,7 +228,7 @@ func (s *orderService) CompleteOrder(store, orderID string, ds *draftOrderServic
 }
 
 // Giftcard error, discount error, both worked
-func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds *discountService) (error, error, bool) {
+func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService) (error, error, bool) {
 
 	gcErr, discErr := error(nil), error(nil)
 
@@ -259,7 +259,7 @@ func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.O
 	return nil, nil, true
 }
 
-func (s *orderService) MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds *draftOrderService) error {
+func (s *orderService) MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error {
 	now := time.Now()
 
 	order.Status = "Procesed"
@@ -272,7 +272,7 @@ func (s *orderService) MarkOrderAndDraftAsSuccess(order *models.Order, draft *mo
 		return err
 	}
 
-	if err := ds.draftOrderRepo.Update(draft); err != nil {
+	if err := ds.Update(draft); err != nil {
 		return err
 	}
 

@@ -36,6 +36,8 @@ type DraftOrderService interface {
 
 	AddGuestInfoToDraft(dpi *DataPassIn, draftID, name, email string) (*models.DraftOrder, error)
 	ChangeCustDraftName(dpi *DataPassIn, draftID, name string) (*models.DraftOrder, error)
+
+	Update(draft *models.DraftOrder) error
 }
 
 type draftOrderService struct {
@@ -677,4 +679,8 @@ func (s *draftOrderService) ChangeCustDraftName(dpi *DataPassIn, draftID, name s
 
 	err = s.SaveAndUpdatePtl(draft)
 	return draft, err
+}
+
+func (s *draftOrderService) Update(draft *models.DraftOrder) error {
+	return s.draftOrderRepo.Update(draft)
 }
