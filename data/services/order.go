@@ -148,6 +148,30 @@ func (s *orderService) CompleteOrder(store, orderID string, ds *draftOrderServic
 		AffiliateCode: order.AffiliateCode,
 	}
 
+	dvids := []int{}
+	vinv := map[int]int{}
+	for _, l := range draft.Lines {
+		dvids = append(dvids, l.VariantID)
+		vinv[l.VariantID] += l.Quantity
+	}
+
+	mapped, works, err := ps.ConfirmDraftOrderProducts(dpi, vinv, dvids)
+	if err != nil {
+		log.Printf("Unable to query lim vars for order: %s, store: %s,  err: %v\n", orderID, dpi.Store, err)
+		return
+	} else if !works {
+		var builder strings.Builder
+		for id, val := range mapped {
+			if !val.Possible {
+				builder.WriteString(strconv.Itoa(id))
+				builder.WriteString(",")
+			}
+		}
+		falseVarIDs := builder.String()
+		log.Printf("Nonexistent or low inventory vars for draft order: %s, store: %s, list: %s\n", orderID, dpi.Store, falseVarIDs)
+		return
+	}
+
 	resp, err := orderhelp.PostOrderToPrintful(order, dpi.Store, mutexes, tools)
 	if err != nil {
 		go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to post order to printful after charging", tools, order, draft, resp, true, err)
