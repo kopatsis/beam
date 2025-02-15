@@ -18,7 +18,7 @@ import (
 )
 
 type OrderService interface {
-	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, ps *productService, tools *config.Tools) (error, error)
+	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, cs CustomerService, ps ProductService, tools *config.Tools) (error, error)
 	CompleteOrder(store, orderID string, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools)
 	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error
@@ -35,7 +35,7 @@ func NewOrderService(orderRepo repositories.OrderRepository) OrderService {
 }
 
 // Charging error, internal error
-func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds *draftOrderService, cs *customerService, ps *productService, tools *config.Tools) (error, error) {
+func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, cs CustomerService, ps ProductService, tools *config.Tools) (error, error) {
 
 	start := time.Now()
 
@@ -91,7 +91,7 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 	draft.Status = "Submitted"
 	draft.DateConverted = time.Now()
 
-	if err := ds.draftOrderRepo.Update(draft); err != nil {
+	if err := ds.Update(draft); err != nil {
 		go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Error when updating draft for order on mongodb", tools, order, draft, nil, false, err)
 	}
 

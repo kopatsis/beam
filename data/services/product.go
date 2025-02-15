@@ -24,6 +24,8 @@ type ProductService interface {
 	UpdateProduct(product models.Product) error
 	DeleteProduct(id int) error
 
+	GetFullProduct(store, handle string) (models.ProductRedis, string, error)
+
 	GetAllProductInfo(fromURL url.Values, Mutex *config.AllMutexes, name string) (models.CollectionRender, error)
 	GetProductAndProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRedis, models.ProductRender, string, error)
 	GetProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRender, string, error)
@@ -45,6 +47,10 @@ type productService struct {
 
 func NewProductService(productRepo repositories.ProductRepository) ProductService {
 	return &productService{productRepo: productRepo}
+}
+
+func (s *productService) GetFullProduct(store, handle string) (models.ProductRedis, string, error) {
+	return s.productRepo.GetFullProduct(store, handle)
 }
 
 func (s *productService) AddProduct(product models.Product) error {

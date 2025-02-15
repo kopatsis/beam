@@ -12,9 +12,9 @@ import (
 )
 
 type ReviewService interface {
-	AddReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error)
-	UpdateReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error)
-	DeleteReview(dpi *DataPassIn, productID int, store string, ps *productService, tools *config.Tools) (*models.Review, error)
+	AddReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps ProductService, cs CustomerService, tools *config.Tools) (*models.Review, error)
+	UpdateReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps ProductService, cs CustomerService, tools *config.Tools) (*models.Review, error)
+	DeleteReview(dpi *DataPassIn, productID int, store string, ps ProductService, tools *config.Tools) (*models.Review, error)
 	GetReview(dpi *DataPassIn, productID int) (*models.Review, error)
 	FirstThreeForProduct(dpi *DataPassIn, productID int) (firstThree []*models.Review, existingReview *models.Review, singleErr error, multiErr error)
 	ReviewsByProduct(dpi *DataPassIn, productID int, fromURL url.Values) (ret models.ReviewPageRender, singleErr error, multiErr error)
@@ -31,7 +31,7 @@ func NewReviewService(reviewRepo repositories.ReviewRepository) ReviewService {
 	return &reviewService{reviewRepo: reviewRepo}
 }
 
-func (s *reviewService) AddReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error) {
+func (s *reviewService) AddReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps ProductService, cs CustomerService, tools *config.Tools) (*models.Review, error) {
 	if len(subject) > 280 {
 		subject = subject[:277] + "..."
 	}
@@ -40,7 +40,7 @@ func (s *reviewService) AddReview(dpi *DataPassIn, productID int, store string, 
 	}
 
 	if useDefaultName {
-		cust, err := cs.customerRepo.Read(dpi.CustomerID)
+		cust, err := cs.GetCustomerByID(dpi.CustomerID)
 		if err == nil {
 			log.Printf("Unable to get customer by customerid: %d", dpi.CustomerID)
 			displayName = cust.DefaultName
@@ -88,7 +88,7 @@ func (s *reviewService) AddReview(dpi *DataPassIn, productID int, store string, 
 	return review, nil
 }
 
-func (s *reviewService) UpdateReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps *productService, cs *customerService, tools *config.Tools) (*models.Review, error) {
+func (s *reviewService) UpdateReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps ProductService, cs CustomerService, tools *config.Tools) (*models.Review, error) {
 	if len(subject) > 280 {
 		subject = subject[:277] + "..."
 	}
@@ -97,7 +97,7 @@ func (s *reviewService) UpdateReview(dpi *DataPassIn, productID int, store strin
 	}
 
 	if useDefaultName {
-		cust, err := cs.customerRepo.Read(dpi.CustomerID)
+		cust, err := cs.GetCustomerByID(dpi.CustomerID)
 		if err == nil {
 			log.Printf("Unable to get customer by customerid: %d", dpi.CustomerID)
 			displayName = cust.DefaultName
@@ -143,7 +143,7 @@ func (s *reviewService) UpdateReview(dpi *DataPassIn, productID int, store strin
 	return existingReview, nil
 }
 
-func (s *reviewService) DeleteReview(dpi *DataPassIn, productID int, store string, ps *productService, tools *config.Tools) (*models.Review, error) {
+func (s *reviewService) DeleteReview(dpi *DataPassIn, productID int, store string, ps ProductService, tools *config.Tools) (*models.Review, error) {
 
 	existingReview, err := s.reviewRepo.GetSingle(dpi.CustomerID, productID)
 	if err != nil {

@@ -15,14 +15,14 @@ import (
 )
 
 type CartService interface {
-	AddToCart(dpi *DataPassIn, handle string, vid, quant int, prodServ *productService) (*models.Cart, error)
-	GetCart(dpi *DataPassIn, prodServ *productService) (*models.CartRender, error)
-	AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodServ *productService) (*models.CartRender, error)
+	AddToCart(dpi *DataPassIn, handle string, vid, quant int, prodServ ProductService) (*models.Cart, error)
+	GetCart(dpi *DataPassIn, prodServ ProductService) (*models.CartRender, error)
+	AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodServ ProductService) (*models.CartRender, error)
 	ClearCart(dpi *DataPassIn) (*models.CartRender, error)
-	AddGiftCard(dpi *DataPassIn, message string, cents int, discService *discountService, tools *config.Tools) (*models.Cart, error)
-	DeleteGiftCard(dpi *DataPassIn, lineID int, prodServ *productService) (*models.CartRender, error)
-	UpdateRender(name string, cart *models.CartRender, ps *productService) error
-	SavesListToCart(dpi *DataPassIn, varid int, handle string, ps *productService, ls *listService) (models.SavesListRender, *models.CartRender, error)
+	AddGiftCard(dpi *DataPassIn, message string, cents int, discService DiscountService, tools *config.Tools) (*models.Cart, error)
+	DeleteGiftCard(dpi *DataPassIn, lineID int, prodServ ProductService) (*models.CartRender, error)
+	UpdateRender(name string, cart *models.CartRender, ps ProductService) error
+	SavesListToCart(dpi *DataPassIn, varid int, handle string, ps ProductService, ls ListService) (models.SavesListRender, *models.CartRender, error)
 
 	CartMiddleware(cartID, custID int, guestID string) (int, error)
 	GetCartMain(dpi *DataPassIn) (*models.Cart, error, bool)
@@ -35,6 +35,7 @@ type CartService interface {
 	CopyCartWithLines(dpi *DataPassIn) error
 	MoveCart(dpi *DataPassIn) error
 	DirectCartRetrieval(dpi *DataPassIn) (int, error, bool)
+	GetCartLineWithValidation(customerID int, cartID int, lineID int) (*models.CartLine, error)
 }
 
 type cartService struct {
@@ -45,8 +46,12 @@ func NewCartService(cartRepo repositories.CartRepository) CartService {
 	return &cartService{cartRepo: cartRepo}
 }
 
-func (s *cartService) AddToCart(dpi *DataPassIn, handle string, vid, quant int, prodServ *productService) (*models.Cart, error) {
-	p, r, err := prodServ.productRepo.GetFullProduct(dpi.Store, handle)
+func (s *cartService) GetCartLineWithValidation(customerID int, cartID int, lineID int) (*models.CartLine, error) {
+	return s.cartRepo.GetCartLineWithValidation(customerID, cartID, lineID)
+}
+
+func (s *cartService) AddToCart(dpi *DataPassIn, handle string, vid, quant int, prodServ ProductService) (*models.Cart, error) {
+	p, r, err := prodServ.GetFullProduct(dpi.Store, handle)
 	if err != nil {
 		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddToCart", "Error querying product", "", "", "", "", strconv.Itoa(vid), "", "", "", "", "", "", "", []error{err})
 		return nil, err
@@ -102,7 +107,7 @@ func (s *cartService) AddToCart(dpi *DataPassIn, handle string, vid, quant int, 
 	return cart, nil
 }
 
-func (s *cartService) GetCart(dpi *DataPassIn, prodServ *productService) (*models.CartRender, error) {
+func (s *cartService) GetCart(dpi *DataPassIn, prodServ ProductService) (*models.CartRender, error) {
 	ret := models.CartRender{}
 
 	id, cart, lines, err := s.GetCartWithLinesAndVerify(dpi)
@@ -128,7 +133,7 @@ func (s *cartService) GetCart(dpi *DataPassIn, prodServ *productService) (*model
 	return &ret, nil
 }
 
-func (s *cartService) AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodServ *productService) (*models.CartRender, error) {
+func (s *cartService) AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodServ ProductService) (*models.CartRender, error) {
 	ret := models.CartRender{}
 
 	id, cart, lines, err := s.GetCartWithLinesAndVerify(dpi)
@@ -280,7 +285,7 @@ func (s *cartService) ClearCart(dpi *DataPassIn) (*models.CartRender, error) {
 	return &ret, nil
 }
 
-func (s *cartService) AddGiftCard(dpi *DataPassIn, message string, cents int, discService *discountService, tools *config.Tools) (*models.Cart, error) {
+func (s *cartService) AddGiftCard(dpi *DataPassIn, message string, cents int, discService DiscountService, tools *config.Tools) (*models.Cart, error) {
 	id, cart, err := s.GetCartAndVerify(dpi)
 	if err != nil {
 		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddGiftCard", "Unable to query cart + lines", "", "", "", "", "", "", "", "", "", "", "", "", []error{err})
@@ -315,7 +320,7 @@ func (s *cartService) AddGiftCard(dpi *DataPassIn, message string, cents int, di
 	return cart, nil
 }
 
-func (s *cartService) DeleteGiftCard(dpi *DataPassIn, lineID int, prodServ *productService) (*models.CartRender, error) {
+func (s *cartService) DeleteGiftCard(dpi *DataPassIn, lineID int, prodServ ProductService) (*models.CartRender, error) {
 	ret := models.CartRender{}
 
 	id, cart, lines, err := s.GetCartWithLinesAndVerify(dpi)
@@ -369,7 +374,7 @@ func (s *cartService) DeleteGiftCard(dpi *DataPassIn, lineID int, prodServ *prod
 	return &ret, nil
 }
 
-func (s *cartService) SavesListToCart(dpi *DataPassIn, varid int, handle string, ps *productService, ls *listService) (models.SavesListRender, *models.CartRender, error) {
+func (s *cartService) SavesListToCart(dpi *DataPassIn, varid int, handle string, ps ProductService, ls ListService) (models.SavesListRender, *models.CartRender, error) {
 
 	sl, err := ls.DeleteSavesListRender(dpi, varid, 1, ps)
 	if err != nil {
@@ -393,7 +398,7 @@ func (s *cartService) SavesListToCart(dpi *DataPassIn, varid int, handle string,
 	return sl, cr, nil
 }
 
-func (s *cartService) UpdateRender(name string, cart *models.CartRender, ps *productService) error {
+func (s *cartService) UpdateRender(name string, cart *models.CartRender, ps ProductService) error {
 	carthelp.UpdateCartSub(cart)
 	vids := []int{}
 

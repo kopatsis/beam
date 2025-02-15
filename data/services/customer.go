@@ -40,6 +40,10 @@ type CustomerService interface {
 
 	GetCookieCurrencies(mutex *config.AllMutexes) ([]models.CodeBlock, []models.CodeBlock)
 	SetCookieCurrency(c *models.ClientCookie, mutex *config.AllMutexes, choice string) error
+
+	GetContactsWithDefault(customerID int) ([]*models.Contact, error)
+	Update(cust *models.Customer) error
+	AddContactToCustomer(contact *models.Contact) error
 }
 
 type customerService struct {
@@ -445,4 +449,16 @@ func (s *customerService) SetCookieCurrency(c *models.ClientCookie, mutex *confi
 	c.OtherCurrency = choice == "USD"
 
 	return nil
+}
+
+func (s *customerService) GetContactsWithDefault(customerID int) ([]*models.Contact, error) {
+	return s.customerRepo.GetContactsWithDefault(customerID)
+}
+
+func (s *customerService) Update(cust *models.Customer) error {
+	return s.customerRepo.Update(*cust)
+}
+
+func (s *customerService) AddContactToCustomer(contact *models.Contact) error {
+	return s.customerRepo.AddContactToCustomer(contact)
 }

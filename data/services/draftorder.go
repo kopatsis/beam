@@ -13,26 +13,26 @@ import (
 )
 
 type DraftOrderService interface {
-	CreateDraftOrder(dpi *DataPassIn, crs *cartService, pds *productService, cts *customerService) (*models.DraftOrder, error)
-	GetDraftOrder(dpi *DataPassIn, draftID string, cts *customerService) (*models.DraftOrder, string, error)
-	PostRenderUpdate(dpi *DataPassIn, ip, draftID string, cts *customerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
+	CreateDraftOrder(dpi *DataPassIn, crs CartService, pds ProductService, cts CustomerService) (*models.DraftOrder, error)
+	GetDraftOrder(dpi *DataPassIn, draftID string, cts CustomerService) (*models.DraftOrder, string, error)
+	PostRenderUpdate(dpi *DataPassIn, ip, draftID string, cts CustomerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
 	SaveAndUpdatePtl(draft *models.DraftOrder) error
 	GetDraftPtl(draftID, guestID string, custID int) (*models.DraftOrder, error)
-	AddAddressToDraft(dpi *DataPassIn, draftID, ip string, cts *customerService, contact *models.Contact, addToCust bool, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
-	ChooseAddress(dpi *DataPassIn, draftID, ip string, addrID, index, customerID int, cts *customerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
+	AddAddressToDraft(dpi *DataPassIn, draftID, ip string, cts CustomerService, contact *models.Contact, addToCust bool, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
+	ChooseAddress(dpi *DataPassIn, draftID, ip string, addrID, index, customerID int, cts CustomerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error)
 	ChooseShipRate(dpi *DataPassIn, draftID, rateName string) (*models.DraftOrder, error)
-	ChoosePaymentMethod(dpi *DataPassIn, draftID, paymentMethodID string, cts *customerService) (*models.DraftOrder, error)
+	ChoosePaymentMethod(dpi *DataPassIn, draftID, paymentMethodID string, cts CustomerService) (*models.DraftOrder, error)
 	RemovePaymentMethod(dpi *DataPassIn, draftID string) (*models.DraftOrder, error)
-	AddDiscountCode(dpi *DataPassIn, draftID, discCode string, ds *discountService) (*models.DraftOrder, error)
+	AddDiscountCode(dpi *DataPassIn, draftID, discCode string, ds DiscountService) (*models.DraftOrder, error)
 	RemoveDiscountCode(dpi *DataPassIn, draftID string) (*models.DraftOrder, error)
 	SetTip(dpi *DataPassIn, draftID string, tip int) (*models.DraftOrder, error)
 	RemoveTip(dpi *DataPassIn, draftID string) (*models.DraftOrder, error)
 	AddGiftSubjectAndMessage(dpi *DataPassIn, draftID, subject, message string) (*models.DraftOrder, error)
-	AddGiftCard(dpi *DataPassIn, draftID, gcCode, pin string, ds *discountService) (*models.DraftOrder, error)
+	AddGiftCard(dpi *DataPassIn, draftID, gcCode, pin string, ds DiscountService) (*models.DraftOrder, error)
 	ApplyGiftCard(dpi *DataPassIn, draftID string, gcID, amount int, useMax bool) (*models.DraftOrder, error)
 	DeApplyGiftCard(dpi *DataPassIn, draftID string, gcID int) (*models.DraftOrder, error)
 	RemoveGiftCard(dpi *DataPassIn, draftID string, gcID int) (*models.DraftOrder, error)
-	CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID string, ds *discountService) (error, error, error, bool)
+	CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID string, ds DiscountService) (error, error, error, bool)
 
 	AddGuestInfoToDraft(dpi *DataPassIn, draftID, name, email string) (*models.DraftOrder, error)
 	ChangeCustDraftName(dpi *DataPassIn, draftID, name string) (*models.DraftOrder, error)
@@ -48,7 +48,7 @@ func NewDraftOrderService(draftRepo repositories.DraftOrderRepository) DraftOrde
 	return &draftOrderService{draftOrderRepo: draftRepo}
 }
 
-func (s *draftOrderService) CreateDraftOrder(dpi *DataPassIn, crs *cartService, pds *productService, cts *customerService) (*models.DraftOrder, error) {
+func (s *draftOrderService) CreateDraftOrder(dpi *DataPassIn, crs CartService, pds ProductService, cts CustomerService) (*models.DraftOrder, error) {
 	var wg sync.WaitGroup
 
 	cart := &models.Cart{}
@@ -74,7 +74,7 @@ func (s *draftOrderService) CreateDraftOrder(dpi *DataPassIn, crs *cartService, 
 
 	go func() {
 		defer wg.Done()
-		contacts, contactsErr = cts.customerRepo.GetContactsWithDefault(dpi.CustomerID)
+		contacts, contactsErr = cts.GetContactsWithDefault(dpi.CustomerID)
 	}()
 
 	go func() {
@@ -111,7 +111,7 @@ func (s *draftOrderService) CreateDraftOrder(dpi *DataPassIn, crs *cartService, 
 	}
 
 	if custUpdate {
-		go cts.customerRepo.Update(*cust)
+		go cts.Update(cust)
 	}
 
 	if err := s.draftOrderRepo.Create(draft); err != nil {
@@ -121,7 +121,7 @@ func (s *draftOrderService) CreateDraftOrder(dpi *DataPassIn, crs *cartService, 
 	return draft, nil
 }
 
-func (s *draftOrderService) GetDraftOrder(dpi *DataPassIn, draftID string, cts *customerService) (*models.DraftOrder, string, error) {
+func (s *draftOrderService) GetDraftOrder(dpi *DataPassIn, draftID string, cts CustomerService) (*models.DraftOrder, string, error) {
 
 	var wg sync.WaitGroup
 
@@ -148,7 +148,7 @@ func (s *draftOrderService) GetDraftOrder(dpi *DataPassIn, draftID string, cts *
 	go func() {
 		defer wg.Done()
 		if dpi.CustomerID > 0 {
-			contacts, contactErr = cts.customerRepo.GetContactsWithDefault(dpi.CustomerID)
+			contacts, contactErr = cts.GetContactsWithDefault(dpi.CustomerID)
 		}
 	}()
 
@@ -182,7 +182,7 @@ func (s *draftOrderService) GetDraftOrder(dpi *DataPassIn, draftID string, cts *
 }
 
 // Re-updates the payment methods, the shipping options, the order estimates, and the CA tax if done that way -> check payment intent/update w/ new $, OR create new one
-func (s *draftOrderService) PostRenderUpdate(dpi *DataPassIn, ip, draftID string, cts *customerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error) {
+func (s *draftOrderService) PostRenderUpdate(dpi *DataPassIn, ip, draftID string, cts CustomerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error) {
 
 	var wg sync.WaitGroup
 
@@ -242,7 +242,7 @@ func (s *draftOrderService) PostRenderUpdate(dpi *DataPassIn, ip, draftID string
 		custUpd := false
 		_, custUpd, paymentIntentErr = draftorderhelp.ConfirmPaymentIntentDraft(draft, cust, dpi.GuestID)
 		if custUpd {
-			go cts.customerRepo.Update(*cust)
+			go cts.Update(cust)
 		}
 	}()
 
@@ -299,7 +299,7 @@ func (s *draftOrderService) GetDraftPtl(draftID, guestID string, custID int) (*m
 	return draft, nil
 }
 
-func (s *draftOrderService) AddAddressToDraft(dpi *DataPassIn, draftID, ip string, cts *customerService, contact *models.Contact, addToCust bool, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error) {
+func (s *draftOrderService) AddAddressToDraft(dpi *DataPassIn, draftID, ip string, cts CustomerService, contact *models.Contact, addToCust bool, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error) {
 	draft, err := s.GetDraftPtl(draftID, dpi.GuestID, dpi.CustomerID)
 	if err != nil {
 		return draft, err
@@ -312,7 +312,7 @@ func (s *draftOrderService) AddAddressToDraft(dpi *DataPassIn, draftID, ip strin
 
 	var custErr error = nil
 	if addToCust && dpi.CustomerID > 0 {
-		custErr = cts.customerRepo.AddContactToCustomer(contact)
+		custErr = cts.AddContactToCustomer(contact)
 	}
 
 	draft.ShippingContact = contact
@@ -329,7 +329,7 @@ func (s *draftOrderService) AddAddressToDraft(dpi *DataPassIn, draftID, ip strin
 	return draft, custErr
 }
 
-func (s *draftOrderService) ChooseAddress(dpi *DataPassIn, draftID, ip string, addrID, index, customerID int, cts *customerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error) {
+func (s *draftOrderService) ChooseAddress(dpi *DataPassIn, draftID, ip string, addrID, index, customerID int, cts CustomerService, mutexes *config.AllMutexes, tools *config.Tools) (*models.DraftOrder, error) {
 	draft, err := s.GetDraftPtl(draftID, dpi.GuestID, customerID)
 	if err != nil {
 		return draft, err
@@ -375,7 +375,7 @@ func (s *draftOrderService) ChooseShipRate(dpi *DataPassIn, draftID, rateName st
 	return draft, err
 }
 
-func (s *draftOrderService) ChoosePaymentMethod(dpi *DataPassIn, draftID, paymentMethodID string, cts *customerService) (*models.DraftOrder, error) {
+func (s *draftOrderService) ChoosePaymentMethod(dpi *DataPassIn, draftID, paymentMethodID string, cts CustomerService) (*models.DraftOrder, error) {
 	if dpi.CustomerID <= 0 {
 		return nil, errors.New("unable to do action for nonexistent customer id")
 	}
@@ -439,7 +439,7 @@ func (s *draftOrderService) RemovePaymentMethod(dpi *DataPassIn, draftID string)
 	return draft, err
 }
 
-func (s *draftOrderService) AddDiscountCode(dpi *DataPassIn, draftID, discCode string, ds *discountService) (*models.DraftOrder, error) {
+func (s *draftOrderService) AddDiscountCode(dpi *DataPassIn, draftID, discCode string, ds DiscountService) (*models.DraftOrder, error) {
 	draft, err := s.GetDraftPtl(draftID, dpi.GuestID, dpi.CustomerID)
 	if err != nil {
 		return draft, err
@@ -517,7 +517,7 @@ func (s *draftOrderService) AddGiftSubjectAndMessage(dpi *DataPassIn, draftID, s
 	return draft, err
 }
 
-func (s *draftOrderService) AddGiftCard(dpi *DataPassIn, draftID, gcCode, pin string, ds *discountService) (*models.DraftOrder, error) {
+func (s *draftOrderService) AddGiftCard(dpi *DataPassIn, draftID, gcCode, pin string, ds DiscountService) (*models.DraftOrder, error) {
 	draft, err := s.GetDraftPtl(draftID, dpi.GuestID, dpi.CustomerID)
 	if err != nil {
 		return draft, err
@@ -587,7 +587,7 @@ func (s *draftOrderService) RemoveGiftCard(dpi *DataPassIn, draftID string, gcID
 }
 
 // draftErr error, gcErr error, draftErr error, passes bool
-func (s *draftOrderService) CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID string, ds *discountService) (error, error, error, bool) {
+func (s *draftOrderService) CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID string, ds DiscountService) (error, error, error, bool) {
 	draft, err := s.GetDraftPtl(draftID, dpi.GuestID, dpi.CustomerID)
 	if err != nil {
 		return err, nil, nil, false
