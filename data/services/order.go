@@ -116,6 +116,10 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 		order.StripePaymentIntentID = intent.ID
 	}
 
+	if err := orderhelp.IntentToOrderSet(tools.Redis, order.StripePaymentIntentID, dpi.Store, order.ID.Hex()); err != nil {
+		return nil, err
+	}
+
 	elapsed := time.Since(start)
 	if elapsed < 5*time.Second {
 		time.Sleep(5*time.Second - elapsed)
