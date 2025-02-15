@@ -5,6 +5,7 @@ import (
 	"beam/config"
 	"beam/data/models"
 	"beam/data/repositories"
+	"beam/data/services/orderhelp"
 	"beam/data/services/product"
 	"errors"
 	"fmt"
@@ -35,7 +36,7 @@ type ProductService interface {
 	ConfirmDraftOrderProducts(dpi *DataPassIn, vinv map[int]int, vids []int) (map[int]models.InvRetrieval, bool, error)
 	RenderComparables(name string, id int) ([]models.ComparablesRender, error)
 
-	SetInventoryFromOrder(dpi *DataPassIn, decrement map[int]int, handles []string, orderID string) error
+	SetInventoryFromOrder(dpi *DataPassIn, decrement map[int]int, handles []string, orderID string, tools *config.Tools) error
 }
 
 type productService struct {
@@ -430,7 +431,16 @@ func (s *productService) RenderComparables(name string, productID int) ([]models
 	return ret, nil
 }
 
-func (s *productService) SetInventoryFromOrder(dpi *DataPassIn, decrement map[int]int, handles []string, orderID string) error {
+func (s *productService) SetInventoryFromOrder(dpi *DataPassIn, decrement map[int]int, handles []string, orderID string, tools *config.Tools) error {
+
+	vids := []int{}
+	for id := range decrement {
+		vids = append(vids, id)
+	}
+
+	if err := orderhelp.ProceedInventory(tools.Redis, dpi.Store, vids); err != nil {
+		return err
+	}
 
 	prods, err := s.productRepo.GetFullProducts(dpi.Store, handles)
 	if err != nil {

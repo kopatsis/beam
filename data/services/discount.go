@@ -136,12 +136,14 @@ func (s *discountService) RenderGiftCard(code string) (*models.GiftCardRender, e
 
 func (s *discountService) CheckMultipleGiftCards(codesAndAmounts map[[2]string]int) error {
 	allCodes := []string{}
+	re := regexp.MustCompile(`^\d{3}$`)
+
 	for idCode, amt := range codesAndAmounts {
 		if amt <= 0 {
 			continue
 		} else if !discount.CheckID(idCode[0]) {
 			continue
-		} else if matched, _ := regexp.MatchString(`^\d{3}$`, idCode[1]); !matched {
+		} else if !re.MatchString(idCode[1]) {
 			continue
 		}
 		allCodes = append(allCodes, idCode[0])
@@ -288,12 +290,14 @@ func (s *discountService) GetDiscountCodeForDraft(code string, subtotal, cust in
 }
 
 func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[[2]string]int, customderID int, guestID, orderID, sessionID string) error {
+	re := regexp.MustCompile(`^\d{3}$`)
+
 	for idCode, amt := range codesAndAmounts {
 		if amt <= 0 {
 			continue
 		} else if !discount.CheckID(idCode[0]) {
 			return errors.New("incorrectly formatted id code: " + idCode[0])
-		} else if matched, _ := regexp.MatchString(`^\d{3}$`, idCode[1]); !matched {
+		} else if !re.MatchString(idCode[1]) {
 			return fmt.Errorf("incorrectly formatted pin: %s, for id code: %s", idCode[0], idCode[1])
 		}
 	}

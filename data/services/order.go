@@ -188,7 +188,7 @@ func (s *orderService) CompleteOrder(store, orderID string, ds *draftOrderServic
 		}
 	}
 
-	if err := ps.SetInventoryFromOrder(dpi, dec, handles, order.ID.Hex()); err != nil {
+	if err := ps.SetInventoryFromOrder(dpi, dec, handles, order.ID.Hex(), tools); err != nil {
 		log.Printf("Unable to update inventory for order: %s, in store: %s; error: %v\n", order.ID.Hex(), dpi.Store, err)
 	}
 
