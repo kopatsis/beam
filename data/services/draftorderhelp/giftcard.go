@@ -142,6 +142,11 @@ func EnsureGiftCardSum(draftOrder *models.DraftOrder, newGiftCardSum, newPreGift
 	}
 	newTotal = usedPreGiftCardTotal - usedGiftCardSum
 
+	minPreGCAllowed := config.MIN_ORDER_PRICE - draftOrder.GiftCardBuyTotal
+	if minPreGCAllowed < 0 {
+		minPreGCAllowed = 0
+	}
+
 	if newTotal < 0 {
 
 		for i := len(draftOrder.GiftCards) - 1; i >= 0; i++ {
@@ -178,7 +183,7 @@ func EnsureGiftCardSum(draftOrder *models.DraftOrder, newGiftCardSum, newPreGift
 			return errors.New("unable to apply gift cards correctly under current system")
 		}
 
-	} else if newTotal < config.MIN_ORDER_PRICE || checkIfUnappliedMaxedGC(draftOrder) {
+	} else if newTotal < minPreGCAllowed || checkIfUnappliedMaxedGC(draftOrder) {
 		for i, gc := range draftOrder.GiftCards {
 			if newTotal == 0 {
 				break
@@ -195,9 +200,9 @@ func EnsureGiftCardSum(draftOrder *models.DraftOrder, newGiftCardSum, newPreGift
 
 		if newTotal < 0 {
 			return errors.New("unable to apply gift cards correctly under current system")
-		} else if newTotal < config.MIN_ORDER_PRICE && newTotal > 0 {
+		} else if newTotal < minPreGCAllowed && newTotal > 0 {
 			newTotal, usedGiftCardSum, usedPreGiftCardTotal = minPriceFix(draftOrder, newTotal, usedGiftCardSum, usedPreGiftCardTotal)
-			if newTotal < 0 || newTotal > 0 && newTotal < config.MIN_ORDER_PRICE {
+			if newTotal < 0 || newTotal > 0 && newTotal < minPreGCAllowed {
 				return errors.New("unable to apply gift cards correctly under current system")
 			}
 		}
@@ -205,7 +210,8 @@ func EnsureGiftCardSum(draftOrder *models.DraftOrder, newGiftCardSum, newPreGift
 
 	draftOrder.PreGiftCardTotal = usedPreGiftCardTotal
 	draftOrder.GiftCardSum = usedGiftCardSum
-	draftOrder.Total = newTotal
+	draftOrder.PostGiftCardTotal = newTotal
+	draftOrder.Total = newTotal + draftOrder.GiftCardBuyTotal
 
 	if draftOrder.Total != oldTotal {
 		return updateStripePaymentIntent(draftOrder.StripePaymentIntentID, draftOrder.Total)

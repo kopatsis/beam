@@ -30,8 +30,9 @@ type Order struct {
 	PostTaxTotal           int                `bson:"post_tax_total" json:"post_tax_total"`
 	Tip                    int                `bson:"tip" json:"tip"`
 	PreGiftCardTotal       int                `bson:"pgc_total" json:"pgc_total"`
-	GiftCardSum            int                `bson:"gc_sum" json:"gc_sum"`     // To apply towards order
-	GiftCardBuyTotal       int                `bson:"gc_total" json:"gc_total"` // For purchasing
+	GiftCardSum            int                `bson:"gc_sum" json:"gc_sum"`         // To apply towards order
+	PostGiftCardTotal      int                `bson:"post_total" json:"post_total"` // After GC applied, before added purchasing GC
+	GiftCardBuyTotal       int                `bson:"gc_total" json:"gc_total"`     // For purchasing
 	Total                  int                `bson:"total" json:"total"`
 	OrderDiscount          OrderDiscount      `bson:"non_stacking_discount_code" json:"non_stacking_discount_code"`
 	ShippingContact        *Contact           `bson:"shipping_contact" json:"shipping_contact"`
@@ -85,8 +86,9 @@ type DraftOrder struct {
 	PostTaxTotal          int                          `bson:"post_tax_total" json:"post_tax_total"`
 	Tip                   int                          `bson:"tip" json:"tip"`
 	PreGiftCardTotal      int                          `bson:"pgc_total" json:"pgc_total"`
-	GiftCardSum           int                          `bson:"gc_sum" json:"gc_sum"`     // To apply towards order
-	GiftCardBuyTotal      int                          `bson:"gc_total" json:"gc_total"` // For purchasing
+	GiftCardSum           int                          `bson:"gc_sum" json:"gc_sum"`         // To apply towards order
+	PostGiftCardTotal     int                          `bson:"post_total" json:"post_total"` // After GC applied, before added purchasing GC
+	GiftCardBuyTotal      int                          `bson:"gc_total" json:"gc_total"`     // For purchasing
 	Total                 int                          `bson:"total" json:"total"`
 	OrderDiscount         OrderDiscount                `bson:"non_stacking_discount_code" json:"non_stacking_discount_code"`
 	ShippingContact       *Contact                     `bson:"shipping_contact" json:"shipping_contact"`
