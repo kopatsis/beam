@@ -136,38 +136,6 @@ func (s *orderService) CompleteOrder(store, orderID string, ds DraftOrderService
 		AffiliateCode: order.AffiliateCode,
 	}
 
-	if err := s.CheckInvDiscAndGiftCards(order, nil, dpi, ps, dts); err != nil {
-		log.Printf("Error while checking inventory and gift cards: %v; store: %s; orderID: %s", err, dpi.Store, order.ID.Hex())
-		return
-	}
-
-	resp, err := orderhelp.PostOrderToPrintful(order, dpi.Store, mutexes, tools)
-	if err != nil {
-		go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to post order to printful after charging", tools, order, draft, resp, true, err)
-	}
-
-	if err := orderhelp.ConfirmOrderPostResponse(resp, order); err != nil {
-		go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Bad response from posting order to printful after charging", tools, order, draft, resp, false, err)
-	}
-
-	gcErr, discErr, worked := s.UseDiscountsAndGiftCards(dpi, order, dts)
-	if !worked {
-		if gcErr != nil {
-			go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to post order to mark charging of gift cards after using", tools, order, draft, nil, true, gcErr)
-		}
-		if discErr != nil {
-			go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to post order to mark use of of discount after using", tools, order, draft, nil, false, discErr)
-		}
-	}
-
-	if err := s.MarkOrderAndDraftAsSuccess(order, draft, ds); err != nil {
-		go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to save order and draft order after successful creation", tools, order, draft, nil, false, err)
-	}
-
-	if err := orderhelp.OrderEmailWithProfit(resp, order, tools, dpi.Store); err != nil {
-		go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to send email of success to creat the order", tools, order, draft, nil, false, err)
-	}
-
 	vids := []int{}
 	dec := map[int]int{}
 	handles := []string{}
@@ -183,6 +151,33 @@ func (s *orderService) CompleteOrder(store, orderID string, ds DraftOrderService
 
 	if err := ps.SetInventoryFromOrder(dpi, dec, handles, order.ID.Hex(), tools); err != nil {
 		log.Printf("Unable to update inventory for order: %s, in store: %s; error: %v\n", order.ID.Hex(), dpi.Store, err)
+	}
+
+	gcErr, discErr, worked := s.UseDiscountsAndGiftCards(dpi, order, dts)
+	if !worked {
+		if gcErr != nil {
+			go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to post order to mark charging of gift cards after using", tools, order, draft, nil, true, gcErr)
+		}
+		if discErr != nil {
+			go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to post order to mark use of of discount after using", tools, order, draft, nil, false, discErr)
+		}
+	}
+
+	resp, err := orderhelp.PostOrderToPrintful(order, dpi.Store, mutexes, tools)
+	if err != nil {
+		go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to post order to printful after charging", tools, order, draft, resp, true, err)
+	}
+
+	if err := orderhelp.ConfirmOrderPostResponse(resp, order); err != nil {
+		go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Bad response from posting order to printful after charging", tools, order, draft, resp, false, err)
+	}
+
+	if err := s.MarkOrderAndDraftAsSuccess(order, draft, ds); err != nil {
+		go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to save order and draft order after successful creation", tools, order, draft, nil, false, err)
+	}
+
+	if err := orderhelp.OrderEmailWithProfit(resp, order, tools, dpi.Store); err != nil {
+		go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to send email of success to creat the order", tools, order, draft, nil, false, err)
 	}
 
 	if err := ls.UpdateLastOrdersList(dpi, order.DateCreated, order.ID.Hex(), vids, ps); err != nil {
