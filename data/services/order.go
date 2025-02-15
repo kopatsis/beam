@@ -18,12 +18,14 @@ import (
 )
 
 type OrderService interface {
-	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, cs CustomerService, ps ProductService, tools *config.Tools) (error, error)
+	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, tools *config.Tools) (error, error)
 	CompleteOrder(store, orderID string, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools)
 	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error
 	RenderOrder(dpi *DataPassIn, orderID string) (*models.Order, bool, error)
 	GetOrdersList(dpi *DataPassIn, fromURL url.Values) (models.OrderRender, error)
+
+	CheckInvDiscAndGiftCards(order *models.Order, draft *models.DraftOrder, dpi *DataPassIn, ps ProductService, ds DiscountService) error
 }
 
 type orderService struct {
@@ -35,7 +37,7 @@ func NewOrderService(orderRepo repositories.OrderRepository) OrderService {
 }
 
 // Charging error, internal error
-func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, cs CustomerService, ps ProductService, tools *config.Tools) (error, error) {
+func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, tools *config.Tools) (error, error) {
 
 	start := time.Now()
 
@@ -60,26 +62,8 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 		}
 	}
 
-	dvids := []int{}
-	vinv := map[int]int{}
-	for _, l := range draft.Lines {
-		dvids = append(dvids, l.VariantID)
-		vinv[l.VariantID] += l.Quantity
-	}
-
-	mapped, works, err := ps.ConfirmDraftOrderProducts(dpi, vinv, dvids)
-	if err != nil {
-		return nil, fmt.Errorf("unable to query lim vars for draft order: %s, store: %s,  err: %v", draftID, dpi.Store, err)
-	} else if !works {
-		var builder strings.Builder
-		for id, val := range mapped {
-			if !val.Possible {
-				builder.WriteString(strconv.Itoa(id))
-				builder.WriteString(",")
-			}
-		}
-		falseVarIDs := builder.String()
-		return nil, fmt.Errorf("nonexistent or low inventory vars for draft order: %s, store: %s, list: %s", draftID, dpi.Store, falseVarIDs)
+	if err := s.CheckInvDiscAndGiftCards(nil, draft, dpi, ps, dts); err != nil {
+		return nil, err
 	}
 
 	order := orderhelp.CreateOrderFromDraft(draft, dpi.SessionID, dpi.AffiliateCode, dpi.AffiliateID)
@@ -152,27 +136,8 @@ func (s *orderService) CompleteOrder(store, orderID string, ds DraftOrderService
 		AffiliateCode: order.AffiliateCode,
 	}
 
-	dvids := []int{}
-	vinv := map[int]int{}
-	for _, l := range draft.Lines {
-		dvids = append(dvids, l.VariantID)
-		vinv[l.VariantID] += l.Quantity
-	}
-
-	mapped, works, err := ps.ConfirmDraftOrderProducts(dpi, vinv, dvids)
-	if err != nil {
-		log.Printf("Unable to query lim vars for order: %s, store: %s,  err: %v\n", orderID, dpi.Store, err)
-		return
-	} else if !works {
-		var builder strings.Builder
-		for id, val := range mapped {
-			if !val.Possible {
-				builder.WriteString(strconv.Itoa(id))
-				builder.WriteString(",")
-			}
-		}
-		falseVarIDs := builder.String()
-		log.Printf("Nonexistent or low inventory vars for draft order: %s, store: %s, list: %s\n", orderID, dpi.Store, falseVarIDs)
+	if err := s.CheckInvDiscAndGiftCards(order, nil, dpi, ps, dts); err != nil {
+		log.Printf("Error while checking inventory and gift cards: %v; store: %s; orderID: %s", err, dpi.Store, order.ID.Hex())
 		return
 	}
 
@@ -328,4 +293,106 @@ func (s *orderService) GetOrdersList(dpi *DataPassIn, fromURL url.Values) (model
 	ret.Previous = page > 1
 
 	return ret, nil
+}
+
+func (s *orderService) CheckInvDiscAndGiftCards(order *models.Order, draft *models.DraftOrder, dpi *DataPassIn, ps ProductService, ds DiscountService) error {
+	dvids := []int{}
+	vinv := map[int]int{}
+
+	var giftCards [3]*models.OrderGiftCard
+	var discCode string
+	var orderGuest bool
+	var subtotal int
+
+	if order != nil {
+
+		for _, l := range order.Lines {
+			dvids = append(dvids, l.VariantID)
+			vinv[l.VariantID] += l.Quantity
+		}
+
+		giftCards = order.GiftCards
+		discCode = order.OrderDiscount.DiscountCode
+		orderGuest = order.Guest
+		subtotal = order.Subtotal
+
+	} else if draft != nil {
+
+		for _, l := range draft.Lines {
+			dvids = append(dvids, l.VariantID)
+			vinv[l.VariantID] += l.Quantity
+		}
+
+		giftCards = draft.GiftCards
+		discCode = draft.OrderDiscount.DiscountCode
+		orderGuest = draft.Guest
+		subtotal = draft.Subtotal
+
+	} else {
+		return errors.New("nil order and draft order passed in")
+	}
+
+	mapped, works, err := ps.ConfirmDraftOrderProducts(dpi, vinv, dvids)
+	if err != nil {
+		return fmt.Errorf("unable to confirm variants for draft order: %s, store: %s,  err: %v", draft.ID.Hex(), dpi.Store, err)
+	} else if !works {
+		var builder strings.Builder
+		for id, val := range mapped {
+			if !val.Possible {
+				builder.WriteString(strconv.Itoa(id))
+				builder.WriteString(",")
+			}
+		}
+		falseVarIDs := builder.String()
+		return fmt.Errorf("nonexistent or low inventory vars for draft order: %s, store: %s, list: %s", draft.ID.Hex(), dpi.Store, falseVarIDs)
+	}
+
+	if discCode == "" && len(giftCards) == 0 {
+		return nil
+	}
+
+	if discCode != "" && len(giftCards) != 0 {
+
+		gcsAndAmounts := map[[2]string]int{}
+		for _, gc := range giftCards {
+			gcsAndAmounts[[2]string{gc.Code, gc.Pin}] = gc.Charged
+		}
+
+		gcErr, draftErr := ds.CheckGiftCardsAndDiscountCodes(gcsAndAmounts, discCode, subtotal, dpi.CustomerID, orderGuest)
+		if gcErr == nil && draftErr == nil {
+			return nil
+		} else if gcErr == nil {
+			return draftErr
+		} else if draftErr == nil {
+			return gcErr
+		}
+
+		return fmt.Errorf("errors from both gc and disc; gc: %v; disc: %v", gcErr, draftErr)
+
+	} else if len(giftCards) != 0 {
+
+		gcsAndAmounts := map[[2]string]int{}
+		for _, gc := range giftCards {
+			gcsAndAmounts[[2]string{gc.Code, gc.Pin}] = gc.Charged
+		}
+
+		gcErr := ds.CheckMultipleGiftCards(gcsAndAmounts)
+		if gcErr == nil {
+			return nil
+		}
+
+		return gcErr
+
+	} else if discCode != "" {
+
+		draftErr := ds.CheckDiscountCode(discCode, subtotal, dpi.CustomerID, orderGuest)
+		if draftErr == nil {
+			return nil
+		}
+
+		return draftErr
+
+	}
+
+	return nil
 }
