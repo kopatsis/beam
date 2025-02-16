@@ -1,0 +1,38 @@
+<input type="text" id="card-input" maxlength="19" placeholder="1234 5678 9012 3456">
+
+<script>
+    const input = document.getElementById('card-input');
+
+    function formatCardNumber(value) {
+        return value.replace(/\D/g, '').substring(0, 16).replace(/(\d{4})/g, '$1 ').trim();
+    }
+
+    input.addEventListener('input', (e) => {
+        const cursorPos = e.target.selectionStart;
+        const formattedValue = formatCardNumber(e.target.value);
+        e.target.value = formattedValue;
+
+        let spaces = (formattedValue.slice(0, cursorPos).match(/\s/g) || []).length;
+        e.target.setSelectionRange(cursorPos + spaces, cursorPos + spaces);
+    });
+
+    input.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const selectionStart = input.selectionStart;
+        const selectionEnd = input.selectionEnd;
+
+        let paste = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').substring(0, 16);
+        let currentValue = input.value.replace(/\D/g, '');
+        
+        let before = currentValue.slice(0, selectionStart);
+        let after = currentValue.slice(selectionEnd);
+
+        let newValue = before + paste + after;
+        newValue = formatCardNumber(newValue);
+
+        input.value = newValue;
+
+        let spaces = (newValue.slice(0, selectionStart + paste.length).match(/\s/g) || []).length;
+        input.setSelectionRange(selectionStart + paste.length + spaces, selectionStart + paste.length + spaces);
+    });
+</script>

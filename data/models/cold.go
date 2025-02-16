@@ -170,6 +170,7 @@ type InventoryAdjustment struct {
 	FromOrder       bool   // ORDER: If originated from successful order
 	OrderID         string // ORDER: Order ID
 	InitialOrderDec int    // ORDER: (Negative) initial change from order aka qty ordered
+	IsReversal      bool   // ORDER: Went through but was cancelled/reversed
 	AlwaysUpAdj     bool   // ORDER: Setting to always have inventory occurred
 	AlwaysUpInc     int    // ORDER: How much always up incremented by
 	FromCommand     bool   // COMMAND: If originated from an Excel command

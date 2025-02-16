@@ -32,10 +32,12 @@ type CartService interface {
 	CartCountCheck(dpi *DataPassIn) (int, int, error)
 	OrderSuccessCart(dpi *DataPassIn, orderLines []models.OrderLine) error
 
-	CopyCartWithLines(dpi *DataPassIn) error
+	CopyCartWithLines(dpi *DataPassIn) (int, error)
 	MoveCart(dpi *DataPassIn) error
 	DirectCartRetrieval(dpi *DataPassIn) (int, error, bool)
 	GetCartLineWithValidation(customerID int, cartID int, lineID int) (*models.CartLine, error)
+
+	CopyCartFromShare(dpi *DataPassIn, sharedCartID int) error
 }
 
 type cartService struct {
@@ -625,8 +627,8 @@ func (s *cartService) OrderSuccessCart(dpi *DataPassIn, orderLines []models.Orde
 	return s.cartRepo.ReactivateCartWithLines(cart.ID, newLines)
 }
 
-func (s *cartService) CopyCartWithLines(dpi *DataPassIn) error {
-	return s.cartRepo.CopyCartWithLines(dpi.CartID, dpi.CustomerID)
+func (s *cartService) CopyCartWithLines(dpi *DataPassIn) (int, error) {
+	return s.cartRepo.CopyCartWithLines(dpi.CartID, dpi.CustomerID, dpi.GuestID)
 }
 
 func (s *cartService) MoveCart(dpi *DataPassIn) error {
@@ -635,4 +637,13 @@ func (s *cartService) MoveCart(dpi *DataPassIn) error {
 
 func (s *cartService) DirectCartRetrieval(dpi *DataPassIn) (int, error, bool) {
 	return s.cartRepo.DirectCartRetrieval(dpi.CartID, dpi.CustomerID, dpi.GuestID)
+}
+
+func (s *cartService) CopyCartFromShare(dpi *DataPassIn, sharedCartID int) error {
+	newID, err := s.cartRepo.CopyCartWithLines(sharedCartID, dpi.CustomerID, dpi.GuestID)
+	if err != nil {
+		return err
+	}
+	dpi.CartID = newID
+	return nil
 }

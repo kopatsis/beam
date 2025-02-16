@@ -54,6 +54,7 @@ type DiscountUseLine struct {
 	CustomerID   int
 	GuestID      string
 	SessionID    string
+	IsReversal   bool
 }
 
 type GiftCardUseLine struct {
@@ -68,4 +69,5 @@ type GiftCardUseLine struct {
 	PreviousAmount int
 	AmountApplied  int
 	EndAmount      int
+	IsReversal     bool
 }

@@ -35,7 +35,7 @@ type CartRepository interface {
 	ActiveCart(id int) error
 	ReactivateCartWithLines(cartID int, newLines []models.CartLine) error
 
-	CopyCartWithLines(cartID, newCustomer int) error
+	CopyCartWithLines(cartID, newCustomer int, guestID string) (int, error)
 	MoveCart(cartID, newCustomer int) error
 	DirectCartRetrieval(cartID, customerID int, guestID string) (int, error, bool)
 }
@@ -281,29 +281,33 @@ func (r *cartRepo) ReactivateCartWithLines(cartID int, newLines []models.CartLin
 	})
 }
 
-func (r *cartRepo) CopyCartWithLines(cartID int, newCustomer int) error {
+func (r *cartRepo) CopyCartWithLines(cartID, newCustomer int, guestID string) (int, error) {
 	cart, err := r.ReadWithPreload(cartID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if cart.CustomerID == newCustomer && cart.Status == "Active" {
-		return nil
+		return cartID, nil
 	} else if cart.CustomerID == newCustomer {
-		return r.ActiveCart(cartID)
+		return cartID, r.ActiveCart(cartID)
 	}
 
 	newCart := models.Cart{
-		CustomerID:    newCustomer,
+		GuestID:       guestID,
 		DateCreated:   time.Now(),
 		DateModified:  time.Now(),
 		LastRetrieved: time.Now(),
 		Status:        "Active",
 	}
 
+	if newCustomer != 0 {
+		newCart.CustomerID = newCustomer
+	}
+
 	cartLines, err := r.CartLinesRetrieval(cartID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	newCartLines := make([]models.CartLine, len(cartLines))
@@ -320,15 +324,19 @@ func (r *cartRepo) CopyCartWithLines(cartID int, newCustomer int) error {
 		}
 	}
 
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&newCart).Error; err != nil {
+	if err := r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(newCart).Error; err != nil {
 			return err
 		}
 		for i := range newCartLines {
 			newCartLines[i].CartID = newCart.ID
 		}
 		return tx.Create(&newCartLines).Error
-	})
+	}); err != nil {
+		return 0, err
+	}
+
+	return newCart.ID, nil
 }
 
 func (r *cartRepo) MoveCart(cartID int, newCustomer int) error {
