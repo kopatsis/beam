@@ -18,9 +18,10 @@ const BATCH int = 45
 
 const SHIPINTERVAL time.Duration = 60 * time.Second
 
-const FAVES_LIMIT = 15
-const SAVES_LIMIT = 50
+const FAVES_LIMIT = 50
+const SAVES_LIMIT = 15
 const LAST_ORDERED_LIMIT = 50
+const CUSTOM_LIST_LIMIT = 50
 
 const GC_HANDLE string = "/giftcard"
 const GC_IMG string = "https://cdn.com/gc_"

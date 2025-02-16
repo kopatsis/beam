@@ -6,6 +6,7 @@ import (
 	"beam/data/services/listhelp"
 	"fmt"
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -35,6 +36,7 @@ type ListService interface {
 	GetFavesLineByPage(dpi *DataPassIn, page int, ps ProductService) (models.FavesListRender, error)
 	GetSavesListByPage(dpi *DataPassIn, page int, ps ProductService) (models.SavesListRender, error)
 	GetLastOrdersListByPage(dpi *DataPassIn, page int, ps ProductService) (models.LastOrderListRender, error)
+	GetCustomListByPage(dpi *DataPassIn, page, listID int, ps ProductService) (models.CustomListRender, error)
 
 	CartToSavesList(dpi *DataPassIn, lineID int, ps ProductService, cs CartService) (models.SavesListRender, *models.CartRender, error)
 
@@ -42,7 +44,7 @@ type ListService interface {
 	DeleteFromCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) error
 
 	RetrieveAllCustomLists(dpi *DataPassIn, fromURL url.Values) (models.AllCustomLists, error)
-	RetrieveCustomListsForVars(dpi *DataPassIn, variantID int) (models.AllListsForVariant, error)
+	RetrieveCustomListsForVars(dpi *DataPassIn, variantID int, ps ProductService) (models.AllListsForVariant, error)
 }
 
 type listService struct {
@@ -357,6 +359,49 @@ func (s *listService) GetLastOrdersListByPage(dpi *DataPassIn, page int, ps Prod
 	return ret, nil
 }
 
+func (s *listService) GetCustomListByPage(dpi *DataPassIn, page, listID int, ps ProductService) (models.CustomListRender, error) {
+	ret := models.CustomListRender{}
+
+	list, prev, next, err := s.listRepo.GetCustomListLineByPage(dpi.CustomerID, page, listID)
+	if err != nil {
+		return ret, err
+	}
+
+	vids := []int{}
+	for _, l := range list {
+		vids = append(vids, l.VariantID)
+	}
+
+	if len(vids) == 0 {
+		ret.NoData = true
+		return ret, nil
+	}
+
+	lvs, err := ps.GetLimitedVariants(dpi.Store, vids)
+	if err != nil {
+		return ret, err
+	} else if len(lvs) != len(list) {
+		return ret, fmt.Errorf("incorrect length match for fetching limited variants")
+	}
+
+	data := []*models.CustomListLineRender{}
+	for _, l := range list {
+		data = append(data, &models.CustomListLineRender{
+			CustomLine: *l,
+		})
+		for _, v := range lvs {
+			data[len(data)-1].Variant = *v
+			data[len(data)-1].Found = true
+			break
+		}
+	}
+
+	ret.Data = data
+	ret.Prev = prev
+	ret.Next = next
+	return ret, nil
+}
+
 func (s *listService) CartToSavesList(dpi *DataPassIn, lineID int, ps ProductService, cs CartService) (models.SavesListRender, *models.CartRender, error) {
 
 	line, err := cs.GetCartLineWithValidation(dpi.CustomerID, dpi.CartID, lineID)
@@ -457,36 +502,64 @@ func (s *listService) RetrieveAllCustomLists(dpi *DataPassIn, fromURL url.Values
 	return ret, nil
 }
 
-func (s *listService) RetrieveCustomListsForVars(dpi *DataPassIn, variantID int) (models.AllListsForVariant, error) {
+func (s *listService) RetrieveCustomListsForVars(dpi *DataPassIn, variantID int, ps ProductService) (models.AllListsForVariant, error) {
 	ret := models.AllListsForVariant{
 		VariantID: variantID,
 		Customs:   []models.CustomListForVariant{},
 	}
 
-	lists, err := s.listRepo.GetCustomListsForCustomer(dpi.CustomerID)
-	if err != nil {
-		return ret, err
+	favesIn := false
+	favesErr, customErr := error(nil), error(nil)
+	var statuses map[int]bool
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		lists, err := s.listRepo.GetCustomListsForCustomer(dpi.CustomerID)
+		if err != nil {
+			customErr = err
+			return
+		}
+
+		idList := make([]int, len(lists))
+		for i, l := range lists {
+			idList[i] = l.ID
+			ret.Customs = append(ret.Customs, models.CustomListForVariant{
+				CustomList: l,
+			})
+		}
+
+		statuses, customErr = s.listRepo.HasVariantInLists(dpi.CustomerID, variantID, idList)
+	}()
+
+	go func() {
+		defer wg.Done()
+		favesIn, favesErr = s.GetFavesLine(dpi, variantID, ps)
+	}()
+
+	wg.Wait()
+
+	if favesErr != nil && customErr != nil {
+		return ret, fmt.Errorf("errors from both faves list and custom lists; faves list: %v; custom lists: %v", favesErr, customErr)
 	}
 
-	idList := make([]int, len(lists))
-	for i, l := range lists {
-		idList[i] = l.ID
-		ret.Customs = append(ret.Customs, models.CustomListForVariant{
-			CustomList: l,
-		})
+	if customErr == nil {
+		ret.FavesHasVar = favesIn
 	}
 
-	statuses, err := s.listRepo.HasVariantInLists(dpi.CustomerID, variantID, idList)
-	if err != nil {
-		return ret, err
+	if customErr == nil {
+		for i, lb := range ret.Customs {
+			lb.HasVar = statuses[lb.CustomList.ID]
+			ret.Customs[i] = lb
+		}
+		ret.Sort()
 	}
 
-	for i, lb := range ret.Customs {
-		lb.HasVar = statuses[lb.CustomList.ID]
-		ret.Customs[i] = lb
+	if favesErr != nil {
+		return ret, favesErr
 	}
 
-	ret.Sort()
-
-	return ret, nil
+	return ret, customErr
 }

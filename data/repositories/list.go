@@ -34,6 +34,7 @@ type ListRepository interface {
 	GetFavesLineByPage(customerID, page int) ([]*models.FavesLine, bool, bool, error)
 	GetSavesListByPage(customerID, page int) ([]*models.SavesList, bool, bool, error)
 	GetLastOrdersListByPage(customerID, page int) ([]*models.LastOrdersList, bool, bool, error)
+	GetCustomListLineByPage(customerID, page, listID int) ([]*models.CustomListLine, bool, bool, error)
 
 	GetSingleCustomList(customerID, listID int) (*models.CustomList, error)
 	AddToCustomList(customerID, listID, variantID, productID int) error
@@ -291,6 +292,32 @@ func (r *listRepo) GetLastOrdersListByPage(customerID, page int) ([]*models.Last
 	}
 
 	return orders, hasPrev, hasNext, nil
+}
+
+func (r *listRepo) GetCustomListLineByPage(customerID, page, listID int) ([]*models.CustomListLine, bool, bool, error) {
+	limit := config.CUSTOM_LIST_LIMIT
+	offset := (page - 1)
+	if offset < 0 {
+		offset = 0
+	}
+	offset *= limit
+
+	var lines []*models.CustomListLine
+	if err := r.db.Where("customer_id = ?", customerID).
+		Order("add_date DESC").
+		Limit(limit + 1).
+		Offset(offset).
+		Find(&lines).Error; err != nil {
+		return nil, false, false, err
+	}
+
+	hasPrev := offset > 0
+	hasNext := len(lines) > limit
+	if hasNext {
+		lines = lines[:limit]
+	}
+
+	return lines, hasPrev, hasNext, nil
 }
 
 func (r *listRepo) CreateCustomList(customerID int, name string) (int, error) {
