@@ -2,6 +2,7 @@ package models
 
 import (
 	"net/url"
+	"sort"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -184,14 +185,20 @@ type CustomListRender struct {
 }
 
 type CustomListForVariant struct {
-	CustomList CustomList
 	HasVar     bool
+	CustomList CustomList
 }
 
 type AllListsForVariant struct {
 	VariantID   int
 	FavesHasVar bool
 	Customs     []CustomListForVariant
+}
+
+func (a *AllListsForVariant) Sort() {
+	sort.Slice(a.Customs, func(i, j int) bool {
+		return a.Customs[i].CustomList.LastUpdated.Before(a.Customs[j].CustomList.LastUpdated)
+	})
 }
 
 type CustomListRenderBrief struct {
@@ -201,6 +208,26 @@ type CustomListRenderBrief struct {
 
 type AllCustomLists struct {
 	Lists []CustomListRenderBrief
+}
+
+func (a *AllCustomLists) SortBy(field string, desc bool) {
+	sort.Slice(a.Lists, func(i, j int) bool {
+		var less bool
+
+		switch field {
+		case "created_at":
+			less = a.Lists[i].CustomList.Created.Before(a.Lists[j].CustomList.Created)
+		case "length":
+			less = a.Lists[i].Count < a.Lists[j].Count
+		default:
+			less = a.Lists[i].CustomList.LastUpdated.Before(a.Lists[j].CustomList.LastUpdated)
+		}
+
+		if desc {
+			return !less
+		}
+		return less
+	})
 }
 
 type OrderSummary struct {

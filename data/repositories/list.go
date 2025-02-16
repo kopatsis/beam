@@ -38,6 +38,10 @@ type ListRepository interface {
 	GetSingleCustomList(customerID, listID int) (*models.CustomList, error)
 	AddToCustomList(customerID, listID, variantID, productID int) error
 	DeleteFromCustomList(listID, customerID, variantID int) error
+
+	GetCustomListsForCustomer(customerID int) ([]models.CustomList, error)
+	CountsForCustomLists(customerID int, listIDs []int) (map[int]int, error)
+	HasVariantInLists(customerID, variantID int, listIDs []int) (map[int]bool, error)
 }
 
 type listRepo struct {
@@ -357,4 +361,60 @@ func (r *listRepo) AddToCustomList(customerID, listID, variantID, productID int)
 func (r *listRepo) DeleteFromCustomList(listID, customerID, variantID int) error {
 	return r.db.Where("custom_list_id = ? AND customer_id = ? AND variant_id = ?", listID, customerID, variantID).
 		Delete(&models.CustomListLine{}).Error
+}
+
+func (r *listRepo) GetCustomListsForCustomer(customerID int) ([]models.CustomList, error) {
+	var lists []models.CustomList
+	r.db.Where("customer_id = ? AND archived = false", customerID).
+		Order("last_updated DESC").
+		Limit(15).
+		Find(&lists)
+	return lists, nil
+}
+
+func (r *listRepo) CountsForCustomLists(customerID int, listIDs []int) (map[int]int, error) {
+	var lineCounts []struct {
+		CustomListID int
+		LineCount    int
+	}
+
+	err := r.db.Model(&models.CustomListLine{}).
+		Select("custom_list_id, COUNT(*) AS line_count").
+		Where("customer_id = ? AND custom_list_id IN ?", customerID, listIDs).
+		Group("custom_list_id").
+		Scan(&lineCounts).Error
+	if err != nil {
+		return nil, err
+	}
+
+	countMap := make(map[int]int, len(listIDs))
+	for _, lc := range lineCounts {
+		countMap[lc.CustomListID] = lc.LineCount
+	}
+
+	return countMap, nil
+}
+
+func (r *listRepo) HasVariantInLists(customerID, variantID int, listIDs []int) (map[int]bool, error) {
+	var results []struct {
+		CustomListID int
+	}
+
+	err := r.db.Model(&models.CustomListLine{}).
+		Select("DISTINCT custom_list_id").
+		Where("customer_id = ? AND variant_id = ? AND custom_list_id IN ?", customerID, variantID, listIDs).
+		Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	presenceMap := make(map[int]bool, len(listIDs))
+	for _, id := range listIDs {
+		presenceMap[id] = false
+	}
+	for _, res := range results {
+		presenceMap[res.CustomListID] = true
+	}
+
+	return presenceMap, nil
 }

@@ -3,7 +3,9 @@ package services
 import (
 	"beam/data/models"
 	"beam/data/repositories"
+	"beam/data/services/listhelp"
 	"fmt"
+	"net/url"
 	"time"
 )
 
@@ -23,7 +25,7 @@ type ListService interface {
 	DeleteFavesLine(dpi *DataPassIn, variantID int, ps ProductService) error
 	DeleteSavesList(dpi *DataPassIn, variantID int, ps ProductService) error
 
-	AddFavesLineRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.FavesListRender, error)
+	AddFavesLineRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.FavesListRender, error) // Should it be a page? Or section for product page
 	AddSavesListRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.SavesListRender, error)
 	DeleteFavesLineRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.FavesListRender, error)
 	DeleteSavesListRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.SavesListRender, error)
@@ -38,6 +40,9 @@ type ListService interface {
 
 	AddToCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) error
 	DeleteFromCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) error
+
+	RetrieveAllCustomLists(dpi *DataPassIn, fromURL url.Values) (models.AllCustomLists, error)
+	RetrieveCustomListsForVars(dpi *DataPassIn, variantID int) (models.AllListsForVariant, error)
 }
 
 type listService struct {
@@ -417,4 +422,71 @@ func (s *listService) DeleteFromCustomList(dpi *DataPassIn, variantID int, listI
 	}
 
 	return s.listRepo.DeleteFromCustomList(dpi.CustomerID, listID, lvs[0].VariantID)
+}
+
+func (s *listService) RetrieveAllCustomLists(dpi *DataPassIn, fromURL url.Values) (models.AllCustomLists, error) {
+	ret := models.AllCustomLists{Lists: []models.CustomListRenderBrief{}}
+
+	sort, desc := listhelp.ParseQueryParams(fromURL)
+
+	lists, err := s.listRepo.GetCustomListsForCustomer(dpi.CustomerID)
+	if err != nil {
+		return ret, err
+	}
+
+	idList := make([]int, len(lists))
+	for i, l := range lists {
+		idList[i] = l.ID
+		ret.Lists = append(ret.Lists, models.CustomListRenderBrief{
+			CustomList: l,
+		})
+	}
+
+	counts, err := s.listRepo.CountsForCustomLists(dpi.CustomerID, idList)
+	if err != nil {
+		return ret, err
+	}
+
+	for i, lb := range ret.Lists {
+		lb.Count = counts[lb.CustomList.ID]
+		ret.Lists[i] = lb
+	}
+
+	ret.SortBy(sort, desc)
+
+	return ret, nil
+}
+
+func (s *listService) RetrieveCustomListsForVars(dpi *DataPassIn, variantID int) (models.AllListsForVariant, error) {
+	ret := models.AllListsForVariant{
+		VariantID: variantID,
+		Customs:   []models.CustomListForVariant{},
+	}
+
+	lists, err := s.listRepo.GetCustomListsForCustomer(dpi.CustomerID)
+	if err != nil {
+		return ret, err
+	}
+
+	idList := make([]int, len(lists))
+	for i, l := range lists {
+		idList[i] = l.ID
+		ret.Customs = append(ret.Customs, models.CustomListForVariant{
+			CustomList: l,
+		})
+	}
+
+	statuses, err := s.listRepo.HasVariantInLists(dpi.CustomerID, variantID, idList)
+	if err != nil {
+		return ret, err
+	}
+
+	for i, lb := range ret.Customs {
+		lb.HasVar = statuses[lb.CustomList.ID]
+		ret.Customs[i] = lb
+	}
+
+	ret.Sort()
+
+	return ret, nil
 }
