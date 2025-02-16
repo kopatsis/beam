@@ -15,6 +15,7 @@ type ListRepository interface {
 	CheckLastOrdersList(customerID int, variantID int) (bool, *models.LastOrdersList, error)
 	CheckLastOrdersListProd(customerID int, productID int) (bool, *models.LastOrdersList, error)
 
+	CheckCustomListCount(customerID int) (bool, error)
 	CreateCustomList(customerID int, name string) (int, error)
 	UpdateCustomListTitle(listID int, customerID int, name string) error
 	ArchiveCustomList(listID int, customerID int) error
@@ -318,6 +319,15 @@ func (r *listRepo) GetCustomListLineByPage(customerID, page, listID int) ([]*mod
 	}
 
 	return lines, hasPrev, hasNext, nil
+}
+
+func (r *listRepo) CheckCustomListCount(customerID int) (bool, error) {
+	var count int64
+	r.db.Model(&models.CustomList{}).
+		Where("customer_id = ? AND archived = false", customerID).
+		Count(&count)
+
+	return count < config.MAX_CUSTOM_LISTS, nil
 }
 
 func (r *listRepo) CreateCustomList(customerID int, name string) (int, error) {

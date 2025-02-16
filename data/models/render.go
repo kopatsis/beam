@@ -190,9 +190,10 @@ type CustomListForVariant struct {
 }
 
 type AllListsForVariant struct {
-	VariantID   int
-	FavesHasVar bool
-	Customs     []CustomListForVariant
+	VariantID     int
+	FavesHasVar   bool
+	CanAddAnother bool
+	Customs       []CustomListForVariant
 }
 
 func (a *AllListsForVariant) Sort() {

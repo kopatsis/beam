@@ -22,6 +22,7 @@ const FAVES_LIMIT = 50
 const SAVES_LIMIT = 15
 const LAST_ORDERED_LIMIT = 50
 const CUSTOM_LIST_LIMIT = 50
+const MAX_CUSTOM_LISTS = 25
 
 const GC_HANDLE string = "/giftcard"
 const GC_IMG string = "https://cdn.com/gc_"

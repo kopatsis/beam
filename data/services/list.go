@@ -1,6 +1,7 @@
 package services
 
 import (
+	"beam/config"
 	"beam/data/models"
 	"beam/data/repositories"
 	"beam/data/services/listhelp"
@@ -14,7 +15,8 @@ type ListService interface {
 	GetFavesLine(dpi *DataPassIn, variantID int, ps ProductService) (bool, error)
 	GetSavesList(dpi *DataPassIn, variantID int, ps ProductService) (bool, error)
 
-	CreateCustomList(dpi *DataPassIn, name string) (int, error)
+	CreateCustomList(dpi *DataPassIn, name string) (bool, int, error)
+	CreateCustomListWithVar(dpi *DataPassIn, name string, variantID int, ps ProductService) (bool, int, error)
 	ChangeCustomListName(dpi *DataPassIn, listID int, name string) error
 	ArchiveCustomList(dpi *DataPassIn, listID int) error
 
@@ -33,7 +35,7 @@ type ListService interface {
 
 	UpdateLastOrdersList(dpi *DataPassIn, orderDate time.Time, orderID string, vids []int, ps ProductService) error
 
-	GetFavesLineByPage(dpi *DataPassIn, page int, ps ProductService) (models.FavesListRender, error)
+	GetFavesListByPage(dpi *DataPassIn, page int, ps ProductService) (models.FavesListRender, error)
 	GetSavesListByPage(dpi *DataPassIn, page int, ps ProductService) (models.SavesListRender, error)
 	GetLastOrdersListByPage(dpi *DataPassIn, page int, ps ProductService) (models.LastOrderListRender, error)
 	GetCustomListByPage(dpi *DataPassIn, page, listID int, ps ProductService) (models.CustomListRender, error)
@@ -42,8 +44,10 @@ type ListService interface {
 
 	AddToCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) error
 	DeleteFromCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) error
+	DeleteFromCustomListAndRender(dpi *DataPassIn, variantID, listID, page int, ps ProductService) (models.CustomListRender, error)
 
 	RetrieveAllCustomLists(dpi *DataPassIn, fromURL url.Values) (models.AllCustomLists, error)
+	RetrieveAllCustomListsWithVar(dpi *DataPassIn, fromURL url.Values, variantID int, ps ProductService) (models.AllCustomLists, models.LimitedVariantRedis, error)
 	RetrieveCustomListsForVars(dpi *DataPassIn, variantID int, ps ProductService) (models.AllListsForVariant, error)
 }
 
@@ -104,7 +108,7 @@ func (s *listService) AddFavesLineRender(dpi *DataPassIn, variantID int, page in
 	if err != nil {
 		return models.FavesListRender{}, err
 	}
-	return s.GetFavesLineByPage(dpi, page, ps)
+	return s.GetFavesListByPage(dpi, page, ps)
 }
 
 func (s *listService) AddSavesListRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.SavesListRender, error) {
@@ -120,7 +124,7 @@ func (s *listService) DeleteFavesLineRender(dpi *DataPassIn, variantID int, page
 	if err != nil {
 		return models.FavesListRender{}, err
 	}
-	return s.GetFavesLineByPage(dpi, page, ps)
+	return s.GetFavesListByPage(dpi, page, ps)
 }
 
 func (s *listService) DeleteSavesListRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.SavesListRender, error) {
@@ -230,7 +234,7 @@ func (s *listService) UpdateLastOrdersList(dpi *DataPassIn, orderDate time.Time,
 	return s.listRepo.UpdateLastOrdersList(dpi.CustomerID, orderDate, orderID, use)
 }
 
-func (s *listService) GetFavesLineByPage(dpi *DataPassIn, page int, ps ProductService) (models.FavesListRender, error) {
+func (s *listService) GetFavesListByPage(dpi *DataPassIn, page int, ps ProductService) (models.FavesListRender, error) {
 	ret := models.FavesListRender{}
 
 	list, prev, next, err := s.listRepo.GetFavesLineByPage(dpi.CustomerID, page)
@@ -422,8 +426,33 @@ func (s *listService) CartToSavesList(dpi *DataPassIn, lineID int, ps ProductSer
 	return sl, cr, nil
 }
 
-func (s *listService) CreateCustomList(dpi *DataPassIn, name string) (int, error) {
-	return s.listRepo.CreateCustomList(dpi.CustomerID, name)
+// Reached maximum, listID, error
+func (s *listService) CreateCustomList(dpi *DataPassIn, name string) (bool, int, error) {
+	unmaxed, err := s.listRepo.CheckCustomListCount(dpi.CustomerID)
+	if err != nil {
+		return false, 0, err
+	} else if !unmaxed {
+		return true, 0, nil
+	}
+
+	id, err := s.listRepo.CreateCustomList(dpi.CustomerID, name)
+	if err != nil {
+		return false, 0, err
+	}
+	return false, id, nil
+}
+
+func (s *listService) CreateCustomListWithVar(dpi *DataPassIn, name string, variantID int, ps ProductService) (bool, int, error) {
+	maxReached, listID, err := s.CreateCustomList(dpi, name)
+	if maxReached || err != nil {
+		return maxReached, listID, err
+	}
+
+	if err := s.AddToCustomList(dpi, variantID, listID, ps); err != nil {
+		return false, listID, err
+	}
+
+	return false, listID, nil
 }
 
 func (s *listService) ChangeCustomListName(dpi *DataPassIn, listID int, name string) error {
@@ -469,6 +498,13 @@ func (s *listService) DeleteFromCustomList(dpi *DataPassIn, variantID int, listI
 	return s.listRepo.DeleteFromCustomList(dpi.CustomerID, listID, lvs[0].VariantID)
 }
 
+func (s *listService) DeleteFromCustomListAndRender(dpi *DataPassIn, variantID, listID, page int, ps ProductService) (models.CustomListRender, error) {
+	if err := s.DeleteFromCustomList(dpi, variantID, listID, ps); err != nil {
+		return models.CustomListRender{}, err
+	}
+	return s.GetCustomListByPage(dpi, page, listID, ps)
+}
+
 func (s *listService) RetrieveAllCustomLists(dpi *DataPassIn, fromURL url.Values) (models.AllCustomLists, error) {
 	ret := models.AllCustomLists{Lists: []models.CustomListRenderBrief{}}
 
@@ -500,6 +536,22 @@ func (s *listService) RetrieveAllCustomLists(dpi *DataPassIn, fromURL url.Values
 	ret.SortBy(sort, desc)
 
 	return ret, nil
+}
+
+func (s *listService) RetrieveAllCustomListsWithVar(dpi *DataPassIn, fromURL url.Values, variantID int, ps ProductService) (models.AllCustomLists, models.LimitedVariantRedis, error) {
+	list, err := s.RetrieveAllCustomLists(dpi, fromURL)
+	if err != nil {
+		return list, models.LimitedVariantRedis{}, err
+	}
+
+	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	if err != nil {
+		return list, models.LimitedVariantRedis{}, err
+	} else if len(lvs) != 1 {
+		return list, models.LimitedVariantRedis{}, fmt.Errorf("could not find single lim var for id: %d", variantID)
+	}
+
+	return list, *lvs[0], nil
 }
 
 func (s *listService) RetrieveCustomListsForVars(dpi *DataPassIn, variantID int, ps ProductService) (models.AllListsForVariant, error) {
@@ -555,6 +607,11 @@ func (s *listService) RetrieveCustomListsForVars(dpi *DataPassIn, variantID int,
 			ret.Customs[i] = lb
 		}
 		ret.Sort()
+		if len(ret.Customs) >= config.MAX_CUSTOM_LISTS {
+			ret.CanAddAnother = false
+		} else {
+			ret.CanAddAnother = true
+		}
 	}
 
 	if favesErr != nil {
