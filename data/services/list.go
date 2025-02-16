@@ -28,7 +28,7 @@ type ListService interface {
 	DeleteFavesLine(dpi *DataPassIn, variantID int, ps ProductService) error
 	DeleteSavesList(dpi *DataPassIn, variantID int, ps ProductService) error
 
-	AddFavesLineRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.FavesListRender, error) // Should it be a page? Or section for product page
+	AddFavesLineRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.FavesListRender, error) // Probably never needed
 	AddSavesListRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.SavesListRender, error)
 	DeleteFavesLineRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.FavesListRender, error)
 	DeleteSavesListRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.SavesListRender, error)
@@ -51,6 +51,10 @@ type ListService interface {
 	RetrieveCustomListsForVars(dpi *DataPassIn, variantID int, ps ProductService) (models.AllListsForVariant, error)
 
 	RetrieveAllListsAndCounts(dpi *DataPassIn, fromURL url.Values) (models.AllListsAndCounts, error)
+
+	SetCustomPublicStatus(dpi *DataPassIn, listID int, public bool) error
+	RenderSharedCustomList(providedCustID string, page, listID int, ps ProductService) (models.CustomListRender, bool, error)
+	ShareCustomList(dpi *DataPassIn, listID int) (int, string, error)
 }
 
 type listService struct {
@@ -495,7 +499,11 @@ func (s *listService) ChangeCustomListName(dpi *DataPassIn, listID int, name str
 }
 
 func (s *listService) ArchiveCustomList(dpi *DataPassIn, listID int) error {
-	return s.listRepo.ArchiveCustomList(listID, dpi.CustomerID)
+	if err := s.listRepo.ArchiveCustomList(listID, dpi.CustomerID); err != nil {
+		return err
+	}
+
+	return s.listRepo.SetCustomLastUpdated(dpi.CustomerID, listID)
 }
 
 func (s *listService) AddToCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) error {
@@ -510,7 +518,11 @@ func (s *listService) AddToCustomList(dpi *DataPassIn, variantID int, listID int
 		return err
 	}
 
-	return s.listRepo.AddToCustomList(dpi.CustomerID, listID, lvs[0].VariantID, lvs[0].ProductID)
+	if err := s.listRepo.AddToCustomList(dpi.CustomerID, listID, lvs[0].VariantID, lvs[0].ProductID); err != nil {
+		return err
+	}
+
+	return s.listRepo.SetCustomLastUpdated(dpi.CustomerID, listID)
 }
 
 func (s *listService) DeleteFromCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) error {
@@ -525,7 +537,11 @@ func (s *listService) DeleteFromCustomList(dpi *DataPassIn, variantID int, listI
 		return err
 	}
 
-	return s.listRepo.DeleteFromCustomList(dpi.CustomerID, listID, lvs[0].VariantID)
+	if err := s.listRepo.DeleteFromCustomList(dpi.CustomerID, listID, lvs[0].VariantID); err != nil {
+		return err
+	}
+
+	return s.listRepo.SetCustomLastUpdated(dpi.CustomerID, listID)
 }
 
 func (s *listService) DeleteFromCustomListAndRender(dpi *DataPassIn, variantID, listID, page int, ps ProductService) (models.CustomListRender, error) {
@@ -680,5 +696,36 @@ func (s *listService) RetrieveAllListsAndCounts(dpi *DataPassIn, fromURL url.Val
 		return ret, favesErr
 	}
 	return ret, lastErr
+}
 
+func (s *listService) SetCustomPublicStatus(dpi *DataPassIn, listID int, public bool) error {
+	return s.listRepo.SetCustomLastUpdated(dpi.CustomerID, listID)
+}
+
+func (s *listService) ShareCustomList(dpi *DataPassIn, listID int) (int, string, error) {
+	if err := s.SetCustomPublicStatus(dpi, listID, true); err != nil {
+		return 0, "", err
+	}
+
+	return listID, config.EncryptInt(dpi.CustomerID), nil
+}
+
+// Render, is public, error
+func (s *listService) RenderSharedCustomList(providedCustID string, page, listID int, ps ProductService) (models.CustomListRender, bool, error) {
+
+	unencryptedID, err := config.DecryptInt(providedCustID)
+	if err != nil {
+		return models.CustomListRender{}, false, err
+	}
+
+	cl, err := s.GetCustomListByPage(&DataPassIn{CustomerID: unencryptedID}, page, listID, ps)
+	if err != nil {
+		return models.CustomListRender{}, false, err
+	}
+
+	if !cl.CustomList.Public {
+		return models.CustomListRender{}, false, nil
+	}
+
+	return cl, true, nil
 }

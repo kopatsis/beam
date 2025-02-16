@@ -49,6 +49,9 @@ type ListRepository interface {
 	GetSavesListCount(customerID int) (int, error)
 	GetLastOrderListCount(customerID int) (int, error)
 	GetCustomListCount(customerID, listID int) (int, error)
+
+	SetCustomLastUpdated(customerID, listID int) error
+	SetCustomPublicStatus(customerID, listID int, public bool) error
 }
 
 type listRepo struct {
@@ -495,4 +498,16 @@ func (r *listRepo) GetCustomListCount(customerID, listID int) (int, error) {
 		Distinct("variant_id").
 		Count(&count).Error
 	return int(count), err
+}
+
+func (r *listRepo) SetCustomLastUpdated(customerID, listID int) error {
+	return r.db.Model(&models.CustomList{}).
+		Where("id = ? AND customer_id = ?", listID, customerID).
+		Update("last_updated", time.Now()).Error
+}
+
+func (r *listRepo) SetCustomPublicStatus(customerID, listID int, public bool) error {
+	return r.db.Model(&models.CustomList{}).
+		Where("id = ? AND customer_id = ?", listID, customerID).
+		Update("public", public).Error
 }

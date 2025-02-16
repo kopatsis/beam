@@ -10,6 +10,7 @@ type CustomList struct {
 	CustomerID   int `gorm:"index"`
 	Title        string
 	Archived     bool
+	Public       bool
 	Created      time.Time
 	LastUpdated  time.Time
 	ArchivedTime time.Time
