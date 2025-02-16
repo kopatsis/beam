@@ -11,6 +11,10 @@ type ListService interface {
 	GetFavesLine(dpi *DataPassIn, variantID int, ps ProductService) (bool, error)
 	GetSavesList(dpi *DataPassIn, variantID int, ps ProductService) (bool, error)
 
+	CreateCustomList(dpi *DataPassIn, name string) (int, error)
+	ChangeCustomListName(dpi *DataPassIn, listID int, name string) error
+	ArchiveCustomList(dpi *DataPassIn, listID int) error
+
 	GetLastOrdersList(dpi *DataPassIn, variantID int, ps ProductService) (bool, *models.LastOrdersList, error)
 	GetLastOrdersListProd(dpi *DataPassIn, productID int, ps ProductService) (bool, *models.LastOrdersList, error)
 
@@ -363,4 +367,21 @@ func (s *listService) CartToSavesList(dpi *DataPassIn, lineID int, ps ProductSer
 	}
 
 	return sl, cr, nil
+}
+
+func (s *listService) CreateCustomList(dpi *DataPassIn, name string) (int, error) {
+	return s.listRepo.CreateCustomList(dpi.CustomerID, name)
+}
+
+func (s *listService) ChangeCustomListName(dpi *DataPassIn, listID int, name string) error {
+
+	if len(name) > 140 {
+		name = name[:139]
+	}
+
+	return s.listRepo.UpdateCustomListTitle(listID, dpi.CustomerID, name)
+}
+
+func (s *listService) ArchiveCustomList(dpi *DataPassIn, listID int) error {
+	return s.listRepo.ArchiveCustomList(listID, dpi.CustomerID)
 }

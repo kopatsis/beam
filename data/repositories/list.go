@@ -15,6 +15,10 @@ type ListRepository interface {
 	CheckLastOrdersList(customerID int, variantID int) (bool, *models.LastOrdersList, error)
 	CheckLastOrdersListProd(customerID int, productID int) (bool, *models.LastOrdersList, error)
 
+	CreateCustomList(customerID int, name string) (int, error)
+	UpdateCustomListTitle(listID int, customerID int, name string) error
+	ArchiveCustomList(listID int, customerID int) error
+
 	AddFavesLine(customerID, productID, variantID int) error
 	AddSavesList(customerID, productID, variantID int) error
 	AddLastOrdersList(customerID int, orderDate time.Time, orderID string, variants map[int]int) error // Internal?
@@ -269,4 +273,45 @@ func (r *listRepo) GetLastOrdersListByPage(customerID, page int) ([]*models.Last
 	}
 
 	return orders, hasPrev, hasNext, nil
+}
+
+func (r *listRepo) CreateCustomList(customerID int, name string) (int, error) {
+	ret := models.CustomList{
+		CustomerID:  customerID,
+		Title:       name,
+		Created:     time.Now(),
+		LastUpdated: time.Now(),
+	}
+
+	if err := r.db.Save(&ret).Error; err != nil {
+		return 0, err
+	}
+
+	return ret.ID, nil
+}
+
+func (r *listRepo) UpdateCustomListTitle(listID int, customerID int, name string) error {
+	var customList models.CustomList
+	err := r.db.Where("id = ? AND customer_id = ?", listID, customerID).First(&customList).Error
+	if err != nil {
+		return err
+	}
+
+	customList.Title = name
+	customList.LastUpdated = time.Now()
+
+	return r.db.Save(&customList).Error
+}
+
+func (r *listRepo) ArchiveCustomList(listID int, customerID int) error {
+	var customList models.CustomList
+	err := r.db.Where("id = ? AND customer_id = ?", listID, customerID).First(&customList).Error
+	if err != nil {
+		return err
+	}
+
+	customList.Archived = true
+	customList.ArchivedTime = time.Now()
+
+	return r.db.Save(&customList).Error
 }

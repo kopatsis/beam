@@ -6,11 +6,13 @@ import (
 
 // Can sort by created asds, last updated asds, product count asds
 type CustomList struct {
-	ID          int `gorm:"primaryKey"`
-	CustomerID  int `gorm:"index"`
-	Title       string
-	Created     time.Time
-	LastUpdated time.Time
+	ID           int `gorm:"primaryKey"`
+	CustomerID   int `gorm:"index"`
+	Title        string
+	Archived     bool
+	Created      time.Time
+	LastUpdated  time.Time
+	ArchivedTime time.Time
 }
 
 type CustomListLine struct {
