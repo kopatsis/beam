@@ -15,6 +15,7 @@ type Customer struct {
 	EmailSubbed              bool
 	DefaultShippingContactID int            `gorm:"index"`
 	Tags                     pq.StringArray `gorm:"type:text[]"`
+	Created                  time.Time
 	PhoneNumber              *string
 	Status                   string // Active, Archived
 	// OrderCount               int

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"os"
 	"strconv"
+	"time"
 )
 
 func getXORKey() byte {
@@ -28,4 +29,16 @@ func DecryptInt(encrypted string) (int, error) {
 		return 0, err
 	}
 	return encInt ^ int(key), nil
+}
+
+func EncodeTime(t time.Time) string {
+	return strconv.FormatInt(t.Unix(), 36)
+}
+
+func DecodeTime(encoded string) (time.Time, error) {
+	seconds, err := strconv.ParseInt(encoded, 36, 64)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return time.Unix(seconds, 0), nil
 }

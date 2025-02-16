@@ -20,15 +20,15 @@ type ListRepository interface {
 	UpdateCustomListTitle(listID int, customerID int, name string) error
 	ArchiveCustomList(listID int, customerID int) error
 
-	AddFavesLine(customerID, productID, variantID int) error
-	AddSavesList(customerID, productID, variantID int) error
+	AddFavesLine(customerID, productID, variantID int, usesDate bool, dateUsed time.Time) error
+	AddSavesList(customerID, productID, variantID int, usesDate bool, dateUsed time.Time) error
 	AddLastOrdersList(customerID int, orderDate time.Time, orderID string, variants map[int]int) error // Internal?
 
 	CheckLastOrdersListMultiVar(customerID int, variantIDs []int) (map[int]bool, error) // Internal?
 
 	DeleteLastOrdersListVariants(customerID int, variantIDs []int) error // Internal?
-	DeleteFavesLine(customerID, variantID int) error
-	DeleteSavesList(customerID, variantID int) error
+	DeleteFavesLine(customerID, variantID int) (time.Time, bool, error)
+	DeleteSavesList(customerID, variantID int) (time.Time, bool, error)
 
 	UpdateLastOrdersList(customerID int, orderDate time.Time, orderID string, variants map[int]int) error
 
@@ -38,8 +38,8 @@ type ListRepository interface {
 	GetCustomListLineByPage(customerID, page, listID int) ([]*models.CustomListLine, bool, bool, error)
 
 	GetSingleCustomList(customerID, listID int) (*models.CustomList, error)
-	AddToCustomList(customerID, listID, variantID, productID int) error
-	DeleteFromCustomList(listID, customerID, variantID int) error
+	AddToCustomList(customerID, listID, variantID, productID int, usesDate bool, dateUsed time.Time) error
+	DeleteFromCustomList(listID, customerID, variantID int) (time.Time, bool, error)
 
 	GetCustomListsForCustomer(customerID int) ([]models.CustomList, error)
 	CountsForCustomLists(customerID int, listIDs []int) (map[int]int, error)
@@ -131,7 +131,7 @@ func (r *listRepo) CheckLastOrdersListMultiVar(customerID int, variantIDs []int)
 	return result, nil
 }
 
-func (r *listRepo) AddFavesLine(customerID, productID, variantID int) error {
+func (r *listRepo) AddFavesLine(customerID, productID, variantID int, usesDate bool, dateUsed time.Time) error {
 	var existingFavesLine models.FavesLine
 	if err := r.db.Where("customer_id = ? AND variant_id = ?", customerID, variantID).First(&existingFavesLine).Error; err == nil {
 		return nil
@@ -140,12 +140,16 @@ func (r *listRepo) AddFavesLine(customerID, productID, variantID int) error {
 		CustomerID: customerID,
 		ProductID:  productID,
 		VariantID:  variantID,
-		AddDate:    time.Now(),
+	}
+	if usesDate && dateUsed != (time.Time{}) {
+		favesLine.AddDate = dateUsed
+	} else {
+		favesLine.AddDate = time.Now()
 	}
 	return r.db.Create(&favesLine).Error
 }
 
-func (r *listRepo) AddSavesList(customerID, productID, variantID int) error {
+func (r *listRepo) AddSavesList(customerID, productID, variantID int, usesDate bool, dateUsed time.Time) error {
 	var existingSavesList models.SavesList
 	if err := r.db.Where("customer_id = ? AND variant_id = ?", customerID, variantID).First(&existingSavesList).Error; err == nil {
 		if err := r.db.Delete(&existingSavesList).Error; err != nil {
@@ -156,7 +160,11 @@ func (r *listRepo) AddSavesList(customerID, productID, variantID int) error {
 		CustomerID: customerID,
 		ProductID:  productID,
 		VariantID:  variantID,
-		AddDate:    time.Now(),
+	}
+	if usesDate && dateUsed != (time.Time{}) {
+		savesList.AddDate = dateUsed
+	} else {
+		savesList.AddDate = time.Now()
 	}
 	return r.db.Create(&savesList).Error
 }
@@ -175,14 +183,52 @@ func (r *listRepo) AddLastOrdersList(customerID int, orderDate time.Time, orderI
 	return r.db.Create(&lastOrdersList).Error
 }
 
-func (r *listRepo) DeleteFavesLine(customerID, variantID int) error {
-	return r.db.Where("customer_id = ? AND variant_id = ?", customerID, variantID).
-		Delete(&models.FavesLine{}).Error
+// Time deleted entry was added, if it was already deleted, any error
+func (r *listRepo) DeleteFavesLine(customerID, variantID int) (time.Time, bool, error) {
+	var line models.FavesLine
+	err := r.db.Where("customer_id = ? AND variant_id = ?", customerID, variantID).
+		First(&line).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return time.Time{}, true, nil
+	} else if err != nil {
+		return time.Time{}, false, r.db.Where("customer_id = ? AND variant_id = ?", customerID, variantID).
+			Delete(&models.FavesLine{}).Error
+	}
+
+	return line.AddDate, false, r.db.Delete(&line).Error
 }
 
-func (r *listRepo) DeleteSavesList(customerID, variantID int) error {
-	return r.db.Where("customer_id = ? AND variant_id = ?", customerID, variantID).
-		Delete(&models.SavesList{}).Error
+// Time deleted entry was added, if it was already deleted, any error
+func (r *listRepo) DeleteSavesList(customerID, variantID int) (time.Time, bool, error) {
+	var line models.SavesList
+	err := r.db.Where("customer_id = ? AND variant_id = ?", customerID, variantID).
+		First(&line).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return time.Time{}, true, nil
+	} else if err != nil {
+		return time.Time{}, false, r.db.Where("customer_id = ? AND variant_id = ?", customerID, variantID).
+			Delete(&models.SavesList{}).Error
+	}
+
+	return line.AddDate, false, r.db.Delete(&line).Error
+}
+
+// Time deleted entry was added, if it was already deleted, any error
+func (r *listRepo) DeleteFromCustomList(listID, customerID, variantID int) (time.Time, bool, error) {
+	var line models.CustomListLine
+	err := r.db.Where("custom_list_id = ? AND customer_id = ? AND variant_id = ?", listID, customerID, variantID).
+		First(&line).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return time.Time{}, true, nil
+	} else if err != nil {
+		return time.Time{}, false, r.db.Where("custom_list_id = ? AND customer_id = ? AND variant_id = ?", listID, customerID, variantID).
+			Delete(&models.CustomListLine{}).Error
+	}
+
+	return line.AddDate, false, r.db.Delete(&line).Error
 }
 
 func (r *listRepo) DeleteLastOrdersListVariants(customerID int, variantIDs []int) error {
@@ -388,7 +434,7 @@ func (r *listRepo) GetSingleCustomList(customerID, listID int) (*models.CustomLi
 	return &customList, nil
 }
 
-func (r *listRepo) AddToCustomList(customerID, listID, variantID, productID int) error {
+func (r *listRepo) AddToCustomList(customerID, listID, variantID, productID int, usesDate bool, dateUsed time.Time) error {
 	var existingLine models.CustomListLine
 	if err := r.db.Where("custom_list_id = ? AND customer_id = ? AND variant_id = ?", listID, customerID, variantID).First(&existingLine).Error; err == nil {
 		return nil
@@ -398,14 +444,13 @@ func (r *listRepo) AddToCustomList(customerID, listID, variantID, productID int)
 		CustomerID:   customerID,
 		ProductID:    productID,
 		VariantID:    variantID,
-		AddDate:      time.Now(),
+	}
+	if usesDate && dateUsed != (time.Time{}) {
+		newLine.AddDate = dateUsed
+	} else {
+		newLine.AddDate = time.Now()
 	}
 	return r.db.Create(&newLine).Error
-}
-
-func (r *listRepo) DeleteFromCustomList(listID, customerID, variantID int) error {
-	return r.db.Where("custom_list_id = ? AND customer_id = ? AND variant_id = ?", listID, customerID, variantID).
-		Delete(&models.CustomListLine{}).Error
 }
 
 func (r *listRepo) GetCustomListsForCustomer(customerID int) ([]models.CustomList, error) {

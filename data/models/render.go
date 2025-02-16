@@ -146,19 +146,21 @@ type LastOrderLineRender struct {
 }
 
 type FavesListRender struct {
-	Count  int
-	NoData bool
-	Data   []*FavesLineRender
-	Prev   bool
-	Next   bool
+	Count    int
+	NoData   bool
+	Data     []*FavesLineRender
+	Prev     bool
+	Next     bool
+	Deletion *ListDeletionRender
 }
 
 type SavesListRender struct {
-	Count  int
-	NoData bool
-	Data   []*SavesLineRender
-	Prev   bool
-	Next   bool
+	Count    int
+	NoData   bool
+	Data     []*SavesLineRender
+	Prev     bool
+	Next     bool
+	Deletion *ListDeletionRender
 }
 
 type LastOrderListRender struct {
@@ -182,6 +184,7 @@ type CustomListRender struct {
 	Data       []*CustomListLineRender
 	Prev       bool
 	Next       bool
+	Deletion   *ListDeletionRender
 }
 
 type CustomListForVariant struct {
@@ -235,6 +238,11 @@ func (a *AllCustomLists) SortBy(field string, desc bool) {
 		}
 		return less
 	})
+}
+
+type ListDeletionRender struct {
+	DateSt  string
+	Variant LimitedVariantRedis
 }
 
 type OrderSummary struct {

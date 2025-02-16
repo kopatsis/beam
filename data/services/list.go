@@ -6,6 +6,7 @@ import (
 	"beam/data/repositories"
 	"beam/data/services/listhelp"
 	"fmt"
+	"log"
 	"net/url"
 	"sync"
 	"time"
@@ -25,10 +26,10 @@ type ListService interface {
 
 	AddFavesLine(dpi *DataPassIn, variantID int, ps ProductService) error
 	AddSavesList(dpi *DataPassIn, variantID int, ps ProductService) error
-	DeleteFavesLine(dpi *DataPassIn, variantID int, ps ProductService) error
-	DeleteSavesList(dpi *DataPassIn, variantID int, ps ProductService) error
+	DeleteFavesLine(dpi *DataPassIn, variantID int, ps ProductService) (string, *models.LimitedVariantRedis, error)
+	DeleteSavesList(dpi *DataPassIn, variantID int, ps ProductService) (string, *models.LimitedVariantRedis, error)
 
-	AddFavesLineRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.FavesListRender, error) // Probably never needed
+	AddFavesLineRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.FavesListRender, error)
 	AddSavesListRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.SavesListRender, error)
 	DeleteFavesLineRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.FavesListRender, error)
 	DeleteSavesListRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.SavesListRender, error)
@@ -43,7 +44,7 @@ type ListService interface {
 	CartToSavesList(dpi *DataPassIn, lineID int, ps ProductService, cs CartService) (models.SavesListRender, *models.CartRender, error)
 
 	AddToCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) error
-	DeleteFromCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) error
+	DeleteFromCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) (string, *models.LimitedVariantRedis, error)
 	DeleteFromCustomListAndRender(dpi *DataPassIn, variantID, listID, page int, ps ProductService) (models.CustomListRender, error)
 
 	RetrieveAllCustomLists(dpi *DataPassIn, fromURL url.Values) (models.AllCustomLists, error)
@@ -55,6 +56,10 @@ type ListService interface {
 	SetCustomPublicStatus(dpi *DataPassIn, listID int, public bool) error
 	RenderSharedCustomList(providedCustID string, page, listID int, ps ProductService) (models.CustomListRender, bool, error)
 	ShareCustomList(dpi *DataPassIn, listID int) (int, string, error)
+
+	UndoFavesDelete(dpi *DataPassIn, variantID int, dateSt string, page int, ps ProductService, cs CustomerService) (models.FavesListRender, error)
+	UndoSavesDelete(dpi *DataPassIn, variantID int, dateSt string, page int, ps ProductService, cs CustomerService) (models.SavesListRender, error)
+	UndoCustomDelete(dpi *DataPassIn, listID, variantID int, dateSt string, page int, ps ProductService) (models.CustomListRender, error)
 }
 
 type listService struct {
@@ -73,7 +78,7 @@ func (s *listService) AddFavesLine(dpi *DataPassIn, variantID int, ps ProductSer
 		return fmt.Errorf("could not find single lim var for id: %d", variantID)
 	}
 
-	return s.listRepo.AddFavesLine(dpi.CustomerID, lvs[0].ProductID, variantID)
+	return s.listRepo.AddFavesLine(dpi.CustomerID, lvs[0].ProductID, variantID, false, time.Time{})
 }
 
 func (s *listService) AddSavesList(dpi *DataPassIn, variantID int, ps ProductService) error {
@@ -84,29 +89,43 @@ func (s *listService) AddSavesList(dpi *DataPassIn, variantID int, ps ProductSer
 		return fmt.Errorf("could not find single lim var for id: %d", variantID)
 	}
 
-	return s.listRepo.AddSavesList(dpi.CustomerID, lvs[0].ProductID, variantID)
+	return s.listRepo.AddSavesList(dpi.CustomerID, lvs[0].ProductID, variantID, false, time.Time{})
 }
 
-func (s *listService) DeleteFavesLine(dpi *DataPassIn, variantID int, ps ProductService) error {
+func (s *listService) DeleteFavesLine(dpi *DataPassIn, variantID int, ps ProductService) (string, *models.LimitedVariantRedis, error) {
 	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
 	if err != nil {
-		return err
+		return "", nil, err
 	} else if len(lvs) != 1 {
-		return fmt.Errorf("could not find single lim var for id: %d", variantID)
+		return "", nil, fmt.Errorf("could not find single lim var for id: %d", variantID)
 	}
 
-	return s.listRepo.DeleteFavesLine(dpi.CustomerID, variantID)
+	added, alreadyDeleted, err := s.listRepo.DeleteFavesLine(dpi.CustomerID, variantID)
+	if err != nil {
+		return "", nil, err
+	} else if alreadyDeleted {
+		return "", nil, nil
+	}
+
+	return config.EncodeTime(added), lvs[0], nil
 }
 
-func (s *listService) DeleteSavesList(dpi *DataPassIn, variantID int, ps ProductService) error {
+func (s *listService) DeleteSavesList(dpi *DataPassIn, variantID int, ps ProductService) (string, *models.LimitedVariantRedis, error) {
 	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
 	if err != nil {
-		return err
+		return "", nil, err
 	} else if len(lvs) != 1 {
-		return fmt.Errorf("could not find single lim var for id: %d", variantID)
+		return "", nil, fmt.Errorf("could not find single lim var for id: %d", variantID)
 	}
 
-	return s.listRepo.DeleteSavesList(dpi.CustomerID, variantID)
+	added, alreadyDeleted, err := s.listRepo.DeleteSavesList(dpi.CustomerID, variantID)
+	if err != nil {
+		return "", nil, err
+	} else if alreadyDeleted {
+		return "", nil, nil
+	}
+
+	return config.EncodeTime(added), lvs[0], nil
 }
 
 func (s *listService) AddFavesLineRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.FavesListRender, error) {
@@ -126,19 +145,57 @@ func (s *listService) AddSavesListRender(dpi *DataPassIn, variantID int, page in
 }
 
 func (s *listService) DeleteFavesLineRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.FavesListRender, error) {
-	err := s.DeleteFavesLine(dpi, variantID, ps)
-	if err != nil {
+	useDate, variant, err := s.DeleteFavesLine(dpi, variantID, ps)
+
+	if variant == nil && err != nil {
 		return models.FavesListRender{}, err
+	} else if err != nil {
+		log.Printf("Issue updating time for custom list deletion; error: %v; store: %s; varid: %d; custid: %d\n", err, dpi.Store, variantID, dpi.CustomerID)
 	}
-	return s.GetFavesListByPage(dpi, page, ps)
+
+	results, err := s.GetFavesListByPage(dpi, page, ps)
+	if err != nil {
+		return results, err
+	}
+
+	if variant != nil {
+		results.Deletion = &models.ListDeletionRender{
+			Variant: *variant,
+			DateSt:  useDate,
+		}
+		if useDate == "" {
+			results.Deletion.DateSt = config.EncodeTime(time.Now())
+		}
+	}
+
+	return results, nil
 }
 
 func (s *listService) DeleteSavesListRender(dpi *DataPassIn, variantID int, page int, ps ProductService) (models.SavesListRender, error) {
-	err := s.DeleteSavesList(dpi, variantID, ps)
-	if err != nil {
+	useDate, variant, err := s.DeleteSavesList(dpi, variantID, ps)
+
+	if variant == nil && err != nil {
 		return models.SavesListRender{}, err
+	} else if err != nil {
+		log.Printf("Issue updating time for custom list deletion; error: %v; store: %s; varid: %d; custid: %d\n", err, dpi.Store, variantID, dpi.CustomerID)
 	}
-	return s.GetSavesListByPage(dpi, page, ps)
+
+	results, err := s.GetSavesListByPage(dpi, page, ps)
+	if err != nil {
+		return results, err
+	}
+
+	if variant != nil {
+		results.Deletion = &models.ListDeletionRender{
+			Variant: *variant,
+			DateSt:  useDate,
+		}
+		if useDate == "" {
+			results.Deletion.DateSt = config.EncodeTime(time.Now())
+		}
+	}
+
+	return results, nil
 }
 
 func (s *listService) GetFavesLine(dpi *DataPassIn, variantID int, ps ProductService) (bool, error) {
@@ -518,37 +575,60 @@ func (s *listService) AddToCustomList(dpi *DataPassIn, variantID int, listID int
 		return err
 	}
 
-	if err := s.listRepo.AddToCustomList(dpi.CustomerID, listID, lvs[0].VariantID, lvs[0].ProductID); err != nil {
+	if err := s.listRepo.AddToCustomList(dpi.CustomerID, listID, lvs[0].VariantID, lvs[0].ProductID, false, time.Time{}); err != nil {
 		return err
 	}
 
 	return s.listRepo.SetCustomLastUpdated(dpi.CustomerID, listID)
 }
 
-func (s *listService) DeleteFromCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) error {
+func (s *listService) DeleteFromCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) (string, *models.LimitedVariantRedis, error) {
 	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
 	if err != nil {
-		return err
+		return "", nil, err
 	} else if len(lvs) != 1 {
-		return fmt.Errorf("could not find single lim var for id: %d", variantID)
+		return "", nil, fmt.Errorf("could not find single lim var for id: %d", variantID)
 	}
 
 	if _, err := s.listRepo.GetSingleCustomList(dpi.CustomerID, listID); err != nil {
-		return err
+		return "", nil, err
 	}
 
-	if err := s.listRepo.DeleteFromCustomList(dpi.CustomerID, listID, lvs[0].VariantID); err != nil {
-		return err
+	added, alreadyDeleted, err := s.listRepo.DeleteFromCustomList(dpi.CustomerID, listID, lvs[0].VariantID)
+	if err != nil {
+		return "", nil, err
+	} else if alreadyDeleted {
+		return "", nil, nil
 	}
 
-	return s.listRepo.SetCustomLastUpdated(dpi.CustomerID, listID)
+	return config.EncodeTime(added), lvs[0], s.listRepo.SetCustomLastUpdated(dpi.CustomerID, listID)
 }
 
 func (s *listService) DeleteFromCustomListAndRender(dpi *DataPassIn, variantID, listID, page int, ps ProductService) (models.CustomListRender, error) {
-	if err := s.DeleteFromCustomList(dpi, variantID, listID, ps); err != nil {
+	useDate, variant, err := s.DeleteFromCustomList(dpi, variantID, listID, ps)
+
+	if variant == nil && err != nil {
 		return models.CustomListRender{}, err
+	} else if err != nil {
+		log.Printf("Issue updating time for custom list deletion; error: %v; store: %s; varid: %d; custid: %d\n", err, dpi.Store, variantID, dpi.CustomerID)
 	}
-	return s.GetCustomListByPage(dpi, page, listID, ps)
+
+	results, err := s.GetCustomListByPage(dpi, page, listID, ps)
+	if err != nil {
+		return results, err
+	}
+
+	if variant != nil {
+		results.Deletion = &models.ListDeletionRender{
+			Variant: *variant,
+			DateSt:  useDate,
+		}
+		if useDate == "" {
+			results.Deletion.DateSt = config.EncodeTime(time.Now())
+		}
+	}
+
+	return results, nil
 }
 
 func (s *listService) RetrieveAllCustomLists(dpi *DataPassIn, fromURL url.Values) (models.AllCustomLists, error) {
@@ -728,4 +808,91 @@ func (s *listService) RenderSharedCustomList(providedCustID string, page, listID
 	}
 
 	return cl, true, nil
+}
+
+func (s *listService) UndoFavesDelete(dpi *DataPassIn, variantID int, dateSt string, page int, ps ProductService, cs CustomerService) (models.FavesListRender, error) {
+	realDate, err := config.DecodeTime(dateSt)
+	if err != nil {
+		return models.FavesListRender{}, err
+	}
+
+	cust, err := cs.GetCustomerByID(dpi.CustomerID)
+	if err != nil {
+		return models.FavesListRender{}, err
+	}
+
+	if realDate.Before(cust.Created) {
+		realDate = cust.Created
+	}
+
+	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	if err != nil {
+		return models.FavesListRender{}, err
+	} else if len(lvs) != 1 {
+		return models.FavesListRender{}, fmt.Errorf("could not find single lim var for id: %d", variantID)
+	}
+
+	if err := s.listRepo.AddFavesLine(dpi.CustomerID, lvs[0].ProductID, variantID, true, realDate); err != nil {
+		return models.FavesListRender{}, err
+	}
+
+	return s.GetFavesListByPage(dpi, page, ps)
+}
+
+func (s *listService) UndoSavesDelete(dpi *DataPassIn, variantID int, dateSt string, page int, ps ProductService, cs CustomerService) (models.SavesListRender, error) {
+	realDate, err := config.DecodeTime(dateSt)
+	if err != nil {
+		return models.SavesListRender{}, err
+	}
+
+	cust, err := cs.GetCustomerByID(dpi.CustomerID)
+	if err != nil {
+		return models.SavesListRender{}, err
+	}
+
+	if realDate.Before(cust.Created) {
+		realDate = cust.Created
+	}
+
+	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	if err != nil {
+		return models.SavesListRender{}, err
+	} else if len(lvs) != 1 {
+		return models.SavesListRender{}, fmt.Errorf("could not find single lim var for id: %d", variantID)
+	}
+
+	if err := s.listRepo.AddSavesList(dpi.CustomerID, lvs[0].ProductID, variantID, true, realDate); err != nil {
+		return models.SavesListRender{}, err
+	}
+
+	return s.GetSavesListByPage(dpi, page, ps)
+}
+
+func (s *listService) UndoCustomDelete(dpi *DataPassIn, listID, variantID int, dateSt string, page int, ps ProductService) (models.CustomListRender, error) {
+	realDate, err := config.DecodeTime(dateSt)
+	if err != nil {
+		return models.CustomListRender{}, err
+	}
+
+	list, err := s.listRepo.GetSingleCustomList(dpi.CustomerID, listID)
+	if err != nil {
+		return models.CustomListRender{}, err
+	}
+
+	if realDate.Before(list.Created) {
+		realDate = list.Created
+	}
+
+	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	if err != nil {
+		return models.CustomListRender{}, err
+	} else if len(lvs) != 1 {
+		return models.CustomListRender{}, fmt.Errorf("could not find single lim var for id: %d", variantID)
+	}
+
+	if err := s.listRepo.AddToCustomList(dpi.CustomerID, listID, lvs[0].VariantID, lvs[0].ProductID, true, realDate); err != nil {
+		return models.CustomListRender{}, err
+	}
+
+	return s.GetCustomListByPage(dpi, page, listID, ps)
 }
