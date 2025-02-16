@@ -211,6 +211,12 @@ type AllCustomLists struct {
 	Lists []CustomListRenderBrief
 }
 
+type AllListsAndCounts struct {
+	AllCustomLists     AllCustomLists
+	FavesCount         int
+	LastOrderListCount int
+}
+
 func (a *AllCustomLists) SortBy(field string, desc bool) {
 	sort.Slice(a.Lists, func(i, j int) bool {
 		var less bool

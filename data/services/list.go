@@ -49,6 +49,8 @@ type ListService interface {
 	RetrieveAllCustomLists(dpi *DataPassIn, fromURL url.Values) (models.AllCustomLists, error)
 	RetrieveAllCustomListsWithVar(dpi *DataPassIn, fromURL url.Values, variantID int, ps ProductService) (models.AllCustomLists, models.LimitedVariantRedis, error)
 	RetrieveCustomListsForVars(dpi *DataPassIn, variantID int, ps ProductService) (models.AllListsForVariant, error)
+
+	RetrieveAllListsAndCounts(dpi *DataPassIn, fromURL url.Values) (models.AllListsAndCounts, error)
 }
 
 type listService struct {
@@ -647,4 +649,36 @@ func (s *listService) RetrieveCustomListsForVars(dpi *DataPassIn, variantID int,
 	}
 
 	return ret, customErr
+}
+
+func (s *listService) RetrieveAllListsAndCounts(dpi *DataPassIn, fromURL url.Values) (models.AllListsAndCounts, error) {
+	ret := models.AllListsAndCounts{}
+
+	customs, err := s.RetrieveAllCustomLists(dpi, fromURL)
+	if err != nil {
+		return ret, err
+	}
+	ret.AllCustomLists = customs
+
+	favesErr, lastErr := error(nil), error(nil)
+	var wait sync.WaitGroup
+	wait.Add(2)
+
+	go func() {
+		defer wait.Done()
+		ret.FavesCount, favesErr = s.listRepo.GetFavesListCount(dpi.CustomerID)
+	}()
+
+	go func() {
+		defer wait.Done()
+		ret.LastOrderListCount, lastErr = s.listRepo.GetLastOrderListCount(dpi.CustomerID)
+	}()
+
+	if favesErr != nil && lastErr != nil {
+		return ret, fmt.Errorf("errors from both faves count and last orders list count; faves: %v; lastorders: %v", favesErr, lastErr)
+	} else if favesErr != nil {
+		return ret, favesErr
+	}
+	return ret, lastErr
+
 }
