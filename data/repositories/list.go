@@ -114,6 +114,10 @@ func (r *listRepo) CheckLastOrdersListMultiVar(customerID int, variantIDs []int)
 }
 
 func (r *listRepo) AddFavesLine(customerID, productID, variantID int) error {
+	var existingFavesLine models.FavesLine
+	if err := r.db.Where("customer_id = ? AND variant_id = ?", customerID, variantID).First(&existingFavesLine).Error; err == nil {
+		return nil
+	}
 	favesLine := models.FavesLine{
 		CustomerID: customerID,
 		ProductID:  productID,
@@ -124,6 +128,12 @@ func (r *listRepo) AddFavesLine(customerID, productID, variantID int) error {
 }
 
 func (r *listRepo) AddSavesList(customerID, productID, variantID int) error {
+	var existingSavesList models.SavesList
+	if err := r.db.Where("customer_id = ? AND variant_id = ?", customerID, variantID).First(&existingSavesList).Error; err == nil {
+		if err := r.db.Delete(&existingSavesList).Error; err != nil {
+			return err
+		}
+	}
 	savesList := models.SavesList{
 		CustomerID: customerID,
 		ProductID:  productID,
