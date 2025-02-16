@@ -34,6 +34,10 @@ type ListRepository interface {
 	GetFavesLineByPage(customerID, page int) ([]*models.FavesLine, bool, bool, error)
 	GetSavesListByPage(customerID, page int) ([]*models.SavesList, bool, bool, error)
 	GetLastOrdersListByPage(customerID, page int) ([]*models.LastOrdersList, bool, bool, error)
+
+	GetSingleCustomList(customerID, listID int) (*models.CustomList, error)
+	AddToCustomList(customerID, listID, variantID, productID int) error
+	DeleteFromCustomList(listID, customerID, variantID int) error
 }
 
 type listRepo struct {
@@ -324,4 +328,33 @@ func (r *listRepo) ArchiveCustomList(listID int, customerID int) error {
 	customList.ArchivedTime = time.Now()
 
 	return r.db.Save(&customList).Error
+}
+
+func (r *listRepo) GetSingleCustomList(customerID, listID int) (*models.CustomList, error) {
+	var customList models.CustomList
+	err := r.db.Where("id = ? AND customer_id = ? AND archived = false", listID, customerID).First(&customList).Error
+	if err != nil {
+		return nil, err
+	}
+	return &customList, nil
+}
+
+func (r *listRepo) AddToCustomList(customerID, listID, variantID, productID int) error {
+	var existingLine models.CustomListLine
+	if err := r.db.Where("custom_list_id = ? AND customer_id = ? AND variant_id = ?", listID, customerID, variantID).First(&existingLine).Error; err == nil {
+		return nil
+	}
+	newLine := models.CustomListLine{
+		CustomListID: listID,
+		CustomerID:   customerID,
+		ProductID:    productID,
+		VariantID:    variantID,
+		AddDate:      time.Now(),
+	}
+	return r.db.Create(&newLine).Error
+}
+
+func (r *listRepo) DeleteFromCustomList(listID, customerID, variantID int) error {
+	return r.db.Where("custom_list_id = ? AND customer_id = ? AND variant_id = ?", listID, customerID, variantID).
+		Delete(&models.CustomListLine{}).Error
 }

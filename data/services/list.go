@@ -35,6 +35,9 @@ type ListService interface {
 	GetLastOrdersListByPage(dpi *DataPassIn, page int, ps ProductService) (models.LastOrderListRender, error)
 
 	CartToSavesList(dpi *DataPassIn, lineID int, ps ProductService, cs CartService) (models.SavesListRender, *models.CartRender, error)
+
+	AddToCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) error
+	DeleteFromCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) error
 }
 
 type listService struct {
@@ -384,4 +387,34 @@ func (s *listService) ChangeCustomListName(dpi *DataPassIn, listID int, name str
 
 func (s *listService) ArchiveCustomList(dpi *DataPassIn, listID int) error {
 	return s.listRepo.ArchiveCustomList(listID, dpi.CustomerID)
+}
+
+func (s *listService) AddToCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) error {
+	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	if err != nil {
+		return err
+	} else if len(lvs) != 1 {
+		return fmt.Errorf("could not find single lim var for id: %d", variantID)
+	}
+
+	if _, err := s.listRepo.GetSingleCustomList(dpi.CustomerID, listID); err != nil {
+		return err
+	}
+
+	return s.listRepo.AddToCustomList(dpi.CustomerID, listID, lvs[0].VariantID, lvs[0].ProductID)
+}
+
+func (s *listService) DeleteFromCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) error {
+	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	if err != nil {
+		return err
+	} else if len(lvs) != 1 {
+		return fmt.Errorf("could not find single lim var for id: %d", variantID)
+	}
+
+	if _, err := s.listRepo.GetSingleCustomList(dpi.CustomerID, listID); err != nil {
+		return err
+	}
+
+	return s.listRepo.DeleteFromCustomList(dpi.CustomerID, listID, lvs[0].VariantID)
 }

@@ -145,6 +145,7 @@ type LastOrderLineRender struct {
 }
 
 type FavesListRender struct {
+	Count  int
 	NoData bool
 	Data   []*FavesLineRender
 	Prev   bool
@@ -152,6 +153,7 @@ type FavesListRender struct {
 }
 
 type SavesListRender struct {
+	Count  int
 	NoData bool
 	Data   []*SavesLineRender
 	Prev   bool
@@ -159,10 +161,46 @@ type SavesListRender struct {
 }
 
 type LastOrderListRender struct {
+	Count  int
 	NoData bool
 	Data   []*LastOrderLineRender
 	Prev   bool
 	Next   bool
+}
+
+type CustomListLineRender struct {
+	Found      bool
+	CustomLine CustomListLine
+	Variant    LimitedVariantRedis
+}
+
+type CustomListRender struct {
+	Count      int
+	NoData     bool
+	CustomList *CustomList
+	Data       []*CustomListLineRender
+	Prev       bool
+	Next       bool
+}
+
+type CustomListForVariant struct {
+	CustomList CustomList
+	HasVar     bool
+}
+
+type AllListsForVariant struct {
+	VariantID   int
+	FavesHasVar bool
+	Customs     []CustomListForVariant
+}
+
+type CustomListRenderBrief struct {
+	Count      int
+	CustomList CustomList
+}
+
+type AllCustomLists struct {
+	Lists []CustomListRenderBrief
 }
 
 type OrderSummary struct {
