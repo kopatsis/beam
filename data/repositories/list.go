@@ -32,7 +32,7 @@ type ListRepository interface {
 
 	UpdateLastOrdersList(customerID int, orderDate time.Time, orderID string, variants map[int]int) error
 
-	GetFavesLineByPage(customerID, page int) ([]*models.FavesLine, bool, bool, error)
+	GetFavesListByPage(customerID, page int) ([]*models.FavesLine, bool, bool, error)
 	GetSavesListByPage(customerID, page int) ([]*models.SavesList, bool, bool, error)
 	GetLastOrdersListByPage(customerID, page int) ([]*models.LastOrdersList, bool, bool, error)
 	GetCustomListLineByPage(customerID, page, listID int) ([]*models.CustomListLine, bool, bool, error)
@@ -44,6 +44,11 @@ type ListRepository interface {
 	GetCustomListsForCustomer(customerID int) ([]models.CustomList, error)
 	CountsForCustomLists(customerID int, listIDs []int) (map[int]int, error)
 	HasVariantInLists(customerID, variantID int, listIDs []int) (map[int]bool, error)
+
+	GetFavesListCount(customerID int) (int, error)
+	GetSavesListCount(customerID int) (int, error)
+	GetLastOrderListCount(customerID int) (int, error)
+	GetCustomListCount(customerID, listID int) (int, error)
 }
 
 type listRepo struct {
@@ -217,7 +222,7 @@ func (r *listRepo) UpdateLastOrdersList(customerID int, orderDate time.Time, ord
 	})
 }
 
-func (r *listRepo) GetFavesLineByPage(customerID, page int) ([]*models.FavesLine, bool, bool, error) {
+func (r *listRepo) GetFavesListByPage(customerID, page int) ([]*models.FavesLine, bool, bool, error) {
 	limit := config.FAVES_LIMIT
 	offset := (page - 1)
 	if offset < 0 {
@@ -454,4 +459,40 @@ func (r *listRepo) HasVariantInLists(customerID, variantID int, listIDs []int) (
 	}
 
 	return presenceMap, nil
+}
+
+func (r *listRepo) GetFavesListCount(customerID int) (int, error) {
+	var count int64
+	err := r.db.Model(&models.FavesLine{}).
+		Where("customer_id = ?", customerID).
+		Distinct("variant_id").
+		Count(&count).Error
+	return int(count), err
+}
+
+func (r *listRepo) GetSavesListCount(customerID int) (int, error) {
+	var count int64
+	err := r.db.Model(&models.SavesList{}).
+		Where("customer_id = ?", customerID).
+		Distinct("variant_id").
+		Count(&count).Error
+	return int(count), err
+}
+
+func (r *listRepo) GetLastOrderListCount(customerID int) (int, error) {
+	var count int64
+	err := r.db.Model(&models.LastOrdersList{}).
+		Where("customer_id = ?", customerID).
+		Distinct("variant_id").
+		Count(&count).Error
+	return int(count), err
+}
+
+func (r *listRepo) GetCustomListCount(customerID, listID int) (int, error) {
+	var count int64
+	err := r.db.Model(&models.CustomListLine{}).
+		Where("customer_id = ? AND custom_list_id = ?", customerID, listID).
+		Distinct("variant_id").
+		Count(&count).Error
+	return int(count), err
 }

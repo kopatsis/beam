@@ -237,7 +237,7 @@ func (s *listService) UpdateLastOrdersList(dpi *DataPassIn, orderDate time.Time,
 func (s *listService) GetFavesListByPage(dpi *DataPassIn, page int, ps ProductService) (models.FavesListRender, error) {
 	ret := models.FavesListRender{}
 
-	list, prev, next, err := s.listRepo.GetFavesLineByPage(dpi.CustomerID, page)
+	list, prev, next, err := s.listRepo.GetFavesListByPage(dpi.CustomerID, page)
 	if err != nil {
 		return ret, err
 	}
@@ -274,6 +274,13 @@ func (s *listService) GetFavesListByPage(dpi *DataPassIn, page int, ps ProductSe
 	ret.Data = data
 	ret.Prev = prev
 	ret.Next = next
+
+	ct, err := s.listRepo.GetFavesListCount(dpi.CustomerID)
+	if err != nil {
+		return ret, err
+	}
+	ret.Count = ct
+
 	return ret, nil
 }
 
@@ -317,6 +324,13 @@ func (s *listService) GetSavesListByPage(dpi *DataPassIn, page int, ps ProductSe
 	ret.Data = data
 	ret.Prev = prev
 	ret.Next = next
+
+	ct, err := s.listRepo.GetSavesListCount(dpi.CustomerID)
+	if err != nil {
+		return ret, err
+	}
+	ret.Count = ct
+
 	return ret, nil
 }
 
@@ -360,6 +374,13 @@ func (s *listService) GetLastOrdersListByPage(dpi *DataPassIn, page int, ps Prod
 	ret.Data = data
 	ret.Prev = prev
 	ret.Next = next
+
+	ct, err := s.listRepo.GetLastOrderListCount(dpi.CustomerID)
+	if err != nil {
+		return ret, err
+	}
+	ret.Count = ct
+
 	return ret, nil
 }
 
@@ -403,6 +424,13 @@ func (s *listService) GetCustomListByPage(dpi *DataPassIn, page, listID int, ps 
 	ret.Data = data
 	ret.Prev = prev
 	ret.Next = next
+
+	ct, err := s.listRepo.GetCustomListCount(dpi.CustomerID, listID)
+	if err != nil {
+		return ret, err
+	}
+	ret.Count = ct
+
 	return ret, nil
 }
 
