@@ -217,6 +217,7 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 		Email:       customer.Email,
 		EmailSubbed: customer.EmailSubbed,
 		Status:      "Active",
+		Created:     time.Now(),
 	}
 
 	if customer.PhoneNumber != nil {
