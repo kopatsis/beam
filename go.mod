@@ -61,6 +61,7 @@ require (
 	github.com/mssola/user_agent v0.6.0
 	github.com/oschwald/geoip2-golang v1.11.0
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
+	github.com/texttheater/golang-levenshtein/levenshtein v0.0.0-20200805054039-cae8b0eaed6c
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ua-parser/uap-go v0.0.0-20250126222208-a52596c19dff
 	github.com/ugorji/go/codec v1.2.12 // indirect

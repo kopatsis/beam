@@ -389,7 +389,7 @@ func (s *customerService) GuestMiddleware(cookie *models.ClientCookie, store str
 
 func (s *customerService) FullMiddleware(cookie *models.ClientCookie, store string) {
 	if cookie == nil {
-		cookie = &models.ClientCookie{}
+		return
 	}
 	s.GuestMiddleware(cookie, store)
 	s.CustomerMiddleware(cookie)

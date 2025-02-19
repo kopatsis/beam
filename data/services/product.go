@@ -110,10 +110,7 @@ func (s *productService) GetAllProductInfo(fromURL url.Values, Mutex *config.All
 
 	realsort := ""
 	if query != "" {
-		products, err = product.FuzzySearch(query, products)
-		if err != nil {
-			return ret, err
-		}
+		products = product.FullSearch(query, products)
 	} else {
 		realsort, products = product.SortProducts(sort, products)
 	}
