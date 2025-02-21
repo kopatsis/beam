@@ -53,7 +53,7 @@ func ConfirmPaymentIntentDraft(draftOrder *models.DraftOrder, customer *models.C
 			return custChange, draftChange, errors.New("no guest and no customer")
 		}
 		if draftOrder.GuestStripeID == "" {
-			c, err := CreateCustomer("", "")
+			c, err := CreateCustomer("", "", "")
 			if err != nil {
 				return custChange, draftChange, err
 			}
@@ -61,7 +61,7 @@ func ConfirmPaymentIntentDraft(draftOrder *models.DraftOrder, customer *models.C
 			draftChange = true
 		}
 	} else if customer.StripeID == "" {
-		c, err := CreateCustomer(customer.Email, customer.DefaultName)
+		c, err := CreateCustomer(customer.Email, customer.FirstName, customer.LastName)
 		if err != nil {
 			return custChange, draftChange, err
 		}
@@ -238,13 +238,16 @@ func AttachPaymentMethodToCustomer(methodID, customerID string) error {
 	return err
 }
 
-func CreateCustomer(email, name string) (*stripe.Customer, error) {
+func CreateCustomer(email, firstname, lastname string) (*stripe.Customer, error) {
 	params := &stripe.CustomerParams{}
 	if email != "" {
 		params.Email = stripe.String(email)
 	}
-	if name != "" {
-		params.Name = stripe.String(name)
+	if firstname != "" {
+		if lastname != "" {
+			params.Name = stripe.String(firstname + " " + lastname)
+		}
+		params.Name = stripe.String(firstname)
 	}
 	return customer.New(params)
 }

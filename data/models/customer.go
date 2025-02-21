@@ -8,9 +8,8 @@ import (
 
 type Customer struct {
 	ID                       int    `gorm:"primaryKey"`
-	FirebaseUID              string `gorm:"unique"`
 	StripeID                 string `gorm:"unique"`
-	DefaultName              string
+	FirstName                string
 	LastName                 string
 	Email                    string `gorm:"unique"`
 	PasswordHash             string
@@ -29,13 +28,16 @@ type Customer struct {
 }
 
 type CustomerPost struct {
-	DefaultName     string  `json:"default_name" validate:"required"`
+	FirstName       string  `json:"first"`
+	LastName        string  `json:"last"`
 	Email           string  `json:"email" validate:"required,email"`
 	EmailSubbed     bool    `json:"email_subbed" validate:"required"`
 	PhoneNumber     *string `json:"phone_number,omitempty"`
 	IsPassword      bool    `json:"is_pass"`
 	Password        string  `json:"password"`
+	PasswordConf    string  `json:"password_conf"`
 	IsEmailVerified bool    `json:"verif"`
+	Uses2FA         bool    `json:"uses_2fa"`
 }
 
 type Contact struct {

@@ -31,8 +31,6 @@ type CustomerRepository interface {
 	AddStripeToCustomer(c *models.Customer)
 	GetPaymentMethodsCust(customerID int) ([]models.PaymentMethodStripe, error)
 	UpdateCustomerDefault(customerID, contactID int) error
-	CheckFirebaseUID(firebaseUID string) (int, string, error)
-	GetCustomerByFirebase(firebaseUID string) (*models.Customer, error)
 	GetServerCookie(custID int, store string) (*models.ServerCookie, error)
 	SetServerCookieReset(c *models.ServerCookie, reset time.Time) (*models.ServerCookie, error)
 	SetServerCookieStatus(c *models.ServerCookie, archived bool) (*models.ServerCookie, error)
@@ -40,6 +38,9 @@ type CustomerRepository interface {
 	GetCustomerIDByEmail(email string) (int, bool, error)
 
 	ArchiveCustomerEmail(id int, email string) error
+	GetActiveCustomerByEmail(email string) (*models.Customer, error)
+	SetEmailSubbed(id int, subbed bool) error
+	SetEmailVerified(id int, verif bool) error
 }
 
 type customerRepo struct {
@@ -164,7 +165,7 @@ func (r *customerRepo) AddStripeToCustomer(c *models.Customer) {
 		return
 	}
 
-	strCust, err := draftorderhelp.CreateCustomer(c.Email, c.DefaultName)
+	strCust, err := draftorderhelp.CreateCustomer(c.Email, c.FirstName, c.LastName)
 	if err != nil {
 		log.Printf("Unable to create stripe id for customer with id: %d; error: %v\n", c.ID, err)
 		return
@@ -203,33 +204,6 @@ func (r *customerRepo) UpdateCustomerDefault(customerID, contactID int) error {
 		Where("id = ?", customerID).
 		Update("default_shipping_contact_id", contactID).
 		Error
-}
-
-func (r *customerRepo) CheckFirebaseUID(firebaseUID string) (int, string, error) {
-	var result struct {
-		ID     int
-		Status string
-	}
-
-	err := r.db.Model(&models.Customer{}).
-		Select("id, status").
-		Where("firebase_uid = ?", firebaseUID).
-		First(&result).Error
-
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return 0, "", nil
-		}
-		return 0, "", err
-	}
-
-	return result.ID, result.Status, nil
-}
-
-func (r *customerRepo) GetCustomerByFirebase(firebaseUID string) (*models.Customer, error) {
-	var cust models.Customer
-	err := r.db.Where("firebase_uid = ?", firebaseUID).Find(&cust).Error
-	return &cust, err
 }
 
 func (r *customerRepo) GetServerCookie(custID int, store string) (*models.ServerCookie, error) {
@@ -338,4 +312,21 @@ func (r *customerRepo) ArchiveCustomerEmail(id int, email string) error {
 		return err
 	}
 	return nil
+}
+
+func (r *customerRepo) GetActiveCustomerByEmail(email string) (*models.Customer, error) {
+	var customer models.Customer
+	err := r.db.Where("email = ? AND status = ?", email, "active").First(&customer).Error
+	if err != nil {
+		return nil, err
+	}
+	return &customer, nil
+}
+
+func (r *customerRepo) SetEmailSubbed(id int, subbed bool) error {
+	return r.db.Model(&models.Customer{}).Where("id = ?", id).Update("email_subbed", subbed).Error
+}
+
+func (r *customerRepo) SetEmailVerified(id int, verif bool) error {
+	return r.db.Model(&models.Customer{}).Where("id = ?", id).Update("email_verified", verif).Error
 }

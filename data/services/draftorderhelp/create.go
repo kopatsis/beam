@@ -96,7 +96,10 @@ func CreateDraftOrder(customer *models.Customer, guestID string, cart *models.Ca
 	if customer != nil {
 		draftOrder.CustomerID = customer.ID
 		draftOrder.Email = customer.Email
-		draftOrder.Name = customer.DefaultName
+		draftOrder.Name = customer.FirstName
+		if customer.LastName != "" {
+			draftOrder.Name += " " + customer.LastName
+		}
 		pmid, err := CreatePaymentIntent(customer.StripeID, int64(draftOrder.Total), "usd")
 		if err != nil {
 			return nil, err

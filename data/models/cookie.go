@@ -4,7 +4,6 @@ import "time"
 
 type ServerCookie struct {
 	Store            string    `json:"s"`
-	FirebaseID       string    `json:"f"`
 	CustomerID       int       `json:"c"`
 	LastForcedLogout time.Time `json:"l"`
 	Archived         bool      `json:"a"`

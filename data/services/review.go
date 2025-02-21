@@ -42,8 +42,10 @@ func (s *reviewService) AddReview(dpi *DataPassIn, productID int, store string, 
 	if useDefaultName {
 		cust, err := cs.GetCustomerByID(dpi.CustomerID)
 		if err == nil {
+			displayName = cust.FirstName
+		} else {
 			log.Printf("Unable to get customer by customerid: %d", dpi.CustomerID)
-			displayName = cust.DefaultName
+
 		}
 	}
 
@@ -99,8 +101,10 @@ func (s *reviewService) UpdateReview(dpi *DataPassIn, productID int, store strin
 	if useDefaultName {
 		cust, err := cs.GetCustomerByID(dpi.CustomerID)
 		if err == nil {
+			displayName = cust.FirstName
+		} else {
 			log.Printf("Unable to get customer by customerid: %d", dpi.CustomerID)
-			displayName = cust.DefaultName
+
 		}
 	}
 

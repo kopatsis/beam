@@ -32,8 +32,8 @@ type CustomerService interface {
 	DeleteCustomer(dpi *DataPassIn) (*models.Customer, error)
 	UpdateCustomer(dpi *DataPassIn, customer *models.CustomerPost) (*models.Customer, error)
 
-	LoginCookie(dpi *DataPassIn, firebaseID string) (*models.ClientCookie, error)
-	ResetPass(dpi *DataPassIn, firebaseID string) error
+	LoginCookie(dpi *DataPassIn, email string) (*models.ClientCookie, error)
+	ResetPass(dpi *DataPassIn, email string) error
 	CustomerMiddleware(cookie *models.ClientCookie)
 	GuestMiddleware(cookie *models.ClientCookie, store string)
 	FullMiddleware(cookie *models.ClientCookie, store string)
@@ -45,6 +45,9 @@ type CustomerService interface {
 	GetContactsWithDefault(customerID int) ([]*models.Contact, error)
 	Update(cust *models.Customer) error
 	AddContactToCustomer(contact *models.Contact) error
+
+	ToggleEmailVerified(dpi *DataPassIn, verified bool) error
+	ToggleEmailSubbed(dpi *DataPassIn, subbed bool) error
 }
 
 type customerService struct {
@@ -201,6 +204,10 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 		return nil, nil, err
 	}
 
+	if customer.IsPassword && customer.Password != customer.PasswordConf {
+		return nil, nil, errors.New("passwords don't match")
+	}
+
 	email := strings.ToLower(customer.Email)
 	if !custhelp.VerifyEmail(email, tools) {
 		return nil, nil, errors.New("invalid email")
@@ -220,7 +227,8 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 	}
 
 	newCust := &models.Customer{
-		DefaultName:   customer.DefaultName,
+		FirstName:     customer.FirstName,
+		LastName:      customer.LastName,
 		Email:         email,
 		EmailSubbed:   customer.EmailSubbed,
 		Status:        "Active",
@@ -295,7 +303,8 @@ func (s *customerService) UpdateCustomer(dpi *DataPassIn, customer *models.Custo
 
 	cust.Email = customer.Email
 	cust.EmailSubbed = customer.EmailSubbed
-	cust.DefaultName = customer.DefaultName
+	cust.FirstName = customer.FirstName
+	cust.LastName = customer.LastName
 	cust.PhoneNumber = customer.PhoneNumber
 
 	if err := s.customerRepo.Update(*cust); err != nil {
@@ -305,23 +314,23 @@ func (s *customerService) UpdateCustomer(dpi *DataPassIn, customer *models.Custo
 	return cust, nil
 }
 
-func (s *customerService) LoginCookie(dpi *DataPassIn, firebaseID string) (*models.ClientCookie, error) {
-	customer, err := s.customerRepo.GetCustomerByFirebase(firebaseID)
+func (s *customerService) LoginCookie(dpi *DataPassIn, email string) (*models.ClientCookie, error) {
+	customer, err := s.customerRepo.GetActiveCustomerByEmail(email)
 	if err != nil {
 		return nil, err
 	} else if customer == nil {
-		return nil, fmt.Errorf("no active customer for firebase ID: %s", firebaseID)
+		return nil, fmt.Errorf("no active customer for email:  %s", email)
 	} else if customer.Status == "Archived" {
-		return nil, fmt.Errorf("archived customer for firebase ID: %s", firebaseID)
+		return nil, fmt.Errorf("archived customer for email:  %s", email)
 	}
 
 	serverCookie, err := s.customerRepo.GetServerCookie(customer.ID, dpi.Store)
 	if err != nil {
 		return nil, err
 	} else if serverCookie == nil {
-		return nil, fmt.Errorf("no active server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, dpi.Store)
+		return nil, fmt.Errorf("no active server cookie for email:  %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
 	} else if customer.Status == "Archived" {
-		return nil, fmt.Errorf("archived server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, dpi.Store)
+		return nil, fmt.Errorf("archived server cookie for email:  %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
 	}
 
 	return &models.ClientCookie{
@@ -332,23 +341,23 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, firebaseID string) (*mode
 	}, nil
 }
 
-func (s *customerService) ResetPass(dpi *DataPassIn, firebaseID string) error {
-	customer, err := s.customerRepo.GetCustomerByFirebase(firebaseID)
+func (s *customerService) ResetPass(dpi *DataPassIn, email string) error {
+	customer, err := s.customerRepo.GetActiveCustomerByEmail(email)
 	if err != nil {
 		return err
 	} else if customer == nil {
-		return fmt.Errorf("no active customer for firebase ID: %s", firebaseID)
+		return fmt.Errorf("no active customer for email:  %s", email)
 	} else if customer.Status == "Archived" {
-		return fmt.Errorf("archived customer for firebase ID: %s", firebaseID)
+		return fmt.Errorf("archived customer for email:  %s", email)
 	}
 
 	serverCookie, err := s.customerRepo.GetServerCookie(customer.ID, dpi.Store)
 	if err != nil {
 		return err
 	} else if serverCookie == nil {
-		return fmt.Errorf("no active server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, dpi.Store)
+		return fmt.Errorf("no active server cookie for email:  %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
 	} else if customer.Status == "Archived" {
-		return fmt.Errorf("archived server cookie for firebase ID: %s; customer id: %d; store: %s", firebaseID, customer.ID, dpi.Store)
+		return fmt.Errorf("archived server cookie for email:  %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
 	}
 
 	reset := time.Now()
@@ -480,4 +489,12 @@ func (s *customerService) Update(cust *models.Customer) error {
 
 func (s *customerService) AddContactToCustomer(contact *models.Contact) error {
 	return s.customerRepo.AddContactToCustomer(contact)
+}
+
+func (s *customerService) ToggleEmailVerified(dpi *DataPassIn, verified bool) error {
+	return s.customerRepo.SetEmailVerified(dpi.CustomerID, verified)
+}
+
+func (s *customerService) ToggleEmailSubbed(dpi *DataPassIn, subbed bool) error {
+	return s.customerRepo.SetEmailSubbed(dpi.CustomerID, subbed)
 }
