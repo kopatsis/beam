@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	emailverifier "github.com/AfterShip/email-verifier"
 	"github.com/go-redis/redis/v8"
 	"github.com/oschwald/geoip2-golang"
 	"github.com/sendgrid/sendgrid-go"
@@ -17,10 +18,11 @@ import (
 )
 
 type Tools struct {
-	SendGrid *sendgrid.Client
-	Client   *http.Client
-	Redis    *redis.Client
-	Geo      *geoip2.Reader
+	SendGrid      *sendgrid.Client
+	Client        *http.Client
+	Redis         *redis.Client
+	Geo           *geoip2.Reader
+	EmailVerifier *emailverifier.Verifier
 }
 
 func NewTools(client *redis.Client) *Tools {
@@ -34,6 +36,7 @@ func NewTools(client *redis.Client) *Tools {
 		log.Fatalf("Error initializing Stripe: %v", err)
 	}
 	t.initializeGeo()
+	t.initializeEmailVerifier()
 	return t
 }
 
@@ -62,6 +65,10 @@ func (t *Tools) initializeGeo() {
 		t.Geo = nil
 	}
 	t.Geo = ipDB
+}
+
+func (t *Tools) initializeEmailVerifier() {
+	t.EmailVerifier = emailverifier.NewVerifier().EnableSMTPCheck().EnableCatchAllCheck()
 }
 
 func (t *Tools) getConversionRates() (models.ConversionResponse, error) {

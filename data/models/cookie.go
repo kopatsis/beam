@@ -3,11 +3,11 @@ package models
 import "time"
 
 type ServerCookie struct {
-	Store      string    `json:"s"`
-	FirebaseID string    `json:"f"`
-	CustomerID int       `json:"c"`
-	LastReset  time.Time `json:"l"`
-	Archived   bool      `json:"a"`
+	Store            string    `json:"s"`
+	FirebaseID       string    `json:"f"`
+	CustomerID       int       `json:"c"`
+	LastForcedLogout time.Time `json:"l"`
+	Archived         bool      `json:"a"`
 }
 
 // Client
@@ -35,6 +35,11 @@ type SessionCookie struct {
 type AffiliateSession struct {
 	ID         int    `json:"i"`
 	ActualCode string `json:"a"`
+}
+
+// Permanent as opposed to session
+type DeviceCookie struct {
+	DeviceID string `json:"d"`
 }
 
 func (c *ClientCookie) GetCart() int {

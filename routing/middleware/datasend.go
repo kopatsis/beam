@@ -9,7 +9,7 @@ import (
 )
 
 func FormatDataForFunctions(c *gin.Context, fullService *data.AllServices) services.DataPassIn {
-	clientCookie, sessionCookie, affiliateCookie := GetClientCookie(c), GetSessionCookie(c), GetAffiliateCookie(c)
+	clientCookie, sessionCookie, affiliateCookie, deviceCookie := GetClientCookie(c), GetSessionCookie(c), GetAffiliateCookie(c), GetDeviceCookie(c)
 	if clientCookie == nil {
 		clientCookie = &models.ClientCookie{}
 	}
@@ -18,6 +18,9 @@ func FormatDataForFunctions(c *gin.Context, fullService *data.AllServices) servi
 	}
 	if affiliateCookie == nil {
 		affiliateCookie = &models.AffiliateSession{}
+	}
+	if deviceCookie == nil {
+		deviceCookie = &models.DeviceCookie{}
 	}
 
 	ret := services.DataPassIn{
@@ -29,6 +32,7 @@ func FormatDataForFunctions(c *gin.Context, fullService *data.AllServices) servi
 		SessionID:     sessionCookie.SessionID,
 		AffiliateID:   affiliateCookie.ID,
 		AffiliateCode: affiliateCookie.ActualCode,
+		DeviceID:      deviceCookie.DeviceID,
 	}
 
 	if serv, ok := fullService.Map[clientCookie.Store]; ok {

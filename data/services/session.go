@@ -20,6 +20,7 @@ type SessionService interface {
 	AddToSession(session *models.Session, line *models.SessionLine)
 	SessionMiddleware(cookie *models.SessionCookie, customerID int, guestID, store string, c *gin.Context, tools *config.Tools)
 	AffiliateMiddleware(cookie *models.AffiliateSession, sessionID, store string, c *gin.Context)
+	DeviceMiddleware(device *models.DeviceCookie)
 
 	AddAffiliateSale(dpi *DataPassIn, orderID string)
 }
@@ -50,6 +51,16 @@ func (s *sessionService) DeleteSession(id string) error {
 
 func (s *sessionService) AddToSession(session *models.Session, line *models.SessionLine) {
 	s.sessionRepo.AddToBatch(session, line)
+}
+
+func (s *sessionService) DeviceMiddleware(device *models.DeviceCookie) {
+	if device == nil {
+		return
+	}
+
+	if device.DeviceID == "" {
+		device.DeviceID = "DV:" + uuid.NewString()
+	}
 }
 
 func (s *sessionService) SessionMiddleware(cookie *models.SessionCookie, customerID int, guestID, store string, c *gin.Context, tools *config.Tools) {

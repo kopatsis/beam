@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -27,7 +28,7 @@ type CustomerService interface {
 	UpdateContactAndRender(dpi *DataPassIn, contactID int, newContact *models.Contact, mutex *config.AllMutexes, isDefault bool) ([]*models.Contact, error, error)
 	DeleteContact(dpi *DataPassIn, contactID int) (int, error)
 	DeleteContactAndRender(dpi *DataPassIn, contactID int) ([]*models.Contact, error, error)
-	CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, firebaseID string) (*models.Customer, *models.ServerCookie, error)
+	CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, tools *config.Tools) (*models.Customer, *models.ServerCookie, error)
 	DeleteCustomer(dpi *DataPassIn) (*models.Customer, error)
 	UpdateCustomer(dpi *DataPassIn, customer *models.CustomerPost) (*models.Customer, error)
 
@@ -193,42 +194,58 @@ func (s *customerService) DeleteContactAndRender(dpi *DataPassIn, contactID int)
 	return list, updateErr, getErr
 }
 
-func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, firebaseID string) (*models.Customer, *models.ServerCookie, error) {
+func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, tools *config.Tools) (*models.Customer, *models.ServerCookie, error) {
 	validate := validator.New()
 	err := validate.Struct(customer)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	cid, status, err := s.customerRepo.CheckFirebaseUID(firebaseID)
-	if err != nil {
-		return nil, nil, err
+	email := strings.ToLower(customer.Email)
+	if !custhelp.VerifyEmail(email, tools) {
+		return nil, nil, errors.New("invalid email")
 	}
 
-	if status == "Archived" {
-		return nil, nil, fmt.Errorf("inactive customer for firebase id: %s, with id: %d", firebaseID, cid)
-	} else if status == "Active" {
-		return nil, nil, fmt.Errorf("active customer for firebase id: %s, with id: %d", firebaseID, cid)
+	id, oldArch, err := s.customerRepo.GetCustomerIDByEmail(email)
+	if err != nil {
+		return nil, nil, err
+	} else if id != 0 {
+		return nil, nil, errors.New("existing customer that wasn't an old archival")
+	}
+
+	if oldArch {
+		if err := s.customerRepo.ArchiveCustomerEmail(id, customer.Email); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	newCust := &models.Customer{
-		FirebaseUID: firebaseID,
-		DefaultName: customer.DefaultName,
-		Email:       customer.Email,
-		EmailSubbed: customer.EmailSubbed,
-		Status:      "Active",
-		Created:     time.Now(),
+		DefaultName:   customer.DefaultName,
+		Email:         email,
+		EmailSubbed:   customer.EmailSubbed,
+		Status:        "Active",
+		Created:       time.Now(),
+		EmailVerified: customer.IsEmailVerified,
 	}
 
 	if customer.PhoneNumber != nil {
 		newCust.PhoneNumber = orderhelp.CopyString(customer.PhoneNumber)
 	}
 
+	if customer.IsPassword {
+		password, err := custhelp.EncryptPassword(customer.Password)
+		if err != nil {
+			// send an error to me as this is major
+			return nil, nil, errors.New("unable to encrypt password: " + err.Error())
+		}
+		newCust.PasswordHash = password
+	}
+
 	if err := s.customerRepo.Create(*newCust); err != nil {
 		return nil, nil, err
 	}
 
-	c, err := s.customerRepo.CreateServerCookie(newCust.ID, firebaseID, dpi.Store)
+	c, err := s.customerRepo.CreateServerCookie(newCust.ID, dpi.Store)
 
 	return newCust, c, err
 }
@@ -244,6 +261,7 @@ func (s *customerService) DeleteCustomer(dpi *DataPassIn) (*models.Customer, err
 	}
 
 	cust.Status = "Archived"
+	cust.Archived = time.Now()
 	if err := s.customerRepo.Update(*cust); err != nil {
 		return nil, err
 	}
@@ -372,7 +390,7 @@ func (s *customerService) CustomerMiddleware(cookie *models.ClientCookie) {
 			cookie.CustomerID = 0
 			cookie.CustomerSet = time.Time{}
 			return
-		} else if serverCookie.Archived || serverCookie.LastReset.After(cookie.CustomerSet) {
+		} else if serverCookie.Archived || serverCookie.LastForcedLogout.After(cookie.CustomerSet) {
 			cookie.CustomerID = 0
 			cookie.CustomerSet = time.Time{}
 		}

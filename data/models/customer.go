@@ -19,6 +19,7 @@ type Customer struct {
 	DefaultShippingContactID int            `gorm:"index"`
 	Tags                     pq.StringArray `gorm:"type:text[]"`
 	Created                  time.Time
+	Archived                 time.Time
 	PhoneNumber              *string
 	Status                   string // Active, Archived
 	AutodiscountPctOff       float64
@@ -28,10 +29,13 @@ type Customer struct {
 }
 
 type CustomerPost struct {
-	DefaultName string  `json:"default_name" validate:"required"`
-	Email       string  `json:"email" validate:"required,email"`
-	EmailSubbed bool    `json:"email_subbed" validate:"required"`
-	PhoneNumber *string `json:"phone_number,omitempty"`
+	DefaultName     string  `json:"default_name" validate:"required"`
+	Email           string  `json:"email" validate:"required,email"`
+	EmailSubbed     bool    `json:"email_subbed" validate:"required"`
+	PhoneNumber     *string `json:"phone_number,omitempty"`
+	IsPassword      bool    `json:"is_pass"`
+	Password        string  `json:"password"`
+	IsEmailVerified bool    `json:"verif"`
 }
 
 type Contact struct {

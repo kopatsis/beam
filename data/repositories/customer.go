@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,7 +36,10 @@ type CustomerRepository interface {
 	GetServerCookie(custID int, store string) (*models.ServerCookie, error)
 	SetServerCookieReset(c *models.ServerCookie, reset time.Time) (*models.ServerCookie, error)
 	SetServerCookieStatus(c *models.ServerCookie, archived bool) (*models.ServerCookie, error)
-	CreateServerCookie(customerID int, firebaseID, store string) (*models.ServerCookie, error)
+	CreateServerCookie(customerID int, store string) (*models.ServerCookie, error)
+	GetCustomerIDByEmail(email string) (int, bool, error)
+
+	ArchiveCustomerEmail(id int, email string) error
 }
 
 type customerRepo struct {
@@ -254,7 +258,7 @@ func (r *customerRepo) GetServerCookie(custID int, store string) (*models.Server
 }
 
 func (r *customerRepo) SetServerCookieReset(c *models.ServerCookie, reset time.Time) (*models.ServerCookie, error) {
-	c.LastReset = reset
+	c.LastForcedLogout = reset
 	data, err := json.Marshal(c)
 	if err != nil {
 		return nil, err
@@ -279,13 +283,12 @@ func (r *customerRepo) SetServerCookieStatus(c *models.ServerCookie, archived bo
 	return c, nil
 }
 
-func (r *customerRepo) CreateServerCookie(customerID int, firebaseID, store string) (*models.ServerCookie, error) {
+func (r *customerRepo) CreateServerCookie(customerID int, store string) (*models.ServerCookie, error) {
 	c := models.ServerCookie{
-		CustomerID: customerID,
-		FirebaseID: firebaseID,
-		Store:      store,
-		Archived:   false,
-		LastReset:  time.Time{},
+		CustomerID:       customerID,
+		Store:            store,
+		Archived:         false,
+		LastForcedLogout: time.Time{},
 	}
 	data, err := json.Marshal(c)
 	if err != nil {
@@ -296,4 +299,43 @@ func (r *customerRepo) CreateServerCookie(customerID int, firebaseID, store stri
 		return nil, err
 	}
 	return &c, nil
+}
+
+// ID if official match, whether there is a past 7 day archived account, error
+func (r *customerRepo) GetCustomerIDByEmail(email string) (int, bool, error) {
+	email = strings.ToLower(email)
+
+	var customer models.Customer
+	err := r.db.
+		Select("id, archived, status").
+		Where("email = ?", email).
+		Limit(1).
+		Find(&customer).Error
+
+	if err != nil {
+		return 0, false, err
+	}
+
+	if customer.ID == 0 {
+		return 0, false, nil
+	}
+
+	if customer.Status == "Archived" && time.Since(customer.Archived) > 7*24*time.Hour {
+		return 0, true, nil
+	}
+
+	return customer.ID, false, nil
+}
+
+func (r *customerRepo) ArchiveCustomerEmail(id int, email string) error {
+	customer := &models.Customer{}
+	email = "&ARCHIVED::" + email
+
+	if err := r.db.Model(customer).Where("id = ?", id).Updates(models.Customer{
+		Email:  email,
+		Status: "Archived",
+	}).Error; err != nil {
+		return err
+	}
+	return nil
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.HandlerFunc {
@@ -27,7 +28,7 @@ func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.Ha
 			return
 		}
 
-		clientCookie, sessionCookie, affiliateCookie := GetClientCookie(c), GetSessionCookie(c), GetAffiliateCookie(c)
+		clientCookie, sessionCookie, affiliateCookie, deviceCookie := GetClientCookie(c), GetSessionCookie(c), GetAffiliateCookie(c), GetDeviceCookie(c)
 
 		service, ok := fullService.Map[store]
 		if !ok {
@@ -51,6 +52,11 @@ func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.Ha
 			affiliateCookie = &models.AffiliateSession{}
 		}
 
+		service.Session.DeviceMiddleware(deviceCookie)
+		if deviceCookie == nil {
+			deviceCookie = &models.DeviceCookie{DeviceID: "DV:" + uuid.NewString()}
+		}
+
 		cartID, err := service.Cart.CartMiddleware(clientCookie.GetCart(), clientCookie.CustomerID, clientCookie.GuestID)
 		if err != nil {
 			log.Printf("Unable to correctly set cart id, error: %v; store: %s; customer ID: %d, guest ID: %s; old cart ID: %d\n", err, store, clientCookie.CustomerID, clientCookie.GuestID, clientCookie.GetCart())
@@ -61,6 +67,7 @@ func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.Ha
 		SetClientCookie(c, *clientCookie)
 		SetSessionCookie(c, *sessionCookie)
 		SetAffiliateCookie(c, *affiliateCookie)
+		SetDeviceCookie(c, *deviceCookie)
 
 		c.Next()
 	}
@@ -125,7 +132,7 @@ func SetAffiliateCookie(c *gin.Context, affiliate models.AffiliateSession) {
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
-		MaxAge:   0,
+		Expires:  time.Now().AddDate(100, 0, 0),
 	})
 }
 
@@ -139,4 +146,29 @@ func GetAffiliateCookie(c *gin.Context) *models.AffiliateSession {
 		return nil
 	}
 	return &affiliate
+}
+
+func SetDeviceCookie(c *gin.Context, device models.DeviceCookie) {
+	data, _ := json.Marshal(device)
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "device",
+		Value:    string(data),
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   0,
+	})
+}
+
+func GetDeviceCookie(c *gin.Context) *models.DeviceCookie {
+	cookie, err := c.Cookie("device")
+	if err != nil {
+		return nil
+	}
+	var device models.DeviceCookie
+	if err := json.Unmarshal([]byte(cookie), &device); err != nil {
+		return nil
+	}
+	return &device
 }
