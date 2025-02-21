@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 )
 
 type CustomerService interface {
@@ -497,4 +498,33 @@ func (s *customerService) ToggleEmailVerified(dpi *DataPassIn, verified bool) er
 
 func (s *customerService) ToggleEmailSubbed(dpi *DataPassIn, subbed bool) error {
 	return s.customerRepo.SetEmailSubbed(dpi.CustomerID, subbed)
+}
+
+func (s *customerService) WatchEmailVerification(dpi *DataPassIn, conn *websocket.Conn) {
+
+	if dpi.CustomerID <= 0 {
+		conn.Close()
+		return
+	}
+
+	intervals := []time.Duration{2500 * time.Millisecond, 5000 * time.Millisecond, 10000 * time.Millisecond, 25000 * time.Millisecond}
+	limits := []time.Duration{15 * time.Second, 45 * time.Second, 105 * time.Second, 240 * time.Second}
+
+	start := time.Now()
+	for i, interval := range intervals {
+		deadline := start.Add(limits[i])
+		for time.Now().Before(deadline) {
+			nextCheck := time.Now().Add(interval)
+			verified, err := s.customerRepo.IsEmailVerified(dpi.CustomerID)
+			if err != nil || verified {
+				if err == nil {
+					conn.WriteMessage(websocket.TextMessage, []byte("refresh"))
+				}
+				conn.Close()
+				return
+			}
+			time.Sleep(time.Until(nextCheck))
+		}
+	}
+	conn.Close()
 }

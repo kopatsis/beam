@@ -41,6 +41,7 @@ type CustomerRepository interface {
 	GetActiveCustomerByEmail(email string) (*models.Customer, error)
 	SetEmailSubbed(id int, subbed bool) error
 	SetEmailVerified(id int, verif bool) error
+	IsEmailVerified(id int) (bool, error)
 }
 
 type customerRepo struct {
@@ -329,4 +330,10 @@ func (r *customerRepo) SetEmailSubbed(id int, subbed bool) error {
 
 func (r *customerRepo) SetEmailVerified(id int, verif bool) error {
 	return r.db.Model(&models.Customer{}).Where("id = ?", id).Update("email_verified", verif).Error
+}
+
+func (r *customerRepo) IsEmailVerified(id int) (bool, error) {
+	var verified bool
+	err := r.db.Model(&models.Customer{}).Where("id = ?", id).Select("email_verified").Scan(&verified).Error
+	return verified, err
 }
