@@ -24,6 +24,8 @@ type Customer struct {
 	AutodiscountPctOff       float64
 	Notes                    string
 	LastReset                time.Time
+	LastResetWithLogout      time.Time
+	EmailChanged             time.Time
 	Uses2FA                  bool
 	UsesOtherCurrency        bool
 	OtherCurrency            string

@@ -16,3 +16,11 @@ type SignInEmailParam struct {
 	Set          time.Time `json:"s"`
 	EmailSubbed  bool      `json:"u"`
 }
+
+type TwoFactorEmailParam struct {
+	Param        string    `json:"t"`
+	CustomerID   int       `json:"c"`
+	Set          time.Time `json:"s"`
+	SixDigitCode uint      `json:"x"`
+	Tries        int       `json:"r"`
+}

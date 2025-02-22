@@ -37,7 +37,12 @@ func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.Ha
 			return
 		}
 
-		service.Customer.FullMiddleware(clientCookie, store)
+		service.Session.DeviceMiddleware(deviceCookie)
+		if deviceCookie == nil {
+			deviceCookie = &models.DeviceCookie{DeviceID: "DV:" + uuid.NewString()}
+		}
+
+		service.Customer.FullMiddleware(clientCookie, deviceCookie, store)
 		if clientCookie == nil {
 			clientCookie = &models.ClientCookie{}
 		}
@@ -50,11 +55,6 @@ func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.Ha
 		service.Session.AffiliateMiddleware(affiliateCookie, sessionCookie.SessionID, store, c)
 		if affiliateCookie == nil {
 			affiliateCookie = &models.AffiliateSession{}
-		}
-
-		service.Session.DeviceMiddleware(deviceCookie)
-		if deviceCookie == nil {
-			deviceCookie = &models.DeviceCookie{DeviceID: "DV:" + uuid.NewString()}
 		}
 
 		cartID, err := service.Cart.CartMiddleware(clientCookie.GetCart(), clientCookie.CustomerID, clientCookie.GuestID)

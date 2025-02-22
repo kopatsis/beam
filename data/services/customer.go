@@ -35,10 +35,10 @@ type CustomerService interface {
 
 	LoginCookie(dpi *DataPassIn, email string, addEmailSub bool) (*models.ClientCookie, error)
 	ResetPass(dpi *DataPassIn, email string) error
-	CustomerMiddleware(cookie *models.ClientCookie)
+	CustomerMiddleware(cookie *models.ClientCookie, device *models.DeviceCookie)
 	GuestMiddleware(cookie *models.ClientCookie, store string)
-	FullMiddleware(cookie *models.ClientCookie, store string)
-	LogoutCookie(cookie *models.ClientCookie)
+	FullMiddleware(cookie *models.ClientCookie, device *models.DeviceCookie, store string)
+	LogoutCookie(dpi *DataPassIn, cookie *models.ClientCookie) error
 
 	GetCookieCurrencies(mutex *config.AllMutexes) ([]models.CodeBlock, []models.CodeBlock)
 	SetCookieCurrency(c *models.ClientCookie, mutex *config.AllMutexes, choice string) error
@@ -260,9 +260,13 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 		return nil, nil, nil, err
 	}
 
-	c, err := s.customerRepo.CreateServerCookie(newCust.ID, dpi.Store)
+	c, err := s.customerRepo.CreateServerCookie(newCust.ID, dpi.Store, customer.IsEmailVerified, false)
 	if err != nil {
 		return nil, newCust, nil, err
+	}
+
+	if err := s.customerRepo.SetDeviceMapping(newCust.ID, dpi.DeviceID, dpi.Store); err != nil {
+		return nil, newCust, c, err
 	}
 
 	return &models.ClientCookie{
@@ -356,6 +360,10 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, email string, addEmailSub
 		}
 	}
 
+	if err := s.customerRepo.SetDeviceMapping(customer.ID, dpi.DeviceID, dpi.Store); err != nil {
+		return nil, err
+	}
+
 	return &models.ClientCookie{
 		Store:         dpi.Store,
 		CustomerID:    customer.ID,
@@ -397,7 +405,11 @@ func (s *customerService) ResetPass(dpi *DataPassIn, email string) error {
 	return sqlErr
 }
 
-func (s *customerService) CustomerMiddleware(cookie *models.ClientCookie) {
+func (s *customerService) CustomerMiddleware(cookie *models.ClientCookie, device *models.DeviceCookie) {
+
+	if cookie == nil {
+		return
+	}
 
 	if cookie.CustomerID > 0 {
 		serverCookie, err := s.customerRepo.GetServerCookie(cookie.CustomerID, cookie.Store)
@@ -417,7 +429,11 @@ func (s *customerService) CustomerMiddleware(cookie *models.ClientCookie) {
 			if customer.Status == "Archived" || customer.LastReset.After(cookie.CustomerSet) {
 				cookie.CustomerID = 0
 				cookie.CustomerSet = time.Time{}
-				return
+			}
+			// Notify me somehow server cookie not set
+			if _, err := s.customerRepo.CreateServerCookie(customer.ID, cookie.Store, customer.EmailVerified, customer.Status == "Archived"); err != nil {
+				// Notify me server cookie can't be set
+				log.Printf("Unable to set server cookie for valid customer\n")
 			}
 		} else if serverCookie == nil {
 			log.Printf("No active server cookie for customer id: %d; store: %s\n", cookie.CustomerID, cookie.Store)
@@ -428,6 +444,15 @@ func (s *customerService) CustomerMiddleware(cookie *models.ClientCookie) {
 			cookie.CustomerID = 0
 			cookie.CustomerSet = time.Time{}
 		}
+
+		if cookie.CustomerID > 0 {
+			id, err := s.customerRepo.GetDeviceMapping(device.DeviceID, cookie.Store)
+			if err != nil || cookie.CustomerID != id {
+				cookie.CustomerID = 0
+				cookie.CustomerSet = time.Time{}
+			}
+		}
+
 	}
 }
 
@@ -439,17 +464,19 @@ func (s *customerService) GuestMiddleware(cookie *models.ClientCookie, store str
 	}
 }
 
-func (s *customerService) FullMiddleware(cookie *models.ClientCookie, store string) {
+func (s *customerService) FullMiddleware(cookie *models.ClientCookie, device *models.DeviceCookie, store string) {
 	if cookie == nil {
 		return
 	}
 	s.GuestMiddleware(cookie, store)
-	s.CustomerMiddleware(cookie)
+	s.CustomerMiddleware(cookie, device)
 }
 
-func (s *customerService) LogoutCookie(cookie *models.ClientCookie) {
+func (s *customerService) LogoutCookie(dpi *DataPassIn, cookie *models.ClientCookie) error {
 	cookie.CustomerID = 0
 	cookie.CustomerSet = time.Time{}
+
+	return s.customerRepo.SetDeviceMapping(0, dpi.DeviceID, dpi.Store)
 }
 
 func (s *customerService) GetCookieCurrencies(mutex *config.AllMutexes) ([]models.CodeBlock, []models.CodeBlock) {
@@ -523,7 +550,22 @@ func (s *customerService) AddContactToCustomer(contact *models.Contact) error {
 }
 
 func (s *customerService) ToggleEmailVerified(dpi *DataPassIn, verified bool) error {
-	return s.customerRepo.SetEmailVerified(dpi.CustomerID, verified)
+	if err := s.customerRepo.SetEmailVerified(dpi.CustomerID, verified); err != nil {
+		return err
+	}
+
+	c, err := s.customerRepo.GetServerCookie(dpi.CustomerID, dpi.Store)
+	if err != nil {
+		// Notify me since server cookie needs to have correct information
+		return err
+	}
+
+	if _, err := s.customerRepo.SetServerCookieCompletion(c, verified); err != nil {
+		// Notify me since server cookie needs to have correct information
+		return err
+	}
+
+	return nil
 }
 
 func (s *customerService) ToggleEmailSubbed(dpi *DataPassIn, subbed bool) error {

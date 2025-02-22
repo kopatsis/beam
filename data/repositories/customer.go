@@ -35,7 +35,8 @@ type CustomerRepository interface {
 	GetServerCookie(custID int, store string) (*models.ServerCookie, error)
 	SetServerCookieReset(c *models.ServerCookie, reset time.Time) (*models.ServerCookie, error)
 	SetServerCookieStatus(c *models.ServerCookie, archived bool) (*models.ServerCookie, error)
-	CreateServerCookie(customerID int, store string) (*models.ServerCookie, error)
+	SetServerCookieCompletion(c *models.ServerCookie, verified bool) (*models.ServerCookie, error)
+	CreateServerCookie(customerID int, store string, verified, archived bool) (*models.ServerCookie, error)
 	GetCustomerIDByEmail(email string) (int, bool, error)
 
 	ArchiveCustomerEmail(id int, email string) error
@@ -51,6 +52,9 @@ type CustomerRepository interface {
 	GetSignInEmail(param, store string) (models.SignInEmailParam, error)
 
 	UpdateCustomerCurrency(id int, usesOtherCurrency bool, otherCurrency string) error
+
+	SetDeviceMapping(customerID int, deviceID, store string) error
+	GetDeviceMapping(deviceID, store string) (int, error)
 }
 
 type customerRepo struct {
@@ -267,12 +271,26 @@ func (r *customerRepo) SetServerCookieStatus(c *models.ServerCookie, archived bo
 	return c, nil
 }
 
-func (r *customerRepo) CreateServerCookie(customerID int, store string) (*models.ServerCookie, error) {
+func (r *customerRepo) SetServerCookieCompletion(c *models.ServerCookie, verified bool) (*models.ServerCookie, error) {
+	c.Incomplete = !verified
+	data, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	key := fmt.Sprintf("%s::SSC::%d", c.Store, c.CustomerID)
+	if err := r.rdb.Set(context.Background(), key, data, 0).Err(); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+func (r *customerRepo) CreateServerCookie(customerID int, store string, verified, archived bool) (*models.ServerCookie, error) {
 	c := models.ServerCookie{
 		CustomerID:       customerID,
 		Store:            store,
-		Archived:         false,
+		Archived:         archived,
 		LastForcedLogout: time.Time{},
+		Incomplete:       !verified,
 	}
 	data, err := json.Marshal(c)
 	if err != nil {
@@ -440,4 +458,23 @@ func (r *customerRepo) UpdateCustomerCurrency(id int, usesOtherCurrency bool, ot
 		"UsesOtherCurrency": usesOtherCurrency,
 		"OtherCurrency":     otherCurrency,
 	}).Error
+}
+
+func (r *customerRepo) SetDeviceMapping(customerID int, deviceID, store string) error {
+	key := store + "::DVMP::" + deviceID
+
+	if customerID == 0 {
+		return r.rdb.Del(context.Background(), key).Err()
+	}
+
+	return r.rdb.Set(context.Background(), key, customerID, 0).Err()
+}
+
+func (r *customerRepo) GetDeviceMapping(deviceID, store string) (int, error) {
+	key := store + "::DVMP::" + deviceID
+	val, err := r.rdb.Get(context.Background(), key).Int()
+	if err == redis.Nil {
+		return 0, nil
+	}
+	return val, err
 }

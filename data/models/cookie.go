@@ -7,6 +7,7 @@ type ServerCookie struct {
 	CustomerID       int       `json:"c"`
 	LastForcedLogout time.Time `json:"l"`
 	Archived         bool      `json:"a"`
+	Incomplete       bool      `json:"i"`
 }
 
 // Client
@@ -34,6 +35,13 @@ type SessionCookie struct {
 type AffiliateSession struct {
 	ID         int    `json:"i"`
 	ActualCode string `json:"a"`
+}
+
+// For 2FA between steps
+type TwoFactorCookie struct {
+	TwoFactorCode string    `json:"t"`
+	CustomerID    int       `json:"c"`
+	Set           time.Time `json:"s"`
 }
 
 // Permanent as opposed to session
