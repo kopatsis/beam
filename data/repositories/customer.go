@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"beam/config"
 	"beam/data/models"
 	"beam/data/services/draftorderhelp"
 	"context"
@@ -42,6 +43,9 @@ type CustomerRepository interface {
 	SetEmailSubbed(id int, subbed bool) error
 	SetEmailVerified(id int, verif bool) error
 	IsEmailVerified(id int) (bool, error)
+
+	StoreVerificationEmail(param models.VerificationEmailParam, store string) error
+	GetVerificationEmail(param, store string) (models.VerificationEmailParam, error)
 }
 
 type customerRepo struct {
@@ -336,4 +340,33 @@ func (r *customerRepo) IsEmailVerified(id int) (bool, error) {
 	var verified bool
 	err := r.db.Model(&models.Customer{}).Where("id = ?", id).Select("email_verified").Scan(&verified).Error
 	return verified, err
+}
+
+func (r *customerRepo) StoreVerificationEmail(param models.VerificationEmailParam, store string) error {
+	if param.Param == "" {
+		return errors.New("param cannot be empty")
+	}
+	data, err := json.Marshal(param)
+	if err != nil {
+		return err
+	}
+	return r.rdb.Set(context.Background(), store+"::VFRE::"+param.Param, data, time.Duration(config.VERIF_EXPIR_MINS)*time.Minute).Err()
+}
+
+func (r *customerRepo) GetVerificationEmail(param, store string) (models.VerificationEmailParam, error) {
+	if param == "" {
+		return models.VerificationEmailParam{}, errors.New("param cannot be empty")
+	}
+	data, err := r.rdb.Get(context.Background(), store+"::VFRE::"+param).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return models.VerificationEmailParam{}, errors.New("not found")
+		}
+		return models.VerificationEmailParam{}, err
+	}
+	var result models.VerificationEmailParam
+	if err := json.Unmarshal(data, &result); err != nil {
+		return models.VerificationEmailParam{}, err
+	}
+	return result, nil
 }

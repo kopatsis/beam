@@ -503,6 +503,7 @@ func (s *customerService) ToggleEmailSubbed(dpi *DataPassIn, subbed bool) error 
 func (s *customerService) WatchEmailVerification(dpi *DataPassIn, conn *websocket.Conn) {
 
 	if dpi.CustomerID <= 0 {
+		conn.WriteMessage(websocket.TextMessage, []byte("refresh"))
 		conn.Close()
 		return
 	}
@@ -519,6 +520,8 @@ func (s *customerService) WatchEmailVerification(dpi *DataPassIn, conn *websocke
 			if err != nil || verified {
 				if err == nil {
 					conn.WriteMessage(websocket.TextMessage, []byte("refresh"))
+				} else {
+					conn.WriteMessage(websocket.TextMessage, []byte("cease"))
 				}
 				conn.Close()
 				return
@@ -527,4 +530,58 @@ func (s *customerService) WatchEmailVerification(dpi *DataPassIn, conn *websocke
 		}
 	}
 	conn.Close()
+}
+
+func (s *customerService) SendVerificationEmail(dpi *DataPassIn) error {
+	cust, err := s.customerRepo.Read(dpi.CustomerID)
+	if err != nil {
+		return err
+	} else if cust.Status == "Archived" {
+		return errors.New("archived customer")
+	}
+
+	if cust.EmailVerified {
+		return nil
+	}
+
+	id := "EV-" + uuid.NewString()
+	storedParam := models.VerificationEmailParam{Param: id, EmailAtTime: cust.Email, CustomerID: cust.ID, Set: time.Now()}
+
+	return s.customerRepo.StoreVerificationEmail(storedParam, dpi.Store)
+}
+
+func (s *customerService) ProcessVerificationEmail(dpi *DataPassIn, param string) error {
+	verifParams, err := s.customerRepo.GetVerificationEmail(param, dpi.Store)
+	if err != nil {
+		return err
+	}
+
+	if verifParams.Param != param {
+		return errors.New("params do not match")
+	}
+
+	if time.Since(verifParams.Set) > time.Duration(config.VERIF_EXPIR_MINS)*time.Minute {
+		// Alert me about it, since it should have expired on redis too
+		return errors.New("expired code, not deleted in system")
+	}
+
+	cust, err := s.customerRepo.Read(verifParams.CustomerID)
+	if err != nil {
+		return err
+	}
+
+	if cust == nil || cust.ID != verifParams.CustomerID {
+		return errors.New("unable to retrieve correct customer")
+	}
+
+	if cust.Status == "Archived" {
+		return errors.New("archived customer")
+	}
+
+	if cust.Email != verifParams.EmailAtTime {
+		return errors.New("email was changed, cannot verify")
+	}
+
+	return s.customerRepo.SetEmailVerified(cust.ID, true)
+
 }

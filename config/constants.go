@@ -35,3 +35,5 @@ const LOWEST_INV = 75
 
 const BASIS_PAGE = "https://domain.com"
 const CONV_RATES = "https://api.fxratesapi.com/latest"
+
+const VERIF_EXPIR_MINS = 60
