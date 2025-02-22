@@ -357,7 +357,8 @@ func (r *customerRepo) GetVerificationEmail(param, store string) (models.Verific
 	if param == "" {
 		return models.VerificationEmailParam{}, errors.New("param cannot be empty")
 	}
-	data, err := r.rdb.Get(context.Background(), store+"::VFRE::"+param).Bytes()
+	key := store + "::VFRE::" + param
+	data, err := r.rdb.Get(context.Background(), key).Bytes()
 	if err != nil {
 		if err == redis.Nil {
 			return models.VerificationEmailParam{}, errors.New("not found")
@@ -368,5 +369,10 @@ func (r *customerRepo) GetVerificationEmail(param, store string) (models.Verific
 	if err := json.Unmarshal(data, &result); err != nil {
 		return models.VerificationEmailParam{}, err
 	}
+	go func() {
+		if err := r.rdb.Del(context.Background(), key).Err(); err != nil {
+			log.Println("error deleting key:", err)
+		}
+	}()
 	return result, nil
 }
