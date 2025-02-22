@@ -33,7 +33,7 @@ type CustomerService interface {
 	DeleteCustomer(dpi *DataPassIn) (*models.Customer, error)
 	UpdateCustomer(dpi *DataPassIn, customer *models.CustomerPost) (*models.Customer, error)
 
-	LoginCookie(dpi *DataPassIn, email string) (*models.ClientCookie, error)
+	LoginCookie(dpi *DataPassIn, email string, addEmailSub bool) (*models.ClientCookie, error)
 	ResetPass(dpi *DataPassIn, email string) error
 	CustomerMiddleware(cookie *models.ClientCookie)
 	GuestMiddleware(cookie *models.ClientCookie, store string)
@@ -53,7 +53,7 @@ type CustomerService interface {
 	WatchEmailVerification(dpi *DataPassIn, conn *websocket.Conn)
 	SendVerificationEmail(dpi *DataPassIn, tools *config.Tools) (string, error)
 	ProcessVerificationEmail(dpi *DataPassIn, param string) error
-	SendSignInEmail(dpi *DataPassIn, email string, tools *config.Tools) (string, error)
+	SendSignInEmail(dpi *DataPassIn, email string, emailSubbed bool, tools *config.Tools) (string, error)
 	ProcessSignInEmail(dpi *DataPassIn, param string, tools *config.Tools) (*models.ClientCookie, error)
 }
 
@@ -331,7 +331,7 @@ func (s *customerService) UpdateCustomer(dpi *DataPassIn, customer *models.Custo
 	return cust, nil
 }
 
-func (s *customerService) LoginCookie(dpi *DataPassIn, email string) (*models.ClientCookie, error) {
+func (s *customerService) LoginCookie(dpi *DataPassIn, email string, addEmailSub bool) (*models.ClientCookie, error) {
 	customer, err := s.customerRepo.GetActiveCustomerByEmail(email)
 	if err != nil {
 		return nil, err
@@ -348,6 +348,12 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, email string) (*models.Cl
 		return nil, fmt.Errorf("no active server cookie for email:  %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
 	} else if customer.Status == "Archived" {
 		return nil, fmt.Errorf("archived server cookie for email:  %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
+	}
+
+	if addEmailSub {
+		if err := s.customerRepo.SetEmailSubbed(customer.ID, true); err != nil {
+			log.Printf("failure to set user's email sub to true")
+		}
 	}
 
 	return &models.ClientCookie{
@@ -618,7 +624,7 @@ func (s *customerService) ProcessVerificationEmail(dpi *DataPassIn, param string
 	return s.customerRepo.SetEmailVerified(cust.ID, true)
 }
 
-func (s *customerService) SendSignInEmail(dpi *DataPassIn, email string, tools *config.Tools) (string, error) {
+func (s *customerService) SendSignInEmail(dpi *DataPassIn, email string, emailSubbed bool, tools *config.Tools) (string, error) {
 	cust, err := s.customerRepo.GetCustomerByEmail(email)
 	if err != nil {
 		return "", err
@@ -632,7 +638,7 @@ func (s *customerService) SendSignInEmail(dpi *DataPassIn, email string, tools *
 	}
 
 	id := "SI-" + uuid.NewString()
-	storedParam := models.SignInEmailParam{Param: id, EmailAtTime: email, DeviceCookie: dpi.DeviceID, Set: time.Now()}
+	storedParam := models.SignInEmailParam{Param: id, EmailAtTime: email, DeviceCookie: dpi.DeviceID, Set: time.Now(), EmailSubbed: emailSubbed}
 
 	return id, s.customerRepo.StoreSignInEmail(storedParam, dpi.Store)
 }
@@ -664,7 +670,7 @@ func (s *customerService) ProcessSignInEmail(dpi *DataPassIn, param string, tool
 	if cust == nil || cust.Status == "Archived" && time.Since(cust.Archived) > 7*24*time.Hour {
 		custPost := models.CustomerPost{
 			Email:           signinParams.EmailAtTime,
-			EmailSubbed:     false,
+			EmailSubbed:     signinParams.EmailSubbed,
 			IsEmailVerified: true,
 		}
 		client, _, _, err := s.CreateCustomer(dpi, &custPost, tools)
@@ -674,7 +680,7 @@ func (s *customerService) ProcessSignInEmail(dpi *DataPassIn, param string, tool
 		return client, nil
 	}
 
-	client, err := s.LoginCookie(dpi, signinParams.EmailAtTime)
+	client, err := s.LoginCookie(dpi, signinParams.EmailAtTime, signinParams.EmailSubbed)
 	if err != nil {
 		return nil, err
 	}

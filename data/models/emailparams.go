@@ -14,4 +14,5 @@ type SignInEmailParam struct {
 	EmailAtTime  string    `json:"e"`
 	DeviceCookie string    `json:"d"`
 	Set          time.Time `json:"s"`
+	EmailSubbed  bool      `json:"u"`
 }
