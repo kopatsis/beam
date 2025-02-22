@@ -25,6 +25,8 @@ type Customer struct {
 	Notes                    string
 	LastReset                time.Time
 	Uses2FA                  bool
+	UsesOtherCurrency        bool
+	OtherCurrency            string
 }
 
 type CustomerPost struct {

@@ -335,10 +335,12 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, email string) (*models.Cl
 	}
 
 	return &models.ClientCookie{
-		Store:       dpi.Store,
-		CustomerID:  customer.ID,
-		CustomerSet: time.Now(),
-		GuestID:     dpi.GuestID,
+		Store:         dpi.Store,
+		CustomerID:    customer.ID,
+		CustomerSet:   time.Now(),
+		GuestID:       dpi.GuestID,
+		OtherCurrency: customer.UsesOtherCurrency,
+		Currency:      customer.OtherCurrency,
 	}, nil
 }
 
@@ -477,6 +479,12 @@ func (s *customerService) SetCookieCurrency(c *models.ClientCookie, mutex *confi
 	c.Currency = choice
 	c.OtherCurrency = choice == "USD"
 
+	go func() {
+		if err := s.customerRepo.UpdateCustomerCurrency(c.CustomerID, c.OtherCurrency, c.Currency); err != nil {
+			// Email me this error, low priority
+		}
+	}()
+
 	return nil
 }
 
@@ -532,22 +540,27 @@ func (s *customerService) WatchEmailVerification(dpi *DataPassIn, conn *websocke
 	conn.Close()
 }
 
-func (s *customerService) SendVerificationEmail(dpi *DataPassIn) error {
+func (s *customerService) SendVerificationEmail(dpi *DataPassIn, tools *config.Tools) (string, error) {
 	cust, err := s.customerRepo.Read(dpi.CustomerID)
 	if err != nil {
-		return err
+		return "", err
 	} else if cust.Status == "Archived" {
-		return errors.New("archived customer")
+		return "", errors.New("archived customer")
 	}
 
 	if cust.EmailVerified {
-		return nil
+		return "", nil
+	}
+
+	if !custhelp.VerifyEmail(cust.Email, tools) {
+		// Notify me an existing customer's email not deliverable
+		return "", errors.New("email found to be undeliverable")
 	}
 
 	id := "EV-" + uuid.NewString()
 	storedParam := models.VerificationEmailParam{Param: id, EmailAtTime: cust.Email, CustomerID: cust.ID, Set: time.Now()}
 
-	return s.customerRepo.StoreVerificationEmail(storedParam, dpi.Store)
+	return id, s.customerRepo.StoreVerificationEmail(storedParam, dpi.Store)
 }
 
 func (s *customerService) ProcessVerificationEmail(dpi *DataPassIn, param string) error {
@@ -582,6 +595,70 @@ func (s *customerService) ProcessVerificationEmail(dpi *DataPassIn, param string
 		return errors.New("email was changed, cannot verify")
 	}
 
-	return s.customerRepo.SetEmailVerified(cust.ID, true)
+	if cust.EmailVerified {
+		return nil
+	}
 
+	return s.customerRepo.SetEmailVerified(cust.ID, true)
+}
+
+func (s *customerService) SendSignInEmail(dpi *DataPassIn, email string, tools *config.Tools) (string, error) {
+	cust, err := s.customerRepo.GetCustomerByEmail(email)
+	if err != nil {
+		return "", err
+	} else if cust != nil && cust.Status == "Archived" && time.Since(cust.Archived) <= 7*24*time.Hour {
+		return "", errors.New("recently archived customer")
+	}
+
+	if !custhelp.VerifyEmail(cust.Email, tools) {
+		// Notify me an existing customer's email not deliverable
+		return "", errors.New("email found to be undeliverable")
+	}
+
+	id := "SI-" + uuid.NewString()
+	storedParam := models.SignInEmailParam{Param: id, EmailAtTime: email, Set: time.Now()}
+	if cust != nil {
+		storedParam.HasCustomer = true
+		storedParam.CustomerID = cust.ID
+	}
+
+	return id, s.customerRepo.StoreSignInEmail(storedParam, dpi.Store)
+}
+
+func (s *customerService) ProcessSignInEmail(dpi *DataPassIn, param string, tools *config.Tools) error {
+	signinParams, err := s.customerRepo.GetSignInEmail(param, dpi.Store)
+	if err != nil {
+		return err
+	}
+
+	if signinParams.Param != param {
+		return errors.New("params do not match")
+	}
+
+	if time.Since(signinParams.Set) > time.Duration(config.SIGNIN_EXPIR_MINS)*time.Minute {
+		// Alert me about it, since it should have expired on redis too
+		return errors.New("expired code, not deleted in system")
+	}
+
+	if signinParams.HasCustomer {
+
+	} else {
+		cust, err := s.customerRepo.GetCustomerByEmail(signinParams.EmailAtTime)
+		if err != nil {
+			return err
+		}
+		if cust == nil {
+			custPost := models.CustomerPost{
+				Email:           signinParams.EmailAtTime,
+				EmailSubbed:     false,
+				IsEmailVerified: true,
+			}
+			client, _, err := s.CreateCustomer(dpi, &custPost, tools)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
