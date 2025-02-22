@@ -28,7 +28,7 @@ func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.Ha
 			return
 		}
 
-		clientCookie, sessionCookie, affiliateCookie, deviceCookie := GetClientCookie(c), GetSessionCookie(c), GetAffiliateCookie(c), GetDeviceCookie(c)
+		clientCookie, sessionCookie, affiliateCookie, deviceCookie, twofaCookie := GetClientCookie(c), GetSessionCookie(c), GetAffiliateCookie(c), GetDeviceCookie(c), GetTwoFACookie(c)
 
 		service, ok := fullService.Map[store]
 		if !ok {
@@ -64,10 +64,16 @@ func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.Ha
 			clientCookie.SetCart(cartID)
 		}
 
+		service.Customer.TwoFAMiddleware(clientCookie, twofaCookie)
+		if twofaCookie == nil {
+			twofaCookie = &models.TwoFactorCookie{}
+		}
+
 		SetClientCookie(c, *clientCookie)
 		SetSessionCookie(c, *sessionCookie)
 		SetAffiliateCookie(c, *affiliateCookie)
 		SetDeviceCookie(c, *deviceCookie)
+		SetTwoFACookie(c, *twofaCookie)
 
 		c.Next()
 	}
@@ -171,4 +177,42 @@ func GetDeviceCookie(c *gin.Context) *models.DeviceCookie {
 		return nil
 	}
 	return &device
+}
+
+func SetTwoFACookie(c *gin.Context, twofa models.TwoFactorCookie) {
+	if twofa.TwoFactorCode == "" {
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     "twofa",
+			Value:    "",
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+			MaxAge:   -1,
+		})
+		return
+	}
+
+	data, _ := json.Marshal(twofa)
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "twofa",
+		Value:    string(data),
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   0,
+	})
+}
+
+func GetTwoFACookie(c *gin.Context) *models.TwoFactorCookie {
+	cookie, err := c.Cookie("twofa")
+	if err != nil {
+		return nil
+	}
+	var twofa models.TwoFactorCookie
+	if err := json.Unmarshal([]byte(cookie), &twofa); err != nil {
+		return nil
+	}
+	return &twofa
 }

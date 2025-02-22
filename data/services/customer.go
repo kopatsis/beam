@@ -38,6 +38,7 @@ type CustomerService interface {
 	CustomerMiddleware(cookie *models.ClientCookie, device *models.DeviceCookie)
 	GuestMiddleware(cookie *models.ClientCookie, store string)
 	FullMiddleware(cookie *models.ClientCookie, device *models.DeviceCookie, store string)
+	TwoFAMiddleware(cookie *models.ClientCookie, twofa *models.TwoFactorCookie)
 	LogoutCookie(dpi *DataPassIn, cookie *models.ClientCookie) error
 
 	GetCookieCurrencies(mutex *config.AllMutexes) ([]models.CodeBlock, []models.CodeBlock)
@@ -470,6 +471,20 @@ func (s *customerService) FullMiddleware(cookie *models.ClientCookie, device *mo
 	}
 	s.GuestMiddleware(cookie, store)
 	s.CustomerMiddleware(cookie, device)
+}
+
+func (s *customerService) TwoFAMiddleware(cookie *models.ClientCookie, twofa *models.TwoFactorCookie) {
+	if cookie == nil || twofa == nil || cookie.CustomerID == 0 || twofa.TwoFactorCode == "" {
+		twofa.TwoFactorCode = ""
+		twofa.CustomerID = 0
+		twofa.Set = time.Time{}
+		return
+	}
+	if time.Since(twofa.Set) > config.TWOFA_EXPIR_MINS*time.Minute || twofa.CustomerID != cookie.CustomerID {
+		twofa.TwoFactorCode = ""
+		twofa.CustomerID = 0
+		twofa.Set = time.Time{}
+	}
 }
 
 func (s *customerService) LogoutCookie(dpi *DataPassIn, cookie *models.ClientCookie) error {
