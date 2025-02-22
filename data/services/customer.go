@@ -29,7 +29,7 @@ type CustomerService interface {
 	UpdateContactAndRender(dpi *DataPassIn, contactID int, newContact *models.Contact, mutex *config.AllMutexes, isDefault bool) ([]*models.Contact, error, error)
 	DeleteContact(dpi *DataPassIn, contactID int) (int, error)
 	DeleteContactAndRender(dpi *DataPassIn, contactID int) ([]*models.Contact, error, error)
-	CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, tools *config.Tools) (*models.Customer, *models.ServerCookie, error)
+	CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, *models.Customer, *models.ServerCookie, error)
 	DeleteCustomer(dpi *DataPassIn) (*models.Customer, error)
 	UpdateCustomer(dpi *DataPassIn, customer *models.CustomerPost) (*models.Customer, error)
 
@@ -198,32 +198,32 @@ func (s *customerService) DeleteContactAndRender(dpi *DataPassIn, contactID int)
 	return list, updateErr, getErr
 }
 
-func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, tools *config.Tools) (*models.Customer, *models.ServerCookie, error) {
+func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, *models.Customer, *models.ServerCookie, error) {
 	validate := validator.New()
 	err := validate.Struct(customer)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	if customer.IsPassword && customer.Password != customer.PasswordConf {
-		return nil, nil, errors.New("passwords don't match")
+		return nil, nil, nil, errors.New("passwords don't match")
 	}
 
 	email := strings.ToLower(customer.Email)
 	if !custhelp.VerifyEmail(email, tools) {
-		return nil, nil, errors.New("invalid email")
+		return nil, nil, nil, errors.New("invalid email")
 	}
 
 	id, oldArch, err := s.customerRepo.GetCustomerIDByEmail(email)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	} else if id != 0 {
-		return nil, nil, errors.New("existing customer that wasn't an old archival")
+		return nil, nil, nil, errors.New("existing customer that wasn't an old archival")
 	}
 
 	if oldArch {
 		if err := s.customerRepo.ArchiveCustomerEmail(id, customer.Email); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
 
@@ -245,18 +245,28 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 		password, err := custhelp.EncryptPassword(customer.Password)
 		if err != nil {
 			// send an error to me as this is major
-			return nil, nil, errors.New("unable to encrypt password: " + err.Error())
+			return nil, nil, nil, errors.New("unable to encrypt password: " + err.Error())
 		}
 		newCust.PasswordHash = password
 	}
 
 	if err := s.customerRepo.Create(*newCust); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	c, err := s.customerRepo.CreateServerCookie(newCust.ID, dpi.Store)
+	if err != nil {
+		return nil, newCust, nil, err
+	}
 
-	return newCust, c, err
+	return &models.ClientCookie{
+		Store:         dpi.Store,
+		CustomerID:    newCust.ID,
+		CustomerSet:   time.Now(),
+		GuestID:       dpi.GuestID,
+		OtherCurrency: false,
+		Currency:      "USD",
+	}, newCust, c, nil
 }
 
 func (s *customerService) DeleteCustomer(dpi *DataPassIn) (*models.Customer, error) {
@@ -617,48 +627,46 @@ func (s *customerService) SendSignInEmail(dpi *DataPassIn, email string, tools *
 
 	id := "SI-" + uuid.NewString()
 	storedParam := models.SignInEmailParam{Param: id, EmailAtTime: email, Set: time.Now()}
-	if cust != nil {
-		storedParam.HasCustomer = true
-		storedParam.CustomerID = cust.ID
-	}
 
 	return id, s.customerRepo.StoreSignInEmail(storedParam, dpi.Store)
 }
 
-func (s *customerService) ProcessSignInEmail(dpi *DataPassIn, param string, tools *config.Tools) error {
+func (s *customerService) ProcessSignInEmail(dpi *DataPassIn, param string, tools *config.Tools) (*models.ClientCookie, error) {
 	signinParams, err := s.customerRepo.GetSignInEmail(param, dpi.Store)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if signinParams.Param != param {
-		return errors.New("params do not match")
+		return nil, errors.New("params do not match")
 	}
 
 	if time.Since(signinParams.Set) > time.Duration(config.SIGNIN_EXPIR_MINS)*time.Minute {
 		// Alert me about it, since it should have expired on redis too
-		return errors.New("expired code, not deleted in system")
+		return nil, errors.New("expired code, not deleted in system")
 	}
 
-	if signinParams.HasCustomer {
+	cust, err := s.customerRepo.GetCustomerByEmail(signinParams.EmailAtTime)
+	if err != nil {
+		return nil, err
+	}
 
-	} else {
-		cust, err := s.customerRepo.GetCustomerByEmail(signinParams.EmailAtTime)
+	if cust == nil || cust.Status == "Archived" && time.Since(cust.Archived) > 7*24*time.Hour {
+		custPost := models.CustomerPost{
+			Email:           signinParams.EmailAtTime,
+			EmailSubbed:     false,
+			IsEmailVerified: true,
+		}
+		client, _, _, err := s.CreateCustomer(dpi, &custPost, tools)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if cust == nil {
-			custPost := models.CustomerPost{
-				Email:           signinParams.EmailAtTime,
-				EmailSubbed:     false,
-				IsEmailVerified: true,
-			}
-			client, _, err := s.CreateCustomer(dpi, &custPost, tools)
-			if err != nil {
-				return err
-			}
-		}
+		return client, nil
 	}
 
-	return nil
+	client, err := s.LoginCookie(dpi, signinParams.EmailAtTime)
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
 }
