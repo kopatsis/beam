@@ -49,6 +49,12 @@ type CustomerService interface {
 
 	ToggleEmailVerified(dpi *DataPassIn, verified bool) error
 	ToggleEmailSubbed(dpi *DataPassIn, subbed bool) error
+
+	WatchEmailVerification(dpi *DataPassIn, conn *websocket.Conn)
+	SendVerificationEmail(dpi *DataPassIn, tools *config.Tools) (string, error)
+	ProcessVerificationEmail(dpi *DataPassIn, param string) error
+	SendSignInEmail(dpi *DataPassIn, email string, tools *config.Tools) (string, error)
+	ProcessSignInEmail(dpi *DataPassIn, param string, tools *config.Tools) (*models.ClientCookie, error)
 }
 
 type customerService struct {
@@ -626,7 +632,7 @@ func (s *customerService) SendSignInEmail(dpi *DataPassIn, email string, tools *
 	}
 
 	id := "SI-" + uuid.NewString()
-	storedParam := models.SignInEmailParam{Param: id, EmailAtTime: email, Set: time.Now()}
+	storedParam := models.SignInEmailParam{Param: id, EmailAtTime: email, DeviceCookie: dpi.DeviceID, Set: time.Now()}
 
 	return id, s.customerRepo.StoreSignInEmail(storedParam, dpi.Store)
 }
@@ -639,6 +645,10 @@ func (s *customerService) ProcessSignInEmail(dpi *DataPassIn, param string, tool
 
 	if signinParams.Param != param {
 		return nil, errors.New("params do not match")
+	}
+
+	if dpi.DeviceID != signinParams.DeviceCookie {
+		return nil, errors.New("must open link on same device and browser")
 	}
 
 	if time.Since(signinParams.Set) > time.Duration(config.SIGNIN_EXPIR_MINS)*time.Minute {

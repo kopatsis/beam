@@ -10,7 +10,8 @@ type VerificationEmailParam struct {
 }
 
 type SignInEmailParam struct {
-	Param       string    `json:"p"`
-	EmailAtTime string    `json:"e"`
-	Set         time.Time `json:"s"`
+	Param        string    `json:"p"`
+	EmailAtTime  string    `json:"e"`
+	DeviceCookie string    `json:"d"`
+	Set          time.Time `json:"s"`
 }
