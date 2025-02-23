@@ -39,3 +39,4 @@ const CONV_RATES = "https://api.fxratesapi.com/latest"
 const VERIF_EXPIR_MINS = 60
 const SIGNIN_EXPIR_MINS = 15
 const TWOFA_EXPIR_MINS = 5
+const MAX_TWOFA_ATTEMPTS = 3

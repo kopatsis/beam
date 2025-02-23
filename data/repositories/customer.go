@@ -50,7 +50,11 @@ type CustomerRepository interface {
 	GetVerificationEmail(param, store string) (models.VerificationEmailParam, error)
 	StoreSignInEmail(param models.SignInEmailParam, store string) error
 	GetSignInEmail(param, store string) (models.SignInEmailParam, error)
-	StoreTwoFA(param models.TwoFactorEmailParam, store string) error
+	StoreTwoFactor(param models.TwoFactorEmailParam, store string) error
+	DeleteTwoFactor(param, store string) error
+	GetTwoFactor(param, store string) (models.TwoFactorEmailParam, error)
+	SetTwoFactorNX(param, store string) error
+	UnsetTwoFactorNX(param, store string) error
 
 	UpdateCustomerCurrency(id int, usesOtherCurrency bool, otherCurrency string) error
 
@@ -480,7 +484,7 @@ func (r *customerRepo) GetDeviceMapping(deviceID, store string) (int, error) {
 	return val, err
 }
 
-func (r *customerRepo) StoreTwoFA(param models.TwoFactorEmailParam, store string) error {
+func (r *customerRepo) StoreTwoFactor(param models.TwoFactorEmailParam, store string) error {
 	if param.Param == "" {
 		return errors.New("param cannot be empty")
 	}
@@ -491,4 +495,47 @@ func (r *customerRepo) StoreTwoFA(param models.TwoFactorEmailParam, store string
 	}
 
 	return r.rdb.Set(context.Background(), store+"::TWFA::"+param.Param, data, time.Duration(config.TWOFA_EXPIR_MINS)*time.Minute).Err()
+}
+
+func (r *customerRepo) GetTwoFactor(param, store string) (models.TwoFactorEmailParam, error) {
+	if param == "" {
+		return models.TwoFactorEmailParam{}, errors.New("param cannot be empty")
+	}
+	key := store + "::TWFA::" + param
+
+	data, err := r.rdb.Get(context.Background(), key).Bytes()
+	if err != nil {
+		return models.TwoFactorEmailParam{}, err
+	}
+
+	var result models.TwoFactorEmailParam
+	if err := json.Unmarshal(data, &result); err != nil {
+		return models.TwoFactorEmailParam{}, err
+	}
+
+	return result, nil
+}
+
+func (r *customerRepo) SetTwoFactorNX(param, store string) error {
+
+	key := store + "::TFNX::" + param
+
+	ok, err := r.rdb.SetNX(context.Background(), key, "1", 5*time.Second).Result()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errors.New("key already set")
+	}
+	return nil
+}
+
+func (r *customerRepo) UnsetTwoFactorNX(param, store string) error {
+	key := store + "::TFNX::" + param
+	return r.rdb.Del(context.Background(), key).Err()
+}
+
+func (r *customerRepo) DeleteTwoFactor(param, store string) error {
+	key := store + "::TWFA::" + param
+	return r.rdb.Del(context.Background(), key).Err()
 }

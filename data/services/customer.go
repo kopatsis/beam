@@ -807,5 +807,62 @@ func (s *customerService) CreateTwoFACode(cust *models.Customer, store string) (
 	param := models.TwoFactorEmailParam{Param: code, CustomerID: cust.ID, Set: setTime, SixDigitCode: sixdigit, Tries: 0}
 	cookie := models.TwoFactorCookie{TwoFactorCode: code, CustomerID: cust.ID, Set: setTime}
 
-	return &cookie, s.customerRepo.StoreTwoFA(param, store)
+	return &cookie, s.customerRepo.StoreTwoFactor(param, store)
+}
+
+// Is correct six digit (recoverable), other error (not recoverable)
+func (s *customerService) ProcessTwoFactor(dpi *DataPassIn, twofactorcookie *models.TwoFactorCookie, sixdigits uint) (bool, error) {
+	if time.Since(twofactorcookie.Set) > config.TWOFA_EXPIR_MINS*time.Minute {
+		return false, errors.New("past expiration")
+	}
+
+	if dpi.CustomerID != twofactorcookie.CustomerID {
+		return false, errors.New("incorrect customer between dpi and two factor cookie")
+	}
+
+	if err := s.customerRepo.SetTwoFactorNX(twofactorcookie.TwoFactorCode, dpi.Store); err != nil {
+		return false, err
+	}
+
+	defer func() {
+		if err := s.customerRepo.UnsetTwoFactorNX(twofactorcookie.TwoFactorCode, dpi.Store); err != nil {
+			// Notify me two factor nx not working
+			log.Printf("Unable to unset two factor nx: " + err.Error())
+		}
+	}()
+
+	serverTwoFA, err := s.customerRepo.GetTwoFactor(twofactorcookie.TwoFactorCode, dpi.Store)
+	if err != nil {
+		return false, err
+	}
+
+	if time.Since(serverTwoFA.Set) > config.TWOFA_EXPIR_MINS*time.Minute {
+		return false, errors.New("past expiration server side")
+	}
+
+	if serverTwoFA.Tries >= config.MAX_TWOFA_ATTEMPTS {
+		return false, errors.New("two many failed attempts")
+	}
+
+	if serverTwoFA.CustomerID != dpi.CustomerID {
+		return false, errors.New("incorrect customer between dpi and two factor server side")
+	}
+
+	if serverTwoFA.Param != twofactorcookie.TwoFactorCode {
+		return false, errors.New("incorrect two factor code between cookie and server side")
+	}
+
+	if serverTwoFA.SixDigitCode != sixdigits {
+		serverTwoFA.Tries++
+		if err := s.customerRepo.StoreTwoFactor(serverTwoFA, dpi.Store); err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+
+	if err := s.ToggleEmailVerified(dpi, true); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
