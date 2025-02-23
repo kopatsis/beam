@@ -490,5 +490,5 @@ func (r *customerRepo) StoreTwoFA(param models.TwoFactorEmailParam, store string
 		return err
 	}
 
-	return r.rdb.Set(context.Background(), store+"::TWFA::"+param.Param, data, time.Duration(config.SIGNIN_EXPIR_MINS)*time.Minute).Err()
+	return r.rdb.Set(context.Background(), store+"::TWFA::"+param.Param, data, time.Duration(config.TWOFA_EXPIR_MINS)*time.Minute).Err()
 }
