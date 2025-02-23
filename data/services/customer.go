@@ -50,6 +50,7 @@ type CustomerService interface {
 
 	ToggleEmailVerified(dpi *DataPassIn, verified bool) error
 	ToggleEmailSubbed(dpi *DataPassIn, subbed bool) error
+	ToggleTwoFactor(dpi *DataPassIn, uses bool) error
 
 	WatchEmailVerification(dpi *DataPassIn, conn *websocket.Conn)
 	SendVerificationEmail(dpi *DataPassIn, tools *config.Tools) (string, error)
@@ -585,6 +586,42 @@ func (s *customerService) ToggleEmailVerified(dpi *DataPassIn, verified bool) er
 
 func (s *customerService) ToggleEmailSubbed(dpi *DataPassIn, subbed bool) error {
 	return s.customerRepo.SetEmailSubbed(dpi.CustomerID, subbed)
+}
+
+func (s *customerService) ToggleTwoFactor(dpi *DataPassIn, uses bool) error {
+	cust, err := s.customerRepo.Read(dpi.CustomerID)
+	if err != nil {
+		return err
+	}
+
+	if cust.Uses2FA == uses {
+		return nil
+	}
+
+	cust.Uses2FA = uses
+	if err := s.customerRepo.Update(*cust); err != nil {
+		return err
+	}
+
+	if uses {
+		c, err := s.customerRepo.GetServerCookie(cust.ID, dpi.Store)
+		if err != nil {
+			// Notify me but not return error
+			log.Printf("Unable to set forced logout date\n")
+			return nil
+		} else if c == nil {
+			// Notify me but not return error
+			log.Printf("Unable to set forced logout date\n")
+			return nil
+		}
+
+		if _, err := s.customerRepo.SetServerCookieReset(c, time.Now()); err != nil {
+			// Notify me but not return error
+			log.Printf("Unable to set forced logout date\n")
+		}
+	}
+
+	return nil
 }
 
 func (s *customerService) WatchEmailVerification(dpi *DataPassIn, conn *websocket.Conn) {
