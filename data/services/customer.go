@@ -30,11 +30,11 @@ type CustomerService interface {
 	UpdateContactAndRender(dpi *DataPassIn, contactID int, newContact *models.Contact, mutex *config.AllMutexes, isDefault bool) ([]*models.Contact, error, error)
 	DeleteContact(dpi *DataPassIn, contactID int) (int, error)
 	DeleteContactAndRender(dpi *DataPassIn, contactID int) ([]*models.Contact, error, error)
-	CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, *models.Customer, *models.ServerCookie, error)
+	CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, *models.Customer, *models.ServerCookie, error)
 	DeleteCustomer(dpi *DataPassIn) (*models.Customer, error)
 	UpdateCustomer(dpi *DataPassIn, customer *models.CustomerPost) (*models.Customer, error)
 
-	LoginCookie(dpi *DataPassIn, email string, addEmailSub bool) (*models.ClientCookie, error)
+	LoginCookie(dpi *DataPassIn, email string, addEmailSub bool) (*models.ClientCookie, *models.TwoFactorCookie, error)
 	ResetPass(dpi *DataPassIn, email string) error
 	CustomerMiddleware(cookie *models.ClientCookie, device *models.DeviceCookie)
 	GuestMiddleware(cookie *models.ClientCookie, store string)
@@ -208,32 +208,32 @@ func (s *customerService) DeleteContactAndRender(dpi *DataPassIn, contactID int)
 	return list, updateErr, getErr
 }
 
-func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, *models.Customer, *models.ServerCookie, error) {
+func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, *models.Customer, *models.ServerCookie, error) {
 	validate := validator.New()
 	err := validate.Struct(customer)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	if customer.IsPassword && customer.Password != customer.PasswordConf {
-		return nil, nil, nil, errors.New("passwords don't match")
+		return nil, nil, nil, nil, errors.New("passwords don't match")
 	}
 
 	email := strings.ToLower(customer.Email)
 	if !custhelp.VerifyEmail(email, tools) {
-		return nil, nil, nil, errors.New("invalid email")
+		return nil, nil, nil, nil, errors.New("invalid email")
 	}
 
 	id, oldArch, err := s.customerRepo.GetCustomerIDByEmail(email)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	} else if id != 0 {
-		return nil, nil, nil, errors.New("existing customer that wasn't an old archival")
+		return nil, nil, nil, nil, errors.New("existing customer that wasn't an old archival")
 	}
 
 	if oldArch {
 		if err := s.customerRepo.ArchiveCustomerEmail(id, customer.Email); err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 	}
 
@@ -255,22 +255,30 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 		password, err := custhelp.EncryptPassword(customer.Password)
 		if err != nil {
 			// send an error to me as this is major
-			return nil, nil, nil, errors.New("unable to encrypt password: " + err.Error())
+			return nil, nil, nil, nil, errors.New("unable to encrypt password: " + err.Error())
 		}
 		newCust.PasswordHash = password
 	}
 
 	if err := s.customerRepo.Create(*newCust); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	c, err := s.customerRepo.CreateServerCookie(newCust.ID, dpi.Store, customer.IsEmailVerified, false)
 	if err != nil {
-		return nil, newCust, nil, err
+		return nil, nil, newCust, nil, err
 	}
 
 	if err := s.customerRepo.SetDeviceMapping(newCust.ID, dpi.DeviceID, dpi.Store); err != nil {
-		return nil, newCust, c, err
+		return nil, nil, newCust, c, err
+	}
+
+	var twofa *models.TwoFactorCookie
+	if customer.Uses2FA {
+		twofa, err = s.CreateTwoFACode(newCust, dpi.Store)
+		if err != nil {
+			return nil, nil, newCust, c, err
+		}
 	}
 
 	return &models.ClientCookie{
@@ -280,7 +288,7 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 		GuestID:       dpi.GuestID,
 		OtherCurrency: false,
 		Currency:      "USD",
-	}, newCust, c, nil
+	}, twofa, newCust, c, nil
 }
 
 func (s *customerService) DeleteCustomer(dpi *DataPassIn) (*models.Customer, error) {
@@ -339,23 +347,23 @@ func (s *customerService) UpdateCustomer(dpi *DataPassIn, customer *models.Custo
 	return cust, nil
 }
 
-func (s *customerService) LoginCookie(dpi *DataPassIn, email string, addEmailSub bool) (*models.ClientCookie, error) {
+func (s *customerService) LoginCookie(dpi *DataPassIn, email string, addEmailSub bool) (*models.ClientCookie, *models.TwoFactorCookie, error) {
 	customer, err := s.customerRepo.GetActiveCustomerByEmail(email)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	} else if customer == nil {
-		return nil, fmt.Errorf("no active customer for email:  %s", email)
+		return nil, nil, fmt.Errorf("no active customer for email:  %s", email)
 	} else if customer.Status == "Archived" {
-		return nil, fmt.Errorf("archived customer for email:  %s", email)
+		return nil, nil, fmt.Errorf("archived customer for email:  %s", email)
 	}
 
 	serverCookie, err := s.customerRepo.GetServerCookie(customer.ID, dpi.Store)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	} else if serverCookie == nil {
-		return nil, fmt.Errorf("no active server cookie for email:  %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
+		return nil, nil, fmt.Errorf("no active server cookie for email:  %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
 	} else if customer.Status == "Archived" {
-		return nil, fmt.Errorf("archived server cookie for email:  %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
+		return nil, nil, fmt.Errorf("archived server cookie for email:  %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
 	}
 
 	if addEmailSub {
@@ -365,7 +373,15 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, email string, addEmailSub
 	}
 
 	if err := s.customerRepo.SetDeviceMapping(customer.ID, dpi.DeviceID, dpi.Store); err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+
+	var twofa *models.TwoFactorCookie
+	if customer.Uses2FA {
+		twofa, err = s.CreateTwoFACode(customer, dpi.Store)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	return &models.ClientCookie{
@@ -375,7 +391,7 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, email string, addEmailSub
 		GuestID:       dpi.GuestID,
 		OtherCurrency: customer.UsesOtherCurrency,
 		Currency:      customer.OtherCurrency,
-	}, nil
+	}, twofa, nil
 }
 
 func (s *customerService) ResetPass(dpi *DataPassIn, email string) error {
@@ -769,14 +785,14 @@ func (s *customerService) ProcessSignInEmail(dpi *DataPassIn, param string, tool
 			EmailSubbed:     signinParams.EmailSubbed,
 			IsEmailVerified: true,
 		}
-		client, _, _, err := s.CreateCustomer(dpi, &custPost, tools)
+		client, _, _, _, err := s.CreateCustomer(dpi, &custPost, tools)
 		if err != nil {
 			return nil, err
 		}
 		return client, nil
 	}
 
-	client, err := s.LoginCookie(dpi, signinParams.EmailAtTime, signinParams.EmailSubbed)
+	client, _, err := s.LoginCookie(dpi, signinParams.EmailAtTime, signinParams.EmailSubbed)
 	if err != nil {
 		return nil, err
 	}
