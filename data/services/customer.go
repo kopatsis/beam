@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -57,6 +58,7 @@ type CustomerService interface {
 	ProcessVerificationEmail(dpi *DataPassIn, param string) error
 	SendSignInEmail(dpi *DataPassIn, email string, emailSubbed bool, tools *config.Tools) (string, error)
 	ProcessSignInEmail(dpi *DataPassIn, param string, tools *config.Tools) (*models.ClientCookie, error)
+	CreateTwoFACode(cust *models.Customer, store string) (*models.TwoFactorCookie, error)
 }
 
 type customerService struct {
@@ -779,4 +781,15 @@ func (s *customerService) ProcessSignInEmail(dpi *DataPassIn, param string, tool
 		return nil, err
 	}
 	return client, nil
+}
+
+func (s *customerService) CreateTwoFACode(cust *models.Customer, store string) (*models.TwoFactorCookie, error) {
+
+	code := "TF-" + uuid.NewString()
+	sixdigit := uint(100000 + rand.Intn(900000))
+	setTime := time.Now()
+	param := models.TwoFactorEmailParam{Param: code, CustomerID: cust.ID, Set: setTime, SixDigitCode: sixdigit, Tries: 0}
+	cookie := models.TwoFactorCookie{TwoFactorCode: code, CustomerID: cust.ID, Set: setTime}
+
+	return &cookie, s.customerRepo.StoreTwoFA(param, store)
 }

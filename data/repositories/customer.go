@@ -50,6 +50,7 @@ type CustomerRepository interface {
 	GetVerificationEmail(param, store string) (models.VerificationEmailParam, error)
 	StoreSignInEmail(param models.SignInEmailParam, store string) error
 	GetSignInEmail(param, store string) (models.SignInEmailParam, error)
+	StoreTwoFA(param models.TwoFactorEmailParam, store string) error
 
 	UpdateCustomerCurrency(id int, usesOtherCurrency bool, otherCurrency string) error
 
@@ -477,4 +478,17 @@ func (r *customerRepo) GetDeviceMapping(deviceID, store string) (int, error) {
 		return 0, nil
 	}
 	return val, err
+}
+
+func (r *customerRepo) StoreTwoFA(param models.TwoFactorEmailParam, store string) error {
+	if param.Param == "" {
+		return errors.New("param cannot be empty")
+	}
+
+	data, err := json.Marshal(param)
+	if err != nil {
+		return err
+	}
+
+	return r.rdb.Set(context.Background(), store+"::TWFA::"+param.Param, data, time.Duration(config.SIGNIN_EXPIR_MINS)*time.Minute).Err()
 }
