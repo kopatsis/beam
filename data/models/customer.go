@@ -29,6 +29,9 @@ type Customer struct {
 	Uses2FA                  bool
 	UsesOtherCurrency        bool
 	OtherCurrency            string
+	ConfirmsSent             int
+	LastConfirmSent          time.Time
+	ConfirmInProgress        bool
 }
 
 type CustomerPost struct {

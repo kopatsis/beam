@@ -1,6 +1,7 @@
 package services
 
 import (
+	"beam/background/emails"
 	"beam/config"
 	"beam/data/models"
 	"beam/data/repositories"
@@ -926,4 +927,18 @@ func (s *customerService) ChangeCustomerEmail(dpi *DataPassIn, newEmail, passwor
 	}
 
 	return nil
+}
+
+func (s *customerService) EmailVerification(store, param string, customer *models.Customer, tools *config.Tools) error {
+	if err := emails.VerificationEmail(store, customer.Email, param, tools); err != nil {
+		return err
+	}
+	customer.LastConfirmSent = time.Now()
+	if time.Since(customer.LastConfirmSent) >= config.CONFIRM_EMAIL_COOLDOWN {
+		customer.ConfirmsSent = 1
+	} else {
+		customer.ConfirmsSent++
+	}
+
+	return s.customerRepo.Update(*customer)
 }
