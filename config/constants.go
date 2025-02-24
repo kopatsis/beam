@@ -51,3 +51,10 @@ const PASSWORD_MIN_NUMBERS = 1
 const SPECIAL_CHAR_LIST = `!"#$%&'()*+,-./:;<=>?@[\]^_` + "`" + `{|}~`
 const LETTER_LIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const NUMBER_LIST = "1234567890"
+
+const LOGIN_ATTEMPTS_DEVICE = 4   // Per second
+const LOGIN_ATTEMPTS_IP = 7       // Per second
+const LOGIN_ATTEMPTS_ACCOUNT = 12 // Per second
+
+const LOGIN_ATTEMPTS_MINUTE = 50
+const LOGIN_ATTEMPTS_HOUR = 250

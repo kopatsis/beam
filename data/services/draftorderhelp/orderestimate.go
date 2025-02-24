@@ -17,11 +17,11 @@ import (
 )
 
 func applyRateLimitsEstimate(storeName, ip string, tools *config.Tools) error {
-	if err := config.RateLimit(tools.Redis, ip, config.IPREQS, "IE"); err != nil {
+	if err := config.RateLimit(tools.Redis, storeName, "EST", ip, config.IPREQS, time.Minute); err != nil {
 		return err
 	}
 
-	return config.RateLimit(tools.Redis, storeName, config.SHIPREQS, "SE")
+	return config.RateLimit(tools.Redis, storeName, "EST", "", config.SHIPREQS, time.Minute)
 }
 
 func getEstApiShipRates(draft *models.DraftOrder, newContact *models.Contact, mutexes *config.AllMutexes, name, ip, rateName string, tools *config.Tools) (*models.OrderEstimateCost, error) {

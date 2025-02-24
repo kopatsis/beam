@@ -16,11 +16,11 @@ import (
 
 func applyRateLimitsShip(storeName, ip string, tools *config.Tools) error {
 
-	if err := config.RateLimit(tools.Redis, ip, config.IPREQS, "IS"); err != nil {
+	if err := config.RateLimit(tools.Redis, storeName, "SHP", ip, config.IPREQS, time.Minute); err != nil {
 		return err
 	}
 
-	return config.RateLimit(tools.Redis, storeName, config.SHIPREQS, "SS")
+	return config.RateLimit(tools.Redis, storeName, "SHP", "", config.SHIPREQS, time.Minute)
 }
 
 func UpdateShippingRates(draft *models.DraftOrder, newContact *models.Contact, mutexes *config.AllMutexes, name, ip string, tools *config.Tools) error {
