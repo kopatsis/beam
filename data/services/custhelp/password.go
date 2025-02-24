@@ -2,13 +2,21 @@ package custhelp
 
 import (
 	"beam/config"
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
+func hashPassword(password string) string {
+	hash := sha256.Sum256([]byte(password))
+	return hex.EncodeToString(hash[:])
+}
+
 func EncryptPassword(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashedInput := hashPassword(password)
+	hash, err := bcrypt.GenerateFromPassword([]byte(hashedInput), 6)
 	if err != nil {
 		return "", err
 	}
@@ -16,7 +24,8 @@ func EncryptPassword(password string) (string, error) {
 }
 
 func CheckPassword(storedHash, password string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(password))
+	hashedInput := hashPassword(password)
+	err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(hashedInput))
 	return err == nil
 }
 
