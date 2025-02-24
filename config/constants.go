@@ -42,3 +42,12 @@ const TWOFA_EXPIR_MINS = 5
 const MAX_TWOFA_ATTEMPTS = 3
 
 const EMAIL_CHANGE_COOLDOWN = 7
+
+const PASSWORD_MIN_CHARS = 12
+const PASSWORD_MAX_CHARS = 256
+const PASSWORD_MIN_SPECIALS = 1
+const PASSWORD_MIN_LETTER = 1
+const PASSWORD_MIN_NUMBERS = 1
+const SPECIAL_CHAR_LIST = `!"#$%&'()*+,-./:;<=>?@[\]^_` + "`" + `{|}~`
+const LETTER_LIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const NUMBER_LIST = "1234567890"

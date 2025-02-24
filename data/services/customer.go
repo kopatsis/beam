@@ -34,7 +34,7 @@ type CustomerService interface {
 	DeleteCustomer(dpi *DataPassIn) (*models.Customer, error)
 	UpdateCustomer(dpi *DataPassIn, customer *models.CustomerPost) (*models.Customer, error)
 
-	LoginCookie(dpi *DataPassIn, email string, addEmailSub bool) (*models.ClientCookie, *models.TwoFactorCookie, error)
+	LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool) (*models.ClientCookie, *models.TwoFactorCookie, error)
 	ResetPass(dpi *DataPassIn, email string) error
 	CustomerMiddleware(cookie *models.ClientCookie, device *models.DeviceCookie)
 	GuestMiddleware(cookie *models.ClientCookie, store string)
@@ -217,8 +217,10 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 		return nil, nil, nil, nil, err
 	}
 
-	if customer.IsPassword && customer.Password != customer.PasswordConf {
-		return nil, nil, nil, nil, errors.New("passwords don't match")
+	if customer.IsPassword {
+		if !custhelp.PasswordMeetsRequirements(customer.Password, customer.PasswordConf, true) {
+			return nil, nil, nil, nil, errors.New("password doesn't meet criteria")
+		}
 	}
 
 	email := strings.ToLower(customer.Email)
@@ -349,7 +351,8 @@ func (s *customerService) UpdateCustomer(dpi *DataPassIn, customer *models.Custo
 	return cust, nil
 }
 
-func (s *customerService) LoginCookie(dpi *DataPassIn, email string, addEmailSub bool) (*models.ClientCookie, *models.TwoFactorCookie, error) {
+func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool) (*models.ClientCookie, *models.TwoFactorCookie, error) {
+
 	customer, err := s.customerRepo.GetActiveCustomerByEmail(email)
 	if err != nil {
 		return nil, nil, err
@@ -357,6 +360,10 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, email string, addEmailSub
 		return nil, nil, fmt.Errorf("no active customer for email:  %s", email)
 	} else if customer.Status == "Archived" {
 		return nil, nil, fmt.Errorf("archived customer for email:  %s", email)
+	}
+
+	if usesPassword && (!custhelp.PasswordMeetsRequirements(password, "", false) || !custhelp.CheckPassword(customer.PasswordHash, password)) {
+		return nil, nil, errors.New("password is incorrect or invalid")
 	}
 
 	serverCookie, err := s.customerRepo.GetServerCookie(customer.ID, dpi.Store)
@@ -794,7 +801,7 @@ func (s *customerService) ProcessSignInEmail(dpi *DataPassIn, param string, tool
 		return client, nil
 	}
 
-	client, _, err := s.LoginCookie(dpi, signinParams.EmailAtTime, signinParams.EmailSubbed)
+	client, _, err := s.LoginCookie(dpi, signinParams.EmailAtTime, "", signinParams.EmailSubbed, false)
 	if err != nil {
 		return nil, err
 	}
