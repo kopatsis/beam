@@ -37,6 +37,7 @@ type CustomerRepository interface {
 	SetServerCookieStatus(c *models.ServerCookie, archived bool) (*models.ServerCookie, error)
 	SetServerCookieCompletion(c *models.ServerCookie, verified bool) (*models.ServerCookie, error)
 	CreateServerCookie(customerID int, store string, verified, archived bool) (*models.ServerCookie, error)
+	SetServerCookie(c *models.ServerCookie) error
 	GetCustomerIDByEmail(email string) (int, bool, error)
 
 	ArchiveCustomerEmail(id int, email string) error
@@ -306,6 +307,15 @@ func (r *customerRepo) CreateServerCookie(customerID int, store string, verified
 		return nil, err
 	}
 	return &c, nil
+}
+
+func (r *customerRepo) SetServerCookie(c *models.ServerCookie) error {
+	data, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
+	key := fmt.Sprintf("%s::SSC::%d", c.Store, c.CustomerID)
+	return r.rdb.Set(context.Background(), key, data, 0).Err()
 }
 
 // ID if official match, whether there is a past 7 day archived account, error

@@ -59,6 +59,8 @@ type CustomerService interface {
 	SendSignInEmail(dpi *DataPassIn, email string, emailSubbed bool, tools *config.Tools) (string, error)
 	ProcessSignInEmail(dpi *DataPassIn, param string, tools *config.Tools) (*models.ClientCookie, error)
 	CreateTwoFACode(cust *models.Customer, store string) (*models.TwoFactorCookie, error)
+
+	ChangeCustomerEmail(dpi *DataPassIn, newEmail, password string, tools *config.Tools) error
 }
 
 type customerService struct {
@@ -865,4 +867,56 @@ func (s *customerService) ProcessTwoFactor(dpi *DataPassIn, twofactorcookie *mod
 	}
 
 	return true, nil
+}
+
+func (s *customerService) ChangeCustomerEmail(dpi *DataPassIn, newEmail, password string, tools *config.Tools) error {
+
+	if !custhelp.VerifyEmail(newEmail, tools) {
+		return errors.New("email not valid")
+	}
+
+	customer, err := s.customerRepo.Read(dpi.CustomerID)
+	if err != nil {
+		return nil
+	} else if customer == nil {
+		return errors.New("nil customer")
+	} else if customer.Status == "Archived" {
+		return errors.New("archived customer")
+	}
+
+	if time.Since(customer.EmailChanged) < config.EMAIL_CHANGE_COOLDOWN*24*time.Hour {
+		return errors.New("email changed less than cooldown period ago")
+	}
+
+	if customer.PasswordHash == "" {
+		return errors.New("customer must have password to change email")
+	}
+
+	if !custhelp.CheckPassword(customer.PasswordHash, password) {
+		return errors.New("wrong password")
+	}
+
+	changedTime := time.Now()
+	customer.Email = newEmail
+	customer.EmailVerified = false
+	customer.EmailChanged = changedTime
+
+	if err := s.customerRepo.Update(*customer); err != nil {
+		return errors.New("unable to save customer email change: " + err.Error())
+	}
+
+	serverCookie := models.ServerCookie{
+		Store:            dpi.Store,
+		CustomerID:       customer.ID,
+		LastForcedLogout: changedTime,
+		Archived:         false,
+		Incomplete:       true,
+	}
+
+	if err := s.customerRepo.SetServerCookie(&serverCookie); err != nil {
+		// Notify me but not return error
+		log.Printf("Unable to set forced logout date\n")
+	}
+
+	return nil
 }
