@@ -8,7 +8,8 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-func RateLimit(client *redis.Client, store, classification, trueKey string, maxRequests int, period time.Duration) error {
+// Under max requests, error
+func RateLimit(client *redis.Client, store, classification, trueKey string, maxRequests int, period time.Duration) (bool, error) {
 	ctx := context.Background()
 
 	windowKey := fmt.Sprintf("%s::WNDW::%s", store, classification)
@@ -21,29 +22,29 @@ func RateLimit(client *redis.Client, store, classification, trueKey string, maxR
 
 	_, err := client.ZRemRangeByScore(ctx, windowKey, "0", fmt.Sprintf("%d", startTime)).Result()
 	if err != nil {
-		return fmt.Errorf("failed to remove old timestamps: %w", err)
+		return false, fmt.Errorf("failed to remove old timestamps: %w", err)
 	}
 
 	count, err := client.ZCard(ctx, windowKey).Result()
 	if err != nil {
-		return fmt.Errorf("failed to get the number of requests: %w", err)
+		return false, fmt.Errorf("failed to get the number of requests: %w", err)
 	}
 
 	if count >= int64(maxRequests) {
-		return fmt.Errorf("rate limit exceeded for key: %s", windowKey)
+		return false, nil
 	}
 
 	_, err = client.ZAdd(ctx, windowKey, &redis.Z{
 		Score: float64(now.Unix()),
 	}).Result()
 	if err != nil {
-		return fmt.Errorf("failed to add timestamp: %w", err)
+		return false, fmt.Errorf("failed to add timestamp: %w", err)
 	}
 
-	err = client.Expire(ctx, windowKey, time.Minute).Err()
+	err = client.Expire(ctx, windowKey, period).Err()
 	if err != nil {
-		return fmt.Errorf("failed to set expiration: %w", err)
+		return false, fmt.Errorf("failed to set expiration: %w", err)
 	}
 
-	return nil
+	return true, nil
 }

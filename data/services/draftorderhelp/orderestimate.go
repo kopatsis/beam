@@ -17,11 +17,19 @@ import (
 )
 
 func applyRateLimitsEstimate(storeName, ip string, tools *config.Tools) error {
-	if err := config.RateLimit(tools.Redis, storeName, "EST", ip, config.IPREQS, time.Minute); err != nil {
+	if unmaxed, err := config.RateLimit(tools.Redis, storeName, "EST", ip, config.IPREQS, time.Minute); err != nil {
 		return err
+	} else if !unmaxed {
+		return errors.New("maximum usage reached: by IP")
 	}
 
-	return config.RateLimit(tools.Redis, storeName, "EST", "", config.SHIPREQS, time.Minute)
+	if unmaxed, err := config.RateLimit(tools.Redis, storeName, "EST", "", config.SHIPREQS, time.Minute); err != nil {
+		return err
+	} else if !unmaxed {
+		return errors.New("maximum usage reached: by store")
+	}
+
+	return nil
 }
 
 func getEstApiShipRates(draft *models.DraftOrder, newContact *models.Contact, mutexes *config.AllMutexes, name, ip, rateName string, tools *config.Tools) (*models.OrderEstimateCost, error) {

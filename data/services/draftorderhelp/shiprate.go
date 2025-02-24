@@ -16,11 +16,19 @@ import (
 
 func applyRateLimitsShip(storeName, ip string, tools *config.Tools) error {
 
-	if err := config.RateLimit(tools.Redis, storeName, "SHP", ip, config.IPREQS, time.Minute); err != nil {
+	if unmaxed, err := config.RateLimit(tools.Redis, storeName, "SHP", ip, config.IPREQS, time.Minute); err != nil {
 		return err
+	} else if !unmaxed {
+		return errors.New("maximum usage reached: by IP")
 	}
 
-	return config.RateLimit(tools.Redis, storeName, "SHP", "", config.SHIPREQS, time.Minute)
+	if unmaxed, err := config.RateLimit(tools.Redis, storeName, "SHP", "", config.SHIPREQS, time.Minute); err != nil {
+		return err
+	} else if !unmaxed {
+		return errors.New("maximum usage reached: by store")
+	}
+
+	return nil
 }
 
 func UpdateShippingRates(draft *models.DraftOrder, newContact *models.Contact, mutexes *config.AllMutexes, name, ip string, tools *config.Tools) error {
