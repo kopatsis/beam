@@ -31,6 +31,27 @@ func DecryptInt(encrypted string) (int, error) {
 	return encInt ^ int(key), nil
 }
 
+func EncryptString(value string) string {
+	key := getXORKey()
+	encrypted := []byte(value)
+	for i := range encrypted {
+		encrypted[i] ^= byte(key)
+	}
+	return base64.RawURLEncoding.EncodeToString(encrypted)
+}
+
+func DecryptString(encrypted string) (string, error) {
+	key := getXORKey()
+	decoded, err := base64.RawURLEncoding.DecodeString(encrypted)
+	if err != nil {
+		return "", err
+	}
+	for i := range decoded {
+		decoded[i] ^= byte(key)
+	}
+	return string(decoded), nil
+}
+
 func EncodeTime(t time.Time) string {
 	return strconv.FormatInt(t.Unix(), 36)
 }

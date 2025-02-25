@@ -66,6 +66,9 @@ type CustomerService interface {
 	ActualEmailVerification(store, param string, customer *models.Customer, tools *config.Tools) error
 	DelayedEmailVerification(store, param string, customerID int, wait time.Duration, tools *config.Tools) error
 	SendVerificationToEmail(store, param string, customer *models.Customer, tools *config.Tools) error
+
+	UnsubLinkForEmails(store string, customerID int) (string, string, string)
+	UnsubCustomerDirect(store, storeEncr, customerEncr, timestamp string) error
 }
 
 type customerService struct {
@@ -1001,5 +1004,50 @@ func (s *customerService) SendVerificationToEmail(store, param string, customer 
 	}
 
 	return s.ActualEmailVerification(store, param, customer, tools)
+}
 
+// Customer ID encr, timestamp encr, store check encr
+func (s *customerService) UnsubLinkForEmails(store string, customerID int) (string, string, string) {
+	return config.EncryptInt(customerID), config.EncodeTime(time.Now()), config.EncryptString(store)
+}
+
+func (s *customerService) UnsubCustomerDirect(store, storeEncr, customerEncr, timestamp string) error {
+
+	storeCheck, err := config.DecryptString(storeEncr)
+	if err != nil {
+		return err
+	}
+
+	if storeCheck != store {
+		return errors.New("store does not match up with check in id")
+	}
+
+	customerID, err := config.DecryptInt(customerEncr)
+	if err != nil {
+		return err
+	}
+
+	actualTime, err := config.DecodeTime(timestamp)
+	if err != nil {
+		return err
+	}
+
+	cust, err := s.customerRepo.Read(customerID)
+	if err != nil {
+		return err
+	}
+
+	if !cust.EmailSubbed {
+		return nil
+	}
+
+	if cust.Created.Before(actualTime) || time.Now().Before(actualTime) {
+		return errors.New("impossible timestamp")
+	}
+
+	if cust.EmailChanged.Before(actualTime) {
+		return errors.New("email address changed after link was sent")
+	}
+
+	return s.customerRepo.SetEmailSubbed(customerID, false)
 }
