@@ -62,6 +62,10 @@ type CustomerService interface {
 	CreateTwoFACode(cust *models.Customer, store string) (*models.TwoFactorCookie, error)
 
 	ChangeCustomerEmail(dpi *DataPassIn, newEmail, password string, tools *config.Tools) error
+
+	ActualEmailVerification(store, param string, customer *models.Customer, tools *config.Tools) error
+	DelayedEmailVerification(store, param string, customerID int, wait time.Duration, tools *config.Tools) error
+	SendVerificationToEmail(store, param string, customer *models.Customer, tools *config.Tools) error
 }
 
 type customerService struct {
@@ -704,7 +708,11 @@ func (s *customerService) SendVerificationEmail(dpi *DataPassIn, tools *config.T
 	id := "EV-" + uuid.NewString()
 	storedParam := models.VerificationEmailParam{Param: id, EmailAtTime: cust.Email, CustomerID: cust.ID, Set: time.Now()}
 
-	return id, s.customerRepo.StoreVerificationEmail(storedParam, dpi.Store)
+	if err := s.customerRepo.StoreVerificationEmail(storedParam, dpi.Store); err != nil {
+		return "", err
+	}
+
+	return id, s.ActualEmailVerification(dpi.Store, id, cust, tools)
 }
 
 func (s *customerService) ProcessVerificationEmail(dpi *DataPassIn, param string) error {
@@ -885,7 +893,7 @@ func (s *customerService) ChangeCustomerEmail(dpi *DataPassIn, newEmail, passwor
 
 	customer, err := s.customerRepo.Read(dpi.CustomerID)
 	if err != nil {
-		return nil
+		return err
 	} else if customer == nil {
 		return errors.New("nil customer")
 	} else if customer.Status == "Archived" {
@@ -929,11 +937,12 @@ func (s *customerService) ChangeCustomerEmail(dpi *DataPassIn, newEmail, passwor
 	return nil
 }
 
-func (s *customerService) EmailVerification(store, param string, customer *models.Customer, tools *config.Tools) error {
+func (s *customerService) ActualEmailVerification(store, param string, customer *models.Customer, tools *config.Tools) error {
 	if err := emails.VerificationEmail(store, customer.Email, param, tools); err != nil {
 		return err
 	}
 	customer.LastConfirmSent = time.Now()
+	customer.ConfirmInProgress = false
 	if time.Since(customer.LastConfirmSent) >= config.CONFIRM_EMAIL_COOLDOWN {
 		customer.ConfirmsSent = 1
 	} else {
@@ -941,4 +950,52 @@ func (s *customerService) EmailVerification(store, param string, customer *model
 	}
 
 	return s.customerRepo.Update(*customer)
+}
+
+func (s *customerService) DelayedEmailVerification(store, param string, customerID int, wait time.Duration, tools *config.Tools) error {
+	if wait > config.CONFIRM_EMAIL_WAIT*time.Second {
+		wait = config.CONFIRM_EMAIL_WAIT * time.Second
+	}
+
+	time.Sleep(wait)
+
+	cust, err := s.customerRepo.Read(customerID)
+	if err != nil {
+		return err
+	} else if cust == nil {
+		return errors.New("nil customer")
+	} else if cust.Status == "Archived" {
+		return errors.New("archived customer")
+	}
+
+	return s.ActualEmailVerification(store, param, cust, tools)
+}
+
+func (s *customerService) SendVerificationToEmail(store, param string, customer *models.Customer, tools *config.Tools) error {
+	if customer.ConfirmsSent > config.CONFIRM_EMAIL_MAX && time.Since(customer.LastConfirmSent) < config.CONFIRM_EMAIL_COOLDOWN*time.Hour {
+		return errors.New("too many confirms attempted within time period")
+	}
+
+	if customer.ConfirmInProgress {
+		return nil
+	}
+
+	if time.Since(customer.LastConfirmSent) < config.CONFIRM_EMAIL_WAIT*time.Second {
+		customer.ConfirmInProgress = true
+		if err := s.customerRepo.Update(*customer); err != nil {
+			return errors.New("unable to update customer to confirm in progress: " + err.Error())
+		}
+
+		go func() {
+			duration := time.Until(customer.LastConfirmSent.Add(config.CONFIRM_EMAIL_WAIT * time.Second))
+			if err := s.DelayedEmailVerification(store, param, customer.ID, duration, tools); err != nil {
+				// Notify me that delay didn't work to send after wait period
+				log.Printf("unable to ")
+			}
+		}()
+		return nil
+	}
+
+	return s.ActualEmailVerification(store, param, customer, tools)
+
 }
