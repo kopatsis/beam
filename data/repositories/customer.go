@@ -61,15 +61,42 @@ type CustomerRepository interface {
 
 	SetDeviceMapping(customerID int, deviceID, store string) error
 	GetDeviceMapping(deviceID, store string) (int, error)
+	DeleteIncompleteUnverifiedCustomers() error
+	IncompleteScheduled()
 }
 
 type customerRepo struct {
-	db  *gorm.DB
-	rdb *redis.Client
+	db         *gorm.DB
+	rdb        *redis.Client
+	saveTicker *time.Ticker
+	store      string
 }
 
-func NewCustomerRepository(db *gorm.DB, rdb *redis.Client) CustomerRepository {
-	return &customerRepo{db: db, rdb: rdb}
+func NewCustomerRepository(db *gorm.DB, rdb *redis.Client, store string, ct, len int) CustomerRepository {
+	repo := &customerRepo{db: db, rdb: rdb, store: store}
+
+	go func() {
+		defer repo.saveTicker.Stop()
+
+		if len > 0 && ct >= 0 {
+			delayFactor := float64(ct) / float64(len)
+			if delayFactor > 1 {
+				delayFactor = 1
+			} else if delayFactor < 0 {
+				delayFactor = 0
+			}
+
+			initialDelay := time.Duration(float64(config.SCHEDULED_INCOMPLETE_CUST) * delayFactor * float64(time.Minute))
+			time.Sleep(initialDelay)
+		}
+
+		for range repo.saveTicker.C {
+			repo.IncompleteScheduled()
+		}
+	}()
+
+	return repo
+
 }
 
 func (r *customerRepo) Create(customer models.Customer) error {
@@ -383,7 +410,12 @@ func (r *customerRepo) SetEmailSubbed(id int, subbed bool) error {
 }
 
 func (r *customerRepo) SetEmailVerified(id int, verif bool) error {
-	return r.db.Model(&models.Customer{}).Where("id = ?", id).Update("email_verified", verif).Error
+	status := "Incomplete"
+	if verif {
+		status = "Active"
+	}
+	return r.db.Model(&models.Customer{}).Where("id = ?", id).
+		Updates(map[string]interface{}{"email_verified": verif, "status": status}).Error
 }
 
 func (r *customerRepo) IsEmailVerified(id int) (bool, error) {
@@ -548,4 +580,36 @@ func (r *customerRepo) UnsetTwoFactorNX(param, store string) error {
 func (r *customerRepo) DeleteTwoFactor(param, store string) error {
 	key := store + "::TWFA::" + param
 	return r.rdb.Del(context.Background(), key).Err()
+}
+
+func (r *customerRepo) DeleteIncompleteUnverifiedCustomers() error {
+	cutoff := time.Now().Add(-24 * time.Hour)
+
+	return r.db.Where("status = ? AND email_verified = ? AND created < ? AND email_changed < ?",
+		"Incomplete", false, cutoff, cutoff).Delete(&models.Customer{}).Error
+}
+
+func (r *customerRepo) IncompleteScheduled() {
+	key := r.store + "::FLNC"
+
+	val, err := r.rdb.Get(context.Background(), key).Result()
+	if err != nil && err != redis.Nil {
+		log.Printf("Error checking Redis key %s: %v", key, err)
+		return
+	}
+
+	if val != "" {
+		return
+	}
+
+	err = r.rdb.SetEX(context.Background(), key, "1", config.SCHEDULED_INCOMPLETE_CUST*time.Minute).Err()
+	if err != nil {
+		log.Printf("Error setting Redis key %s: %v", key, err)
+		return
+	}
+
+	err = r.DeleteIncompleteUnverifiedCustomers()
+	if err != nil {
+		log.Printf("Error deleting incomplete unverified customers: %v", err)
+	}
 }

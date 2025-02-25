@@ -37,9 +37,10 @@ type eventRepo struct {
 	store      string
 }
 
-func NewEventRepository(mdb *mongo.Database, store string, ct, len int) EventRepository {
+func NewEventRepository(mdb *mongo.Database, rdb *redis.Client, store string, ct, len int) EventRepository {
 	repo := &eventRepo{
 		coll:       mdb.Collection("Event"),
+		rdb:        rdb,
 		saveTicker: time.NewTicker(time.Duration(config.BATCH) * time.Second),
 		store:      store,
 	}

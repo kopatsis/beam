@@ -256,6 +256,10 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 		EmailVerified: customer.IsEmailVerified,
 	}
 
+	if !customer.IsEmailVerified {
+		newCust.Status = "Incomplete"
+	}
+
 	if customer.PhoneNumber != nil {
 		newCust.PhoneNumber = orderhelp.CopyString(customer.PhoneNumber)
 	}
