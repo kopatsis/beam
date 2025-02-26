@@ -21,6 +21,10 @@ type ReviewService interface {
 	ReviewsByCustomer(dpi *DataPassIn, fromURL url.Values) (models.ReviewPageRender, error)
 	GetReviewIDOnly(dpi *DataPassIn, ID int) (*models.Review, error)
 	GetReviewsForOrder(dpi *DataPassIn, order *models.Order) (map[int]*models.Review, error)
+
+	RateReviewHelpful(dpi *DataPassIn, reviewID int) (*models.Review, error)
+	RateReviewUnelpful(dpi *DataPassIn, reviewID int) (*models.Review, error)
+	UnrateReview(dpi *DataPassIn, reviewID int) (*models.Review, error)
 }
 
 type reviewService struct {
@@ -270,4 +274,16 @@ func (s *reviewService) GetReviewsForOrder(dpi *DataPassIn, order *models.Order)
 	}
 
 	return s.reviewRepo.GetReviewsMultiProduct(list, order.CustomerID)
+}
+
+func (s *reviewService) RateReviewHelpful(dpi *DataPassIn, reviewID int) (*models.Review, error) {
+	return s.reviewRepo.SetReviewFeedback(dpi.CustomerID, reviewID, true)
+}
+
+func (s *reviewService) RateReviewUnelpful(dpi *DataPassIn, reviewID int) (*models.Review, error) {
+	return s.reviewRepo.SetReviewFeedback(dpi.CustomerID, reviewID, false)
+}
+
+func (s *reviewService) UnrateReview(dpi *DataPassIn, reviewID int) (*models.Review, error) {
+	return s.reviewRepo.UnsetReviewFeedback(dpi.CustomerID, reviewID)
 }
