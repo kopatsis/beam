@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/lib/pq"
+)
 
 type Review struct {
 	PK          int       `gorm:"primaryKey"`
@@ -14,4 +18,14 @@ type Review struct {
 	JustStar    bool
 	Subject     string
 	Body        string
+	ImageURLs   pq.StringArray
+	Helpful     int
+	Unhelpful   int
+}
+
+type ReviewFeedback struct {
+	ReviewID   int `gorm:"primaryKey"`
+	CustomerID int `gorm:"primaryKey"`
+	Assigned   time.Time
+	Helpful    bool
 }

@@ -264,6 +264,12 @@ type OrderRender struct {
 	Descending bool
 }
 
+type ReviewRender struct {
+	Review       *Review
+	CustSelected bool
+	IsHelpful    bool
+}
+
 type ReviewPageRender struct {
 	AllReviews []*Review
 	CustReview *Review

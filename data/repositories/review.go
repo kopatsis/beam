@@ -3,6 +3,7 @@ package repositories
 import (
 	"beam/data/models"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -11,11 +12,19 @@ type ReviewRepository interface {
 	Create(review *models.Review) error
 	Update(review *models.Review) error
 	Delete(ID int) error
+
 	GetSingle(customerID int, productID int) (*models.Review, error)
 	GetSingleByID(ID int) (*models.Review, error)
 	GetReviewsByCustomer(customerID, offset, limit int, sortColumn string, desc bool) ([]*models.Review, error)
 	GetReviewsByProduct(productID, offset, limit int, sortColumn string, desc bool, custBlock int) ([]*models.Review, error)
 	GetReviewsMultiProduct(productIDs []int, customerID int) (map[int]*models.Review, error)
+
+	SetReviewFeedback(customerID, reviewID int, helpful bool) error
+	UnsetReviewFeedback(customerID, reviewID int) error
+
+	// INT: 0 = none found, 1+ = helpful, -1- = unhelpful; error
+	GetReviewFeedback(reviewID, customerID int) (int, error)
+	GetReviewFeedbackMulti(reviewIDs []int, customerID int) (map[int]int, error)
 }
 
 type reviewRepo struct {
@@ -134,4 +143,138 @@ func (r *reviewRepo) GetReviewsMultiProduct(productIDs []int, customerID int) (m
 		}
 	}
 	return reviews, nil
+}
+
+func (r *reviewRepo) SetReviewFeedback(customerID, reviewID int, helpful bool) error {
+	var existingFeedback models.ReviewFeedback
+	err := r.db.Where("review_id = ? AND customer_id = ?", reviewID, customerID).First(&existingFeedback).Error
+
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return err
+	}
+
+	if err == nil && existingFeedback.Helpful == helpful {
+		return nil
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		feedback := models.ReviewFeedback{
+			ReviewID:   reviewID,
+			CustomerID: customerID,
+			Assigned:   time.Now(),
+			Helpful:    helpful,
+		}
+
+		if err := tx.Save(&feedback).Error; err != nil {
+			return err
+		}
+
+		var helpfulChange, unhelpfulChange int
+		if err == gorm.ErrRecordNotFound {
+			if helpful {
+				helpfulChange = 1
+			} else {
+				unhelpfulChange = 1
+			}
+		} else {
+			if helpful {
+				if !existingFeedback.Helpful {
+					helpfulChange = 1
+					unhelpfulChange = -1
+				}
+			} else {
+				if existingFeedback.Helpful {
+					helpfulChange = -1
+					unhelpfulChange = 1
+				}
+			}
+		}
+
+		if helpfulChange != 0 || unhelpfulChange != 0 {
+			if err := tx.Model(&models.Review{}).
+				Where("id = ?", reviewID).
+				Updates(map[string]interface{}{
+					"helpful":   gorm.Expr("helpful + ?", helpfulChange),
+					"unhelpful": gorm.Expr("unhelpful + ?", unhelpfulChange),
+				}).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+func (r *reviewRepo) UnsetReviewFeedback(customerID, reviewID int) error {
+	var existingFeedback models.ReviewFeedback
+	err := r.db.Where("customer_id = ? AND review_id = ?", customerID, reviewID).First(&existingFeedback).Error
+
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return err
+	}
+
+	if err == gorm.ErrRecordNotFound {
+		return nil
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var helpfulChange, unhelpfulChange int
+
+		if existingFeedback.Helpful {
+			helpfulChange = -1
+		} else {
+			unhelpfulChange = -1
+		}
+
+		if helpfulChange != 0 || unhelpfulChange != 0 {
+			if err := tx.Model(&models.Review{}).
+				Where("id = ?", reviewID).
+				Updates(map[string]interface{}{"helpful": gorm.Expr("helpful + ?", helpfulChange), "unhelpful": gorm.Expr("unhelpful + ?", unhelpfulChange)}).Error; err != nil {
+				return err
+			}
+		}
+
+		if err := tx.Where("customer_id = ? AND review_id = ?", customerID, reviewID).Delete(&models.ReviewFeedback{}).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+func (r *reviewRepo) GetReviewFeedback(reviewID, customerID int) (int, error) {
+	var feedback models.ReviewFeedback
+	err := r.db.Where("review_id = ? AND customer_id = ?", reviewID, customerID).First(&feedback).Error
+
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return 0, err
+	}
+
+	if err == gorm.ErrRecordNotFound {
+		return 0, nil
+	}
+
+	if feedback.Helpful {
+		return 1, nil
+	}
+	return -1, nil
+}
+
+func (r *reviewRepo) GetReviewFeedbackMulti(reviewIDs []int, customerID int) (map[int]int, error) {
+	var feedbacks []models.ReviewFeedback
+	err := r.db.Where("review_id IN ? AND customer_id = ?", reviewIDs, customerID).Find(&feedbacks).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := map[int]int{}
+	for _, feedback := range feedbacks {
+		if feedback.Helpful {
+			result[feedback.ReviewID] = 1
+		} else {
+			result[feedback.ReviewID] = -1
+		}
+	}
+
+	return result, nil
 }
