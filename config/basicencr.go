@@ -5,7 +5,10 @@ import (
 	"encoding/base64"
 	"os"
 	"strconv"
+	"strings"
 	"time"
+
+	"math/rand"
 )
 
 func getXORKey() byte {
@@ -62,4 +65,14 @@ func DecodeTime(encoded string) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return time.Unix(seconds, 0), nil
+}
+
+func GenerateRandomString() string {
+	length := rand.Intn(11) + 15
+	characters := LETTER_LIST + NUMBER_LIST
+	var result strings.Builder
+	for i := 0; i < length; i++ {
+		result.WriteByte(characters[rand.Intn(len(characters))])
+	}
+	return result.String()
 }

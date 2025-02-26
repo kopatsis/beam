@@ -44,6 +44,15 @@ type TwoFactorCookie struct {
 	Set           time.Time `json:"s"`
 }
 
+// For reset email when open
+type ResetEmailCookie struct {
+	Param      string    `json:"p"`
+	SecretCode string    `json:"r"`
+	CustomerID int       `json:"c"`
+	Set        time.Time `json:"s"`
+	Initial    time.Time `json:"i"`
+}
+
 // Permanent as opposed to session
 type DeviceCookie struct {
 	DeviceID string `json:"d"`

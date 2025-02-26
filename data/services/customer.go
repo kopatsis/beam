@@ -57,8 +57,10 @@ type CustomerService interface {
 	WatchEmailVerification(dpi *DataPassIn, conn *websocket.Conn)
 	SendVerificationEmail(dpi *DataPassIn, tools *config.Tools) (string, error)
 	ProcessVerificationEmail(dpi *DataPassIn, param string) error
+
 	SendSignInEmail(dpi *DataPassIn, email string, emailSubbed bool, tools *config.Tools) (string, error)
 	ProcessSignInEmail(dpi *DataPassIn, param string, tools *config.Tools) (*models.ClientCookie, error)
+
 	CreateTwoFACode(cust *models.Customer, store string) (*models.TwoFactorCookie, error)
 
 	ChangeCustomerEmail(dpi *DataPassIn, newEmail, password string, tools *config.Tools) error
@@ -69,6 +71,10 @@ type CustomerService interface {
 
 	UnsubLinkForEmails(store string, customerID int) (string, string, string)
 	UnsubCustomerDirect(store, storeEncr, customerEncr, timestamp string) error
+
+	SendResetEmail(dpi *DataPassIn, email string, tools *config.Tools) (string, error)
+	ProcessResetEmail(dpi *DataPassIn, param string) (*models.ResetEmailCookie, error)
+	ResetPasswordActual(dpi *DataPassIn, resetCookie *models.ResetEmailCookie, password, passwordConfirm string, logAllOut bool) error
 }
 
 type customerService struct {
@@ -467,7 +473,7 @@ func (s *customerService) CustomerMiddleware(cookie *models.ClientCookie, device
 				cookie.CustomerSet = time.Time{}
 				return
 			}
-			if customer.Status == "Archived" || customer.LastReset.After(cookie.CustomerSet) {
+			if customer.Status == "Archived" {
 				cookie.CustomerID = 0
 				cookie.CustomerSet = time.Time{}
 			}
@@ -1050,4 +1056,169 @@ func (s *customerService) UnsubCustomerDirect(store, storeEncr, customerEncr, ti
 	}
 
 	return s.customerRepo.SetEmailSubbed(customerID, false)
+}
+
+func (s *customerService) SendResetEmail(dpi *DataPassIn, email string, tools *config.Tools) (string, error) {
+	cust, err := s.customerRepo.GetCustomerByEmail(email)
+	if err != nil {
+		return "", err
+	} else if cust != nil && cust.Status == "Archived" && time.Since(cust.Archived) <= 7*24*time.Hour {
+		return "", errors.New("recently archived customer")
+	}
+
+	if !cust.EmailVerified {
+		return "", errors.New("cannot reset for an unverified email")
+	}
+
+	if !custhelp.VerifyEmail(cust.Email, tools) {
+		// Notify me an existing customer's email not deliverable
+		return "", errors.New("email found to be undeliverable")
+	}
+
+	if time.Since(cust.LastReset) < config.RESET_PASS_COOLDOWN*24*time.Hour {
+		return "", errors.New("password reset too recently to reset again")
+	}
+
+	id := "RS-" + uuid.NewString()
+	secret := "SC-" + config.GenerateRandomString()
+	storedParam := models.ResetEmailParam{Param: id, EmailAtTime: email, CustomerID: cust.ID, Set: time.Now(), SecretCode: secret}
+
+	return id, s.customerRepo.StoreResetEmail(storedParam, dpi.Store)
+}
+
+func (s *customerService) ProcessResetEmail(dpi *DataPassIn, param string) (*models.ResetEmailCookie, error) {
+	resetParams, err := s.customerRepo.GetResetEmail(param, dpi.Store)
+	if err != nil {
+		return nil, err
+	}
+
+	if resetParams.Param != param {
+		return nil, errors.New("params do not match")
+	}
+
+	if time.Since(resetParams.Set) > time.Duration(config.RESET_EXPIR_MINS)*time.Minute {
+		// Alert me about it, since it should have expired on redis too
+		return nil, errors.New("expired code, not deleted in system")
+	}
+
+	cust, err := s.customerRepo.Read(resetParams.CustomerID)
+	if err != nil {
+		return nil, err
+	}
+
+	if cust == nil || cust.ID != resetParams.CustomerID {
+		return nil, errors.New("unable to retrieve correct customer")
+	}
+
+	if cust.Status == "Archived" {
+		return nil, errors.New("archived customer")
+	}
+
+	if cust.Email != resetParams.EmailAtTime {
+		return nil, errors.New("email was changed, cannot verify")
+	}
+
+	if !cust.EmailVerified {
+		// Alert me about it, since if the email is the same and it was previously verified, something off
+		return nil, errors.New("non verified email for customer")
+	}
+
+	if time.Since(cust.LastReset) < config.RESET_PASS_COOLDOWN*24*time.Hour {
+		return nil, errors.New("password reset too recently to reset again")
+	}
+
+	return &models.ResetEmailCookie{
+		Param:      resetParams.Param,
+		SecretCode: resetParams.SecretCode,
+		CustomerID: resetParams.CustomerID,
+		Set:        time.Now(),
+		Initial:    resetParams.Set,
+	}, nil
+
+}
+
+func (s *customerService) ResetPasswordActual(dpi *DataPassIn, resetCookie *models.ResetEmailCookie, password, passwordConfirm string, logAllOut bool) error {
+
+	if !custhelp.PasswordMeetsRequirements(password, passwordConfirm, true) {
+		return errors.New("password does not meet requirements")
+	}
+
+	resetParams, err := s.customerRepo.GetResetEmail(resetCookie.Param, dpi.Store)
+	if err != nil {
+		return err
+	}
+
+	if resetParams.Param != resetCookie.Param {
+		return errors.New("params do not match")
+	}
+
+	if time.Since(resetParams.Set) > time.Duration(config.RESET_EXPIR_MINS)*time.Minute {
+		// Alert me about it, since it should have expired on redis too
+		return errors.New("expired code, not deleted in system")
+	}
+
+	if resetParams.SecretCode != resetCookie.SecretCode {
+		return errors.New("secret codes do not match")
+	}
+
+	if resetParams.CustomerID != resetCookie.CustomerID {
+		return errors.New("customer ids do not match")
+	}
+
+	cust, err := s.customerRepo.Read(resetParams.CustomerID)
+	if err != nil {
+		return err
+	}
+
+	if cust == nil || cust.ID != resetParams.CustomerID {
+		return errors.New("unable to retrieve correct customer")
+	}
+
+	if cust.Status == "Archived" {
+		return errors.New("archived customer")
+	}
+
+	if cust.Email != resetParams.EmailAtTime {
+		return errors.New("email was changed, cannot verify")
+	}
+
+	if !cust.EmailVerified {
+		// Alert me about it, since if the email is the same and it was previously verified, something off
+		return errors.New("non verified email for customer")
+	}
+
+	if time.Since(cust.LastReset) < config.RESET_PASS_COOLDOWN*24*time.Hour {
+		return errors.New("password reset too recently to reset again")
+	}
+
+	cust.LastReset = time.Now()
+
+	hash, err := custhelp.EncryptPassword(password)
+	if err != nil {
+		// Notify me that password unable to be hashed even though met requirements
+		return err
+	}
+	cust.PasswordHash = hash
+
+	if err := s.customerRepo.Update(*cust); err != nil {
+		return err
+	}
+
+	if logAllOut {
+		c, err := s.customerRepo.GetServerCookie(cust.ID, dpi.Store)
+		if err != nil {
+			// Notify me somehow user can't get server cookie
+			return err
+		} else if c == nil {
+			// Notify me somehow user can't get server cookie
+			return errors.New("nil server cookie")
+		}
+
+		if _, err := s.customerRepo.SetServerCookieReset(c, cust.LastReset); err != nil {
+			return err
+		}
+	}
+
+	return nil
+
 }

@@ -216,3 +216,41 @@ func GetTwoFACookie(c *gin.Context) *models.TwoFactorCookie {
 	}
 	return &twofa
 }
+
+func SetResetCookie(c *gin.Context, reset models.ResetEmailCookie) {
+	if reset.Param == "" {
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     "reset",
+			Value:    "",
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+			MaxAge:   -1,
+		})
+		return
+	}
+
+	data, _ := json.Marshal(reset)
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "reset",
+		Value:    string(data),
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   0,
+	})
+}
+
+func GetResetCookie(c *gin.Context) *models.ResetEmailCookie {
+	cookie, err := c.Cookie("reset")
+	if err != nil {
+		return nil
+	}
+	var reset models.ResetEmailCookie
+	if err := json.Unmarshal([]byte(cookie), &reset); err != nil {
+		return nil
+	}
+	return &reset
+}

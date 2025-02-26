@@ -63,6 +63,10 @@ type CustomerRepository interface {
 	GetDeviceMapping(deviceID, store string) (int, error)
 	DeleteIncompleteUnverifiedCustomers() error
 	IncompleteScheduled()
+
+	StoreResetEmail(param models.ResetEmailParam, store string) error
+	GetResetEmail(param, store string) (models.ResetEmailParam, error)
+	DeleteResetEmail(param, store string) error
 }
 
 type customerRepo struct {
@@ -612,4 +616,41 @@ func (r *customerRepo) IncompleteScheduled() {
 	if err != nil {
 		log.Printf("Error deleting incomplete unverified customers: %v", err)
 	}
+}
+
+func (r *customerRepo) StoreResetEmail(param models.ResetEmailParam, store string) error {
+	if param.Param == "" {
+		return errors.New("param cannot be empty")
+	}
+
+	data, err := json.Marshal(param)
+	if err != nil {
+		return err
+	}
+
+	return r.rdb.Set(context.Background(), store+"::RSCE::"+param.Param, data, time.Duration(config.RESET_EXPIR_MINS)*time.Minute).Err()
+}
+
+func (r *customerRepo) GetResetEmail(param, store string) (models.ResetEmailParam, error) {
+	if param == "" {
+		return models.ResetEmailParam{}, errors.New("param cannot be empty")
+	}
+	key := store + "::RSCE::" + param
+
+	data, err := r.rdb.Get(context.Background(), key).Bytes()
+	if err != nil {
+		return models.ResetEmailParam{}, err
+	}
+
+	var result models.ResetEmailParam
+	if err := json.Unmarshal(data, &result); err != nil {
+		return models.ResetEmailParam{}, err
+	}
+
+	return result, nil
+}
+
+func (r *customerRepo) DeleteResetEmail(param, store string) error {
+	key := store + "::RSCE::" + param
+	return r.rdb.Del(context.Background(), key).Err()
 }
