@@ -31,7 +31,7 @@ func CopyContact(c *models.Contact) *models.Contact {
 }
 
 func CreateOrderFromDraft(draft *models.DraftOrder, sessionID, affiliateCode string, affiliateID int) *models.Order {
-	return &models.Order{
+	ret := &models.Order{
 		PrintfulID:         draft.PrintfulID,
 		CustomerID:         draft.CustomerID,
 		DraftOrderID:       draft.ID.Hex(),
@@ -65,7 +65,14 @@ func CreateOrderFromDraft(draft *models.DraftOrder, sessionID, affiliateCode str
 		GiftMessage:        draft.GiftMessage,
 		CATax:              draft.CATax,
 		CATaxRate:          draft.CATaxRate,
+		CheckDeliveryDate:  draft.CheckDeliveryDate,
 	}
+
+	if ret.CheckDeliveryDate.IsZero() {
+		ret.CheckDeliveryDate = time.Now().AddDate(0, 0, 14)
+	}
+
+	return ret
 }
 
 func CreatePrintfulOrder(order *models.Order, mutex *config.AllMutexes) (*apidata.Order, error) {

@@ -59,6 +59,7 @@ type Order struct {
 	GiftMessage            string             `bson:"gift_mess" json:"gift_mess"`
 	CATax                  bool               `bson:"ca_tax" json:"ca_tax"`
 	CATaxRate              float64            `bson:"ca_tax_rate" json:"ca_tax_rate"`
+	CheckDeliveryDate      time.Time          `bson:"check_date" json:"check_date"`
 	PaymentMethodID        string             `bson:"pm_id" json:"pm_id"`
 	StripeRefundID         *string            `bson:"rf_id,omitempty" json:"rf_id,omitempty"`
 }
@@ -110,6 +111,7 @@ type DraftOrder struct {
 	CATaxRate             float64                      `bson:"ca_tax_rate" json:"ca_tax_rate"`
 	NewPaymentMethodID    string                       `bson:"new_pm_id" json:"new_pm_id"`
 	ExistingPaymentMethod PaymentMethodStripe          `bson:"ex_pm" json:"ex_pm"`
+	CheckDeliveryDate     time.Time                    `bson:"check_date" json:"check_date"`
 	AllPaymentMethods     []PaymentMethodStripe        `bson:"all_pm" json:"all_pm"`
 	ListedContacts        []*Contact                   `bson:"all_contacts" json:"all_contacts"`
 }

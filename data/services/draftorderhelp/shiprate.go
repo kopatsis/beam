@@ -86,6 +86,16 @@ func UpdateActualShippingRate(order *models.DraftOrder, shipID string) error {
 	}
 
 	order.Shipping = rateInt
+
+	checkDays := selectedRate.MinDeliveryDays
+	if checkDays <= 0 {
+		checkDays = 14
+	} else {
+		checkDays += 3
+	}
+
+	order.CheckDeliveryDate = time.Now().AddDate(0, 0, checkDays)
+
 	return nil
 }
 
