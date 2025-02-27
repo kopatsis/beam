@@ -39,6 +39,7 @@ type VariantRedis struct {
 	Quantity        int                    `json:"q"`
 	VariantImageURL string                 `json:"vu"`
 	Barcode         string                 `json:"bc"`
+	AlwaysUp        bool                   `json:"a"`
 }
 
 type ProductInfo struct {

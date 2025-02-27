@@ -490,7 +490,7 @@ func (s *productService) SetInventoryFromOrder(dpi *DataPassIn, decrement map[in
 				alwaysUpAdjQty := 0
 
 				v.Quantity -= dec
-				if config.INV_ALWAYS_UP && v.Quantity < config.LOWEST_INV {
+				if v.AlwaysUp && v.Quantity < config.LOWEST_INV {
 					rangeRand := config.HIGHER_INV - config.LOWER_INV + 1
 					if rangeRand < 0 {
 						rangeRand = 0

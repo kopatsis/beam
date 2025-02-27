@@ -56,6 +56,7 @@ type Variant struct {
 	Quantity        int     `gorm:"type:int"`
 	VariantImageURL string  `gorm:"type:varchar(1024)"`
 	VariantBarcode  string  `gorm:"type:varchar(256)"`
+	AlwaysUp        bool
 }
 
 type OriginalProduct struct {
