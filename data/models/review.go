@@ -12,6 +12,7 @@ type Review struct {
 	ProductID   int       `gorm:"index"`
 	CreatedAt   time.Time `gorm:"index"`
 	Status      string    `gorm:"index"`
+	Public      bool
 	DisplayName string
 	LastEdited  time.Time
 	Stars       int

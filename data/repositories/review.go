@@ -12,14 +12,17 @@ type ReviewRepository interface {
 	Update(review *models.Review) error
 	Delete(ID int) error
 
-	GetSingle(customerID int, productID int) (*models.Review, error)
-	GetSingleByID(ID int) (*models.Review, error)
-	GetReviewsByCustomer(customerID, offset, limit int, sortColumn string, desc bool) ([]*models.Review, error)
-	GetReviewsByProduct(productID, offset, limit int, sortColumn string, desc bool, custBlock int) ([]*models.Review, error)
-	GetReviewsMultiProduct(productIDs []int, customerID int) (map[int]*models.Review, error)
+	GetSingle(customerID int, productID int, personal bool) (*models.Review, error)
+	GetSingleByID(ID int, personal bool) (*models.Review, error)
+	GetReviewsByCustomer(customerID, offset, limit int, sortColumn string, desc, personal bool) ([]*models.Review, error)
+	GetReviewsByProduct(productID, offset, limit int, sortColumn string, desc bool, custBlock int, personal bool) ([]*models.Review, error)
+	GetReviewsMultiProduct(productIDs []int, customerID int, personal bool) (map[int]*models.Review, error)
 
 	SetReviewFeedback(customerID, reviewID int, helpful bool) (*models.Review, error)
 	UnsetReviewFeedback(customerID, reviewID int) (*models.Review, error)
+
+	GetDraftReviews() ([]models.Review, error)
+	UpdateReviewStatus(activeIDs, inactiveIDs []int) error
 }
 
 type reviewRepo struct {
@@ -42,9 +45,15 @@ func (r *reviewRepo) Delete(ID int) error {
 	return r.db.Delete(&models.Review{}, ID).Error
 }
 
-func (r *reviewRepo) GetSingle(customerID int, productID int) (*models.Review, error) {
+func (r *reviewRepo) GetSingle(customerID int, productID int, personal bool) (*models.Review, error) {
 	var reviews []models.Review
-	if err := r.db.Where("customer_id = ? AND product_id = ?", customerID, productID).Find(&reviews).Error; err != nil {
+
+	query := r.db.Where("customer_id = ? AND product_id = ?", customerID, productID)
+	if !personal {
+		query = query.Where("status = ? AND public = ?", "Active", true)
+	}
+
+	if err := query.Find(&reviews).Error; err != nil {
 		return nil, err
 	}
 	if len(reviews) > 1 {
@@ -56,15 +65,19 @@ func (r *reviewRepo) GetSingle(customerID int, productID int) (*models.Review, e
 	return &reviews[0], nil
 }
 
-func (r *reviewRepo) GetSingleByID(ID int) (*models.Review, error) {
+func (r *reviewRepo) GetSingleByID(ID int, personal bool) (*models.Review, error) {
 	var review models.Review
-	if err := r.db.First(&review, ID).Error; err != nil {
+	query := r.db.Where("id = ?", ID)
+	if !personal {
+		query = query.Where("status = ? AND public = ?", "Active", true)
+	}
+	if err := query.First(&review).Error; err != nil {
 		return nil, err
 	}
 	return &review, nil
 }
 
-func (r *reviewRepo) GetReviewsByCustomer(customerID, offset, limit int, sortColumn string, desc bool) ([]*models.Review, error) {
+func (r *reviewRepo) GetReviewsByCustomer(customerID, offset, limit int, sortColumn string, desc, personal bool) ([]*models.Review, error) {
 	var reviews []*models.Review
 	order := sortColumn
 
@@ -80,18 +93,23 @@ func (r *reviewRepo) GetReviewsByCustomer(customerID, offset, limit int, sortCol
 		order += ", stars DESC"
 	}
 
-	if err := r.db.Where("customer_id = ? AND just_star = false", customerID).
+	query := r.db.Where("customer_id = ? AND just_star = false", customerID).
 		Order(order).
 		Offset(offset).
-		Limit(limit).
-		Find(&reviews).Error; err != nil {
+		Limit(limit)
+
+	if !personal {
+		query = query.Where("status = ? AND public = ?", "Active", true)
+	}
+
+	if err := query.Find(&reviews).Error; err != nil {
 		return nil, err
 	}
 
 	return reviews, nil
 }
 
-func (r *reviewRepo) GetReviewsByProduct(productID, offset, limit int, sortColumn string, desc bool, custBlock int) ([]*models.Review, error) {
+func (r *reviewRepo) GetReviewsByProduct(productID, offset, limit int, sortColumn string, desc bool, custBlock int, personal bool) ([]*models.Review, error) {
 	var reviews []*models.Review
 	order := sortColumn
 
@@ -108,6 +126,9 @@ func (r *reviewRepo) GetReviewsByProduct(productID, offset, limit int, sortColum
 	}
 
 	query := r.db.Where("product_id = ? AND just_star = false", productID)
+	if !personal {
+		query = query.Where("status = ? AND public = ?", "Active", true)
+	}
 
 	if custBlock > 0 {
 		query = query.Where("customer_id != ?", custBlock)
@@ -123,12 +144,18 @@ func (r *reviewRepo) GetReviewsByProduct(productID, offset, limit int, sortColum
 	return reviews, nil
 }
 
-func (r *reviewRepo) GetReviewsMultiProduct(productIDs []int, customerID int) (map[int]*models.Review, error) {
+func (r *reviewRepo) GetReviewsMultiProduct(productIDs []int, customerID int, personal bool) (map[int]*models.Review, error) {
 	reviews := make(map[int]*models.Review)
 	var result []models.Review
-	if err := r.db.Where("product_id IN ? AND customer_id = ?", productIDs, customerID).Find(&result).Error; err != nil {
+	query := r.db.Where("product_id IN ? AND customer_id = ?", productIDs, customerID)
+	if !personal {
+		query = query.Where("status = ? AND public = ?", "Active", true)
+	}
+
+	if err := query.Find(&result).Error; err != nil {
 		return nil, err
 	}
+
 	for _, review := range result {
 		reviews[review.ProductID] = &review
 	}
@@ -167,4 +194,28 @@ func (r *reviewRepo) UnsetReviewFeedback(customerID, reviewID int) (*models.Revi
 	}
 
 	return &review, nil
+}
+
+func (r *reviewRepo) GetDraftReviews() ([]models.Review, error) {
+	var reviews []models.Review
+	if err := r.db.Where("status = ?", "Draft").Find(&reviews).Error; err != nil {
+		return nil, err
+	}
+	return reviews, nil
+}
+
+func (r *reviewRepo) UpdateReviewStatus(activeIDs, inactiveIDs []int) error {
+	if len(activeIDs) > 0 {
+		if err := r.db.Model(&models.Review{}).Where("id IN ?", activeIDs).Update("status", "Active").Error; err != nil {
+			return err
+		}
+	}
+
+	if len(inactiveIDs) > 0 {
+		if err := r.db.Model(&models.Review{}).Where("id IN ?", inactiveIDs).Update("status", "Inactive").Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
