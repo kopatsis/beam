@@ -15,7 +15,7 @@ import (
 )
 
 type ReviewService interface {
-	AddReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps ProductService, cs CustomerService, tools *config.Tools) (*models.Review, error)
+	AddReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, imgs []models.IntermImage, ps ProductService, cs CustomerService, tools *config.Tools) (*models.Review, error)
 	UpdateReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps ProductService, cs CustomerService, tools *config.Tools) (*models.Review, error)
 	DeleteReview(dpi *DataPassIn, productID int, store string, ps ProductService, tools *config.Tools) (*models.Review, error)
 	GetReview(dpi *DataPassIn, productID int) (*models.Review, error)
@@ -41,7 +41,7 @@ func NewReviewService(reviewRepo repositories.ReviewRepository) ReviewService {
 	return &reviewService{reviewRepo: reviewRepo}
 }
 
-func (s *reviewService) AddReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, ps ProductService, cs CustomerService, tools *config.Tools) (*models.Review, error) {
+func (s *reviewService) AddReview(dpi *DataPassIn, productID int, store string, stars int, justStar, useDefaultName bool, displayName, subject, body string, imgs []models.IntermImage, ps ProductService, cs CustomerService, tools *config.Tools) (*models.Review, error) {
 	if len(subject) > 280 {
 		subject = subject[:277] + "..."
 	}
@@ -81,6 +81,21 @@ func (s *reviewService) AddReview(dpi *DataPassIn, productID int, store string, 
 		stars = 1
 	}
 
+	var urls pq.StringArray
+	for i, img := range imgs {
+		if i > 2 {
+			break
+		}
+		url, err := config.UploadToS3(tools.S3, img.FileNameNew, img.Data)
+		if err != nil {
+			/// Notify me S3 failure
+			log.Printf("Failed to add image from S3: %s, Error: %v", img.FileNameNew, err)
+		} else {
+			urls = append(urls, url)
+		}
+
+	}
+
 	review := &models.Review{
 		CustomerID:  dpi.CustomerID,
 		ProductID:   productID,
@@ -89,6 +104,7 @@ func (s *reviewService) AddReview(dpi *DataPassIn, productID int, store string, 
 		JustStar:    justStar,
 		Subject:     subject,
 		Body:        body,
+		ImageURLs:   urls,
 	}
 
 	if err := s.reviewRepo.Create(review); err != nil {
@@ -165,6 +181,13 @@ func (s *reviewService) DeleteReview(dpi *DataPassIn, productID int, store strin
 	}
 	if existingReview == nil {
 		return nil, fmt.Errorf("review does not exist for customerID %d and productID %d", dpi.CustomerID, productID)
+	}
+
+	for _, imgURL := range existingReview.ImageURLs {
+		if err := config.DeleteFromS3(tools.S3, imgURL); err != nil {
+			// Notify me S3 failure
+			log.Printf("Failed to delete image from S3: %s, Error: %v", imgURL, err)
+		}
 	}
 
 	stars := existingReview.Stars
@@ -311,7 +334,7 @@ func (s *reviewService) AddNewImage(dpi *DataPassIn, reviewID int, img models.In
 
 	if len(r.ImageURLs) >= 3 {
 		if err := config.DeleteFromS3(tools.S3, r.ImageURLs[2]); err != nil {
-			/// Notify me S3 failure
+			// Notify me S3 failure
 			log.Printf("Failed to delete image from S3: %s, Error: %v", r.ImageURLs[2], err)
 		}
 		r.ImageURLs = r.ImageURLs[:2]
@@ -349,7 +372,7 @@ func (s *reviewService) RemoveImage(dpi *DataPassIn, reviewID int, imgID string,
 			newImageURLs = append(newImageURLs, listedImg)
 		} else {
 			if err := config.DeleteFromS3(tools.S3, r.ImageURLs[i]); err != nil {
-				/// Notify me S3 failure
+				// Notify me S3 failure
 				log.Printf("Failed to delete image from S3: %s, Error: %v", r.ImageURLs[2], err)
 			}
 		}
