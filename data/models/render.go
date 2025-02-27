@@ -70,12 +70,13 @@ type VariantBlock struct {
 }
 
 type AllVariants struct {
-	First     []VariantBlock
-	FirstKey  string
-	Second    []VariantBlock
-	SecondKey string
-	Third     []VariantBlock
-	ThirdKey  string
+	First       []VariantBlock
+	FirstKey    string
+	Second      []VariantBlock
+	SecondKey   string
+	Third       []VariantBlock
+	ThirdKey    string
+	ActiveImage string
 }
 
 type ProductRender struct {

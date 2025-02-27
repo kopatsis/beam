@@ -281,7 +281,7 @@ func scoreTitling(tokens []string, prods []*Searcher) {
 	}
 }
 
-func removeNonMatches(prods []*Searcher) []*Searcher {
+func RemoveNonMatches(prods []*Searcher) []*Searcher {
 	var filteredProds []*Searcher
 	for _, prod := range prods {
 		if prod.InitialScore >= 15 || prod.TitleMatchScore > 50 {
@@ -291,7 +291,7 @@ func removeNonMatches(prods []*Searcher) []*Searcher {
 	return filteredProds
 }
 
-func scoreFullTitleComp(full string, prods []*Searcher) {
+func ScoreFullTitleComp(full string, prods []*Searcher) {
 	for i := range prods {
 		prods[i].TitleMatchScore = 4 * fuzzyCompare(full, prods[i].ProductInfo.Title, true)
 	}

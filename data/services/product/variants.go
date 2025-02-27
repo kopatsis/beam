@@ -29,13 +29,24 @@ func VariantSelectorRenders(product models.ProductRedis, vid int) models.AllVari
 
 	first, second, third = modifyEachList(product, layer, val1, val2, val3, first, second, third)
 
+	imageURL := product.ImageURL
+	for _, v := range product.Variants {
+		if v.PK == vid {
+			if v.VariantImageURL != "" {
+				imageURL = v.VariantImageURL
+			}
+			break
+		}
+	}
+
 	ret := models.AllVariants{
-		First:     first,
-		FirstKey:  product.Var1Key,
-		Second:    second,
-		SecondKey: product.Var2Key,
-		Third:     third,
-		ThirdKey:  product.Var3Key,
+		First:       first,
+		FirstKey:    product.Var1Key,
+		Second:      second,
+		SecondKey:   product.Var2Key,
+		Third:       third,
+		ThirdKey:    product.Var3Key,
+		ActiveImage: imageURL,
 	}
 	return ret
 }
