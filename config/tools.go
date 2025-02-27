@@ -11,6 +11,9 @@ import (
 	"time"
 
 	emailverifier "github.com/AfterShip/email-verifier"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-redis/redis/v8"
 	"github.com/oschwald/geoip2-golang"
 	"github.com/sendgrid/sendgrid-go"
@@ -23,6 +26,7 @@ type Tools struct {
 	Redis         *redis.Client
 	Geo           *geoip2.Reader
 	EmailVerifier *emailverifier.Verifier
+	S3            *s3.S3
 }
 
 func NewTools(client *redis.Client) *Tools {
@@ -35,6 +39,9 @@ func NewTools(client *redis.Client) *Tools {
 	if err := t.initializeStripe(); err != nil {
 		log.Fatalf("Error initializing Stripe: %v", err)
 	}
+	if err := t.initializeS3(); err != nil {
+		log.Fatalf("Error initializing S3: %v", err)
+	}
 	t.initializeGeo()
 	t.initializeEmailVerifier()
 	return t
@@ -46,6 +53,15 @@ func (t *Tools) initializeSendGrid() error {
 		return fmt.Errorf("SENDGRID_API_KEY is not set")
 	}
 	t.SendGrid = sendgrid.NewSendClient(apiKey)
+	return nil
+}
+
+func (t *Tools) initializeS3() error {
+	sess, err := session.NewSession(&aws.Config{Region: aws.String("us-east-1")})
+	if err != nil {
+		return err
+	}
+	t.S3 = s3.New(sess)
 	return nil
 }
 

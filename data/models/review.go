@@ -25,6 +25,14 @@ type Review struct {
 	Unhelpful   int
 }
 
+type IntermImage struct {
+	Data        []byte
+	FileNameOG  string
+	FileNameNew string
+	AddedID     string
+	FileType    string
+}
+
 func (r *Review) CheckCust(customerID int) int {
 	customerID64 := int64(customerID)
 

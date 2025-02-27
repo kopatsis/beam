@@ -16,6 +16,7 @@ require (
 
 require (
 	github.com/AfterShip/email-verifier v1.4.1 // indirect
+	github.com/aws/aws-sdk-go v1.55.6 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/golang/snappy v0.0.4 // indirect
@@ -27,9 +28,11 @@ require (
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
+	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/oschwald/maxminddb-golang v1.13.0 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/sendgrid/rest v2.6.9+incompatible // indirect

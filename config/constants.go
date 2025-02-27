@@ -74,3 +74,5 @@ const CONFIRM_EMAIL_MAX = 10      // attempts
 const CONFIRM_EMAIL_COOLDOWN = 12 // hours
 
 const SCHEDULED_INCOMPLETE_CUST = 60
+
+const REVIEW_BUCKET_NAME = "reviews-storage-beam-a312"

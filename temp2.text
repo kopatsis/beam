@@ -319,3 +319,7 @@ ALLFILTERS - redis: "ALLFILTERS"
 FilterSave - redis:
 * in extremely rare situation that filter query is > 2048 chars, is structured as https://mainurl.com/collections/this-collection-handle?fid=[uid]
 fid : full string filter
+
+
+
+https://amazon-sales-channel-app-backend.cifapps.com/plan/plan/processQuotePayment?payment_token=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJxdW90ZV9pZCI6IjIxNjQ3NCIsImV4cCI6MTc0MDg3Mjg2NCwiYXVkIjoiIiwicGxhbl90eXBlIjoiY3VzdG9tIiwidXNlcl9pZCI6IjY1YjE5NzEyNDA5ZmIxMmZlODBhZDkxNSIsImlzcyI6Imh0dHBzOi8vYXBwcy5jZWRjb21tZXJjZS5jb20iLCJ0b2tlbl9pZCI6IjY3YmZhODIwZDNkNWI1OWFmMzBlNTExMiJ9.nubF5BQelwt5DjVyMeY3rVgmnTIUQmu3wuten9nyC8PWXhIq4Uqzv2Dn4AgfvBK6qVbMDzllJNUd4IEWtfiosx0OyeE04TLmZ9MYGG6Y1zXuzzNBwh0ID4mV4YKp5pQ8CWVKazDZHEragYW92gdvRG_Od9U-t4g8hqWprBfPiH5l9KG0ESr9q0WfZu91jqCceHNoMt2gqzdSiOVpion8lTRgIcP7UnCTXaqJHBJ-yK-u1yvxyNnnRD0-xMOJ3WPV-LTkdWXw_XtbEO4NjH3ZZEdRfg2fp-0cANEZn2OqE5ykkrYKJh68rwhhkJjz6-hhLvjedUSh-XwFI-1ppLIjqQ
