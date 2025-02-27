@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strings"
+
+	"github.com/lib/pq"
 )
 
 type ReviewService interface {
@@ -25,6 +28,9 @@ type ReviewService interface {
 	RateReviewHelpful(dpi *DataPassIn, reviewID int) (*models.Review, error)
 	RateReviewUnelpful(dpi *DataPassIn, reviewID int) (*models.Review, error)
 	UnrateReview(dpi *DataPassIn, reviewID int) (*models.Review, error)
+
+	AddNewImage(dpi *DataPassIn, reviewID int, img models.IntermImage, tools *config.Tools) (*models.Review, error)
+	RemoveImage(dpi *DataPassIn, reviewID int, imgID string, tools *config.Tools) (*models.Review, error)
 }
 
 type reviewService struct {
@@ -286,4 +292,69 @@ func (s *reviewService) RateReviewUnelpful(dpi *DataPassIn, reviewID int) (*mode
 
 func (s *reviewService) UnrateReview(dpi *DataPassIn, reviewID int) (*models.Review, error) {
 	return s.reviewRepo.UnsetReviewFeedback(dpi.CustomerID, reviewID)
+}
+
+func (s *reviewService) AddNewImage(dpi *DataPassIn, reviewID int, img models.IntermImage, tools *config.Tools) (*models.Review, error) {
+	r, err := s.reviewRepo.GetSingleByID(reviewID)
+	if err != nil {
+		return nil, err
+	} else if r == nil {
+		return nil, errors.New("empty review")
+	} else if r.CustomerID != dpi.CustomerID {
+		return nil, fmt.Errorf("review doesn't belong to customer: %d", dpi.CustomerID)
+	}
+
+	fileName, err := config.UploadToS3(tools.S3, img.FileNameNew, img.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(r.ImageURLs) >= 3 {
+		if err := config.DeleteFromS3(tools.S3, r.ImageURLs[2]); err != nil {
+			/// Notify me S3 failure
+			log.Printf("Failed to delete image from S3: %s, Error: %v", r.ImageURLs[2], err)
+		}
+		r.ImageURLs = r.ImageURLs[:2]
+	}
+
+	r.ImageURLs = append(r.ImageURLs, fileName)
+
+	return r, s.reviewRepo.Update(r)
+}
+
+func (s *reviewService) RemoveImage(dpi *DataPassIn, reviewID int, imgID string, tools *config.Tools) (*models.Review, error) {
+	r, err := s.reviewRepo.GetSingleByID(reviewID)
+	if err != nil {
+		return nil, err
+	} else if r == nil {
+		return nil, errors.New("empty review")
+	} else if r.CustomerID != dpi.CustomerID {
+		return nil, fmt.Errorf("review doesn't belong to customer: %d", dpi.CustomerID)
+	}
+
+	index := -1
+	for i, listedImg := range r.ImageURLs {
+		if strings.Contains(listedImg, imgID) {
+			index = i
+		}
+	}
+
+	if index == -1 {
+		return r, errors.New("no image with matching file name to id")
+	}
+
+	var newImageURLs pq.StringArray
+	for i, listedImg := range r.ImageURLs {
+		if i != index {
+			newImageURLs = append(newImageURLs, listedImg)
+		} else {
+			if err := config.DeleteFromS3(tools.S3, r.ImageURLs[i]); err != nil {
+				/// Notify me S3 failure
+				log.Printf("Failed to delete image from S3: %s, Error: %v", r.ImageURLs[2], err)
+			}
+		}
+	}
+	r.ImageURLs = newImageURLs
+
+	return r, s.reviewRepo.Update(r)
 }
