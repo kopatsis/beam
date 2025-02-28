@@ -94,7 +94,7 @@ func (s *discountService) CreateGiftCard(cents int, message string, store string
 func (s *discountService) RetrieveGiftCard(code, pin string) (*models.GiftCard, error) {
 	if !discount.CheckID(code) {
 		return nil, errors.New("invalid gift card code")
-	} else if matched, _ := regexp.MatchString(`^\d{3}$`, pin); !matched {
+	} else if matched, err := regexp.MatchString(`^\d{3}$`, pin); !matched || err != nil {
 		return nil, errors.New("invalid pin code")
 	}
 

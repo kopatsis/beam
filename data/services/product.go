@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"slices"
 	"sort"
-	"strconv"
 
 	"math/rand"
 )
@@ -27,8 +26,9 @@ type ProductService interface {
 	GetFullProduct(store, handle string) (models.ProductRedis, string, error)
 
 	GetAllProductInfo(fromURL url.Values, Mutex *config.AllMutexes, name string) (models.CollectionRender, error)
-	GetProductAndProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRedis, models.ProductRender, string, error)
-	GetProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRender, string, error)
+	GetProductAndProductRender(name, handle string, varid int) (models.ProductRedis, models.ProductRender, string, error)
+
+	GetProductRender(name, handle string, varid int) (models.ProductRender, string, error)
 	GetLimitedVariants(name string, vids []int) ([]*models.LimitedVariantRedis, error)
 	GetProductByVariantID(name string, vid int) (models.ProductRedis, string, error)
 	GetProductsByVariantIDs(name string, vids []int) (map[int]*models.ProductRedis, error)
@@ -136,7 +136,7 @@ func (s *productService) GetAllProductInfo(fromURL url.Values, Mutex *config.All
 
 }
 
-func (s *productService) GetProductAndProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRedis, models.ProductRender, string, error) {
+func (s *productService) GetProductAndProductRender(name, handle string, varid int) (models.ProductRedis, models.ProductRender, string, error) {
 
 	rprod, redir, err := s.productRepo.GetFullProduct(name, handle)
 	if err != nil {
@@ -144,15 +144,11 @@ func (s *productService) GetProductAndProductRender(Mutex *config.AllMutexes, na
 	} else if redir != "" {
 		return models.ProductRedis{}, models.ProductRender{}, redir, err
 	}
-	fmt.Print(rprod, redir)
 
 	actualID := 0
-	convertedID, err := strconv.Atoi(id)
-	if err == nil {
-		for _, v := range rprod.Variants {
-			if v.PK == convertedID {
-				actualID = v.PK
-			}
+	for _, v := range rprod.Variants {
+		if v.PK == varid {
+			actualID = v.PK
 		}
 	}
 
@@ -171,6 +167,7 @@ func (s *productService) GetProductAndProductRender(Mutex *config.AllMutexes, na
 		for _, v := range rprod.Variants {
 			if v.Quantity > 0 {
 				actualID = v.PK
+				break
 			}
 		}
 		if actualID == 0 {
@@ -192,8 +189,8 @@ func (s *productService) GetProductAndProductRender(Mutex *config.AllMutexes, na
 	return rprod, ret, "", nil
 }
 
-func (s *productService) GetProductRender(Mutex *config.AllMutexes, name, handle, id string) (models.ProductRender, string, error) {
-	_, rend, redir, err := s.GetProductAndProductRender(Mutex, name, handle, id)
+func (s *productService) GetProductRender(name, handle string, varid int) (models.ProductRender, string, error) {
+	_, rend, redir, err := s.GetProductAndProductRender(name, handle, varid)
 	return rend, redir, err
 }
 
