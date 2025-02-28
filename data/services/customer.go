@@ -75,6 +75,8 @@ type CustomerService interface {
 	SendResetEmail(dpi *DataPassIn, email string, tools *config.Tools) (string, error)
 	ProcessResetEmail(dpi *DataPassIn, param string) (*models.ResetEmailCookie, error)
 	ResetPasswordActual(dpi *DataPassIn, resetCookie *models.ResetEmailCookie, password, passwordConfirm string, logAllOut bool) error
+
+	BirthdayEmails(store string, tools *config.Tools) error
 }
 
 type customerService struct {
@@ -1226,5 +1228,39 @@ func (s *customerService) ResetPasswordActual(dpi *DataPassIn, resetCookie *mode
 	}
 
 	return nil
+}
 
+func (s *customerService) BirthdayEmails(store string, tools *config.Tools) error {
+	currentDate := time.Now()
+	day := currentDate.Day()
+	month := int(currentDate.Month())
+
+	custs, err := s.customerRepo.ReadByBirthday(month, day)
+	if err != nil {
+		return err
+	}
+
+	var secondCusts []*models.Customer
+	if day == 1 && month == 3 {
+		secondCusts, err = s.customerRepo.ReadByBirthday(2, 29)
+		if err != nil {
+			// just notify me
+		}
+	}
+
+	for _, cust := range custs {
+		if cust == nil {
+			continue
+		}
+		emails.CustBirthdayEmail(store, cust.Email, cust, false, tools)
+	}
+
+	for _, cust := range secondCusts {
+		if cust == nil {
+			continue
+		}
+		emails.CustBirthdayEmail(store, cust.Email, cust, true, tools)
+	}
+
+	return nil
 }

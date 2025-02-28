@@ -67,6 +67,8 @@ type CustomerRepository interface {
 	StoreResetEmail(param models.ResetEmailParam, store string) error
 	GetResetEmail(param, store string) (models.ResetEmailParam, error)
 	DeleteResetEmail(param, store string) error
+
+	ReadByBirthday(birthMonth, birthDay int) ([]*models.Customer, error)
 }
 
 type customerRepo struct {
@@ -653,4 +655,11 @@ func (r *customerRepo) GetResetEmail(param, store string) (models.ResetEmailPara
 func (r *customerRepo) DeleteResetEmail(param, store string) error {
 	key := store + "::RSCE::" + param
 	return r.rdb.Del(context.Background(), key).Err()
+}
+
+func (r *customerRepo) ReadByBirthday(birthMonth, birthDay int) ([]*models.Customer, error) {
+	var customers []*models.Customer
+	err := r.db.Where("email_subbed = ? AND status = ? AND birthday_set = ? AND birth_month = ? AND birth_day = ?",
+		true, "Active", true, birthMonth, birthDay).Find(&customers).Error
+	return customers, err
 }
