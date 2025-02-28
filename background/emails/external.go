@@ -13,6 +13,6 @@ func OrderConfirmAndRate(store, email string, order *models.Order, tools *config
 	panic("not implemented yet")
 }
 
-func CustBirthdayEmail(store, email string, cust *models.Customer, isLeap bool, tools *config.Tools) error {
+func CustBirthdayEmail(store, email, discCode string, cust *models.Customer, isLeap bool, tools *config.Tools) error {
 	panic("not implemented yet")
 }

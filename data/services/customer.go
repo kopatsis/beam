@@ -76,7 +76,7 @@ type CustomerService interface {
 	ProcessResetEmail(dpi *DataPassIn, param string) (*models.ResetEmailCookie, error)
 	ResetPasswordActual(dpi *DataPassIn, resetCookie *models.ResetEmailCookie, password, passwordConfirm string, logAllOut bool) error
 
-	BirthdayEmails(store string, tools *config.Tools) error
+	BirthdayEmails(store string, ds DiscountService, tools *config.Tools) error
 }
 
 type customerService struct {
@@ -1230,7 +1230,7 @@ func (s *customerService) ResetPasswordActual(dpi *DataPassIn, resetCookie *mode
 	return nil
 }
 
-func (s *customerService) BirthdayEmails(store string, tools *config.Tools) error {
+func (s *customerService) BirthdayEmails(store string, ds DiscountService, tools *config.Tools) error {
 	currentDate := time.Now()
 	day := currentDate.Day()
 	month := int(currentDate.Month())
@@ -1248,18 +1248,36 @@ func (s *customerService) BirthdayEmails(store string, tools *config.Tools) erro
 		}
 	}
 
+	discCode := fmt.Sprintf("%02d-%02d-%d-%04d", month, day, time.Now().Year(), rand.Intn(10000))
+	disc := &models.Discount{
+		DiscountCode:    discCode,
+		Status:          "Active",
+		Created:         time.Now(),
+		Expired:         time.Now().AddDate(0, 1, 1),
+		IsPercentageOff: true,
+		PercentageOff:   0.15,
+		HasMinSubtotal:  true,
+		MinSubtotal:     9000,
+		AppliesToAllAny: true,
+		ShortMessage:    "Happy Birthday :P",
+	}
+
+	if err := ds.AddDiscount(*disc); err != nil {
+		return err
+	}
+
 	for _, cust := range custs {
 		if cust == nil {
 			continue
 		}
-		emails.CustBirthdayEmail(store, cust.Email, cust, false, tools)
+		emails.CustBirthdayEmail(store, cust.Email, discCode, cust, false, tools)
 	}
 
 	for _, cust := range secondCusts {
 		if cust == nil {
 			continue
 		}
-		emails.CustBirthdayEmail(store, cust.Email, cust, true, tools)
+		emails.CustBirthdayEmail(store, cust.Email, discCode, cust, true, tools)
 	}
 
 	return nil
