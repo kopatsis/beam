@@ -63,6 +63,8 @@ type Order struct {
 	CheckEmailSent         bool               `bson:"check_sent" json:"check_sent"`
 	PaymentMethodID        string             `bson:"pm_id" json:"pm_id"`
 	StripeRefundID         *string            `bson:"rf_id,omitempty" json:"rf_id,omitempty"`
+	MovedToAccount         bool               `bson:"moved_to" json:"moved_to"`
+	MovedToAccountDate     time.Time          `bson:"moved_to_date" json:"moved_to_date"`
 }
 
 type DraftOrder struct {

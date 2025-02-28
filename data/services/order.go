@@ -29,6 +29,8 @@ type OrderService interface {
 
 	GetCheckDateOrders() ([]models.Order, error)
 	AdjustCheckOrders(store string, sendEmail, delayCheck []string, tools *config.Tools) (error, error)
+
+	MoveOrderToAccount(dpi *DataPassIn, orderID string) error
 }
 
 type orderService struct {
@@ -419,4 +421,38 @@ func (s *orderService) AdjustCheckOrders(store string, sendEmail, delayCheck []s
 	}
 
 	return sendError, delayError
+}
+
+func (s *orderService) MoveOrderToAccount(dpi *DataPassIn, orderID string) error {
+	order, err := s.orderRepo.Read(orderID)
+	if err != nil {
+		return err
+	} else if order == nil {
+		return errors.New("nil order")
+	}
+
+	if order.CustomerID == dpi.CustomerID {
+		if order.Guest || !order.MovedToAccount {
+			if order.Guest {
+				order.Guest = false
+			}
+			if !order.MovedToAccount {
+				order.MovedToAccount = true
+				order.MovedToAccountDate = time.Now()
+			}
+			return s.orderRepo.Update(order)
+		} else {
+			return nil
+		}
+	}
+
+	if !order.Guest || order.CustomerID != 0 {
+		return errors.New("order belongs to a customer already")
+	}
+
+	order.Guest = false
+	order.MovedToAccount = true
+	order.MovedToAccountDate = time.Now()
+
+	return s.orderRepo.Update(order)
 }
