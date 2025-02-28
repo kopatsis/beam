@@ -26,6 +26,9 @@ type OrderService interface {
 	GetOrdersList(dpi *DataPassIn, fromURL url.Values) (models.OrderRender, error)
 
 	CheckInvDiscAndGiftCards(order *models.Order, draft *models.DraftOrder, dpi *DataPassIn, ps ProductService, ds DiscountService) error
+
+	GetCheckDateOrders() ([]models.Order, error)
+	AdjustCheckOrders(store string, sendEmail, delayCheck []string, tools *config.Tools) (error, error)
 }
 
 type orderService struct {
@@ -390,4 +393,30 @@ func (s *orderService) CheckInvDiscAndGiftCards(order *models.Order, draft *mode
 	}
 
 	return nil
+}
+
+func (s *orderService) GetCheckDateOrders() ([]models.Order, error) {
+	return s.orderRepo.GetCheckOrders()
+}
+
+func (s *orderService) AdjustCheckOrders(store string, sendEmail, delayCheck []string, tools *config.Tools) (error, error) {
+	sendError, delayError := error(nil), error(nil)
+	if len(sendEmail) > 0 {
+		orders, err := s.orderRepo.GetOrdersByIDs(sendEmail)
+		if err != nil {
+			sendError = err
+		} else {
+			for _, o := range orders {
+				emails.OrderConfirmAndRate(store, o.Email, &o, tools)
+			}
+			sendError = s.orderRepo.UpdateCheckEmailSent(sendEmail)
+		}
+
+	}
+
+	if len(delayCheck) > 0 {
+		delayError = s.orderRepo.UpdateCheckDeliveryDate(delayCheck)
+	}
+
+	return sendError, delayError
 }

@@ -60,6 +60,7 @@ type Order struct {
 	CATax                  bool               `bson:"ca_tax" json:"ca_tax"`
 	CATaxRate              float64            `bson:"ca_tax_rate" json:"ca_tax_rate"`
 	CheckDeliveryDate      time.Time          `bson:"check_date" json:"check_date"`
+	CheckEmailSent         bool               `bson:"check_sent" json:"check_sent"`
 	PaymentMethodID        string             `bson:"pm_id" json:"pm_id"`
 	StripeRefundID         *string            `bson:"rf_id,omitempty" json:"rf_id,omitempty"`
 }
