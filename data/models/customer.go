@@ -32,6 +32,9 @@ type Customer struct {
 	ConfirmsSent             int
 	LastConfirmSent          time.Time
 	ConfirmInProgress        bool
+	BirthdaySet              bool
+	BirthMonth               int
+	BirthDay                 int
 }
 
 type CustomerPost struct {
@@ -45,6 +48,9 @@ type CustomerPost struct {
 	PasswordConf    string  `json:"password_conf"`
 	IsEmailVerified bool    `json:"verif"`
 	Uses2FA         bool    `json:"uses_2fa"`
+	HasBirthday     bool    `json:"has_bday"`
+	BirthMonth      int     `json:"bmonth"`
+	BirthDay        int     `json:"bday"`
 }
 
 type Contact struct {

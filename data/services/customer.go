@@ -263,6 +263,9 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 		Status:        "Active",
 		Created:       time.Now(),
 		EmailVerified: customer.IsEmailVerified,
+		BirthdaySet:   customer.HasBirthday,
+		BirthDay:      customer.BirthDay,
+		BirthMonth:    customer.BirthMonth,
 	}
 
 	if !customer.IsEmailVerified {
@@ -361,6 +364,9 @@ func (s *customerService) UpdateCustomer(dpi *DataPassIn, customer *models.Custo
 	cust.FirstName = customer.FirstName
 	cust.LastName = customer.LastName
 	cust.PhoneNumber = customer.PhoneNumber
+	cust.BirthdaySet = customer.HasBirthday
+	cust.BirthMonth = customer.BirthMonth
+	cust.BirthDay = customer.BirthDay
 
 	if err := s.customerRepo.Update(*cust); err != nil {
 		return nil, err
