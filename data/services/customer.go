@@ -31,11 +31,11 @@ type CustomerService interface {
 	UpdateContactAndRender(dpi *DataPassIn, contactID int, newContact *models.Contact, mutex *config.AllMutexes, isDefault bool) ([]*models.Contact, error, error)
 	DeleteContact(dpi *DataPassIn, contactID int) (int, error)
 	DeleteContactAndRender(dpi *DataPassIn, contactID int) ([]*models.Contact, error, error)
-	CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, *models.Customer, *models.ServerCookie, error)
+	CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, *models.Customer, *models.ServerCookie, error) // To cart/draft/order IF !2FA
 	DeleteCustomer(dpi *DataPassIn) (*models.Customer, error)
 	UpdateCustomer(dpi *DataPassIn, customer *models.CustomerPost) (*models.Customer, error)
 
-	LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool) (*models.ClientCookie, *models.TwoFactorCookie, error)
+	LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool) (*models.ClientCookie, *models.TwoFactorCookie, error) // To cart/draft/order IF !2FA
 	ResetPass(dpi *DataPassIn, email string) error
 	CustomerMiddleware(cookie *models.ClientCookie, device *models.DeviceCookie)
 	GuestMiddleware(cookie *models.ClientCookie, store string)
@@ -56,10 +56,10 @@ type CustomerService interface {
 
 	WatchEmailVerification(dpi *DataPassIn, conn *websocket.Conn)
 	SendVerificationEmail(dpi *DataPassIn, tools *config.Tools) (string, error)
-	ProcessVerificationEmail(dpi *DataPassIn, param string) error
+	ProcessVerificationEmail(dpi *DataPassIn, param string) error // To cart/draft/order ?
 
 	SendSignInEmail(dpi *DataPassIn, email string, emailSubbed bool, tools *config.Tools) (string, error)
-	ProcessSignInEmail(dpi *DataPassIn, param string, tools *config.Tools) (*models.ClientCookie, error)
+	ProcessSignInEmail(dpi *DataPassIn, param string, tools *config.Tools) (*models.ClientCookie, error) // To cart/draft/order
 
 	CreateTwoFACode(cust *models.Customer, store string) (*models.TwoFactorCookie, error)
 

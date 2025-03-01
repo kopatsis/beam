@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Fingerprinting</title>
+    <script type="module">
+        import FingerprintJS from 'https://openfpcdn.io/fingerprintjs/v4';
+        
+        window.FingerprintJS = FingerprintJS;
+    </script>
+</head>
+<body>
+    <h1>Device Fingerprinting</h1>
+    <div id="fingerprint"></div>
+    <div id="timer"></div>
+    <button id="get-fingerprint">Get Fingerprint</button>
+
+    <script>
+        document.getElementById('get-fingerprint').addEventListener('click', () => {
+            const startTime = performance.now(); // More precise timing (milliseconds)
+
+            FingerprintJS.load().then(fp => {
+                fp.get().then(result => {
+                    const visitorId = result.visitorId;
+                    const endTime = performance.now(); // More precise time when fingerprint is retrieved
+                    const timeElapsed = (endTime - startTime).toFixed(3); // Time in milliseconds
+
+                    document.getElementById('fingerprint').innerText = `Device Fingerprint: ${visitorId}`;
+                    document.getElementById('timer').innerText = `Time elapsed: ${timeElapsed} ms`;
+                });
+            });
+        });
+    </script>
+</body>
+</html>
