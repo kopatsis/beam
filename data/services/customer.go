@@ -391,7 +391,7 @@ func (s *customerService) UpdateCustomer(dpi *DataPassIn, customer *models.Custo
 
 func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool) (*models.ClientCookie, *models.TwoFactorCookie, error) {
 
-	customer, err := s.customerRepo.GetActiveCustomerByEmail(email)
+	customer, err := s.customerRepo.GetCustomerByEmail(email)
 	if err != nil {
 		return nil, nil, err
 	} else if customer == nil {
@@ -442,7 +442,7 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, a
 }
 
 func (s *customerService) ResetPass(dpi *DataPassIn, email string) error {
-	customer, err := s.customerRepo.GetActiveCustomerByEmail(email)
+	customer, err := s.customerRepo.GetCustomerByEmail(email)
 	if err != nil {
 		return err
 	} else if customer == nil {
@@ -836,6 +836,7 @@ func (s *customerService) SendSignInCodeEmail(dpi *DataPassIn, email string, too
 	return &siCookie, !isCustomer, s.customerRepo.StoreSignInEmail(storedParam, dpi.Store)
 }
 
+// nil, nil means everything else right, but 6 digit code wrong
 func (s *customerService) ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *models.SignInCodeCookie, sixdigits uint, post *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, error) {
 	if time.Since(siCookie.Set) > config.SIGNIN_EXPIR_MINS*time.Minute {
 		return nil, errors.New("past expiration")
@@ -845,7 +846,14 @@ func (s *customerService) ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *mode
 		return nil, err
 	}
 
+	removeSI := false
 	defer func() {
+		if removeSI {
+			if err := s.customerRepo.DeleteSignInCode(siCookie.Param, dpi.Store); err != nil {
+				// Notify me unable to delete tfa redis which should be
+				log.Printf("Unable to delete sign in code: " + err.Error())
+			}
+		}
 		if err := s.customerRepo.UnsetTwoFactorNX(siCookie.Param, dpi.Store); err != nil {
 			// Notify me sign in nx not working
 			log.Printf("Unable to unset sign in nx: " + err.Error())
@@ -856,6 +864,7 @@ func (s *customerService) ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *mode
 	if err != nil {
 		return nil, err
 	}
+	removeSI = true
 
 	if signinParams.Param != siCookie.Param {
 		return nil, errors.New("params do not match")
@@ -874,8 +883,16 @@ func (s *customerService) ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *mode
 		return nil, errors.New("unmatching cookie and redis if customer exists")
 	}
 
-	if siCookie.IsCustomer && siCookie.CustomerID != signinParams.CustomerID {
-		return nil, errors.New("incorrect customer between dpi and two factor server side")
+	if signinParams.SixDigitCode != sixdigits {
+		signinParams.Tries++
+		if signinParams.Tries >= config.MAX_SICODE_ATTEMPTS {
+			return nil, errors.New("two many failed attempts")
+		}
+		removeSI = false
+		if err := s.customerRepo.StoreSignInEmail(signinParams, dpi.Store); err != nil {
+			return nil, err
+		}
+		return nil, nil
 	}
 
 	if siCookie.IsCustomer {
@@ -937,7 +954,14 @@ func (s *customerService) ProcessTwoFactor(dpi *DataPassIn, twofactorcookie *mod
 		return false, err
 	}
 
+	removeTFA := false
 	defer func() {
+		if removeTFA {
+			if err := s.customerRepo.DeleteTwoFactor(twofactorcookie.TwoFactorCode, dpi.Store); err != nil {
+				// Notify me unable to delete tfa redis which should be
+				log.Printf("Unable to delete two factor: " + err.Error())
+			}
+		}
 		if err := s.customerRepo.UnsetTwoFactorNX(twofactorcookie.TwoFactorCode, dpi.Store); err != nil {
 			// Notify me two factor nx not working
 			log.Printf("Unable to unset two factor nx: " + err.Error())
@@ -948,6 +972,7 @@ func (s *customerService) ProcessTwoFactor(dpi *DataPassIn, twofactorcookie *mod
 	if err != nil {
 		return false, err
 	}
+	removeTFA = true
 
 	if time.Since(serverTwoFA.Set) > config.TWOFA_EXPIR_MINS*time.Minute {
 		return false, errors.New("past expiration server side")
@@ -967,6 +992,10 @@ func (s *customerService) ProcessTwoFactor(dpi *DataPassIn, twofactorcookie *mod
 
 	if serverTwoFA.SixDigitCode != sixdigits {
 		serverTwoFA.Tries++
+		if serverTwoFA.Tries >= config.MAX_TWOFA_ATTEMPTS {
+			return false, errors.New("two many failed attempts")
+		}
+		removeTFA = false
 		if err := s.customerRepo.StoreTwoFactor(serverTwoFA, dpi.Store); err != nil {
 			return false, err
 		}
