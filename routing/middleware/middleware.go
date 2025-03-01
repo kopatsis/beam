@@ -254,3 +254,41 @@ func GetResetCookie(c *gin.Context) *models.ResetEmailCookie {
 	}
 	return &reset
 }
+
+func SetSignInCodeCookie(c *gin.Context, si models.SignInCodeCookie) {
+	if si.Param == "" {
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     "signin6",
+			Value:    "",
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+			MaxAge:   -1,
+		})
+		return
+	}
+
+	data, _ := json.Marshal(si)
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "signin6",
+		Value:    string(data),
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   0,
+	})
+}
+
+func GetSignInCodCookie(c *gin.Context) *models.SignInCodeCookie {
+	cookie, err := c.Cookie("signin6")
+	if err != nil {
+		return nil
+	}
+	var si models.SignInCodeCookie
+	if err := json.Unmarshal([]byte(cookie), &si); err != nil {
+		return nil
+	}
+	return &si
+}

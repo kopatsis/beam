@@ -58,10 +58,11 @@ type CustomerService interface {
 	SendVerificationEmail(dpi *DataPassIn, tools *config.Tools) (string, error)
 	ProcessVerificationEmail(dpi *DataPassIn, param string) error // To cart/draft/order ?
 
-	SendSignInEmail(dpi *DataPassIn, email string, emailSubbed bool, tools *config.Tools) (string, error)
-	ProcessSignInEmail(dpi *DataPassIn, param string, tools *config.Tools) (*models.ClientCookie, error) // To cart/draft/order
+	SendSignInCodeEmail(dpi *DataPassIn, email string, tools *config.Tools) (*models.SignInCodeCookie, bool, error)
+	ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *models.SignInCodeCookie, sixdigits uint, post *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, error) // To cart/draft/order
 
 	CreateTwoFACode(cust *models.Customer, store string) (*models.TwoFactorCookie, error)
+	ProcessTwoFactor(dpi *DataPassIn, twofactorcookie *models.TwoFactorCookie, sixdigits uint) (bool, error)
 
 	ChangeCustomerEmail(dpi *DataPassIn, newEmail, password string, tools *config.Tools) error
 
@@ -244,16 +245,23 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 		return nil, nil, nil, nil, errors.New("invalid email")
 	}
 
-	id, oldArch, err := s.customerRepo.GetCustomerIDByEmail(email)
+	cust, err := s.customerRepo.GetCustomerByEmail(email)
 	if err != nil {
 		return nil, nil, nil, nil, err
-	} else if id != 0 {
-		return nil, nil, nil, nil, errors.New("existing customer that wasn't an old archival")
 	}
 
-	if oldArch {
-		if err := s.customerRepo.ArchiveCustomerEmail(id, customer.Email); err != nil {
-			return nil, nil, nil, nil, err
+	if cust != nil {
+		if cust.Status == "Active" {
+			return nil, nil, nil, nil, errors.New("cannot create account for active customer")
+		} else if cust.Status == "Archived" && time.Since(cust.Archived) <= 7*24*time.Hour {
+			return nil, nil, nil, nil, errors.New("archived and still in cooldown period")
+		}
+		if cust.Status == "Archived" {
+			if err := s.customerRepo.ArchiveCustomerEmail(cust.ID, customer.Email); err != nil {
+				return nil, nil, nil, nil, err
+			} else {
+				cust = nil
+			}
 		}
 	}
 
@@ -270,8 +278,12 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 		BirthMonth:    customer.BirthMonth,
 	}
 
+	if cust != nil {
+		newCust.ID = cust.ID
+	}
+
 	if !customer.IsEmailVerified {
-		newCust.Status = "Incomplete"
+		newCust.Status = "Draft"
 	}
 
 	if customer.PhoneNumber != nil {
@@ -528,7 +540,10 @@ func (s *customerService) FullMiddleware(cookie *models.ClientCookie, device *mo
 }
 
 func (s *customerService) TwoFAMiddleware(cookie *models.ClientCookie, twofa *models.TwoFactorCookie) {
-	if cookie == nil || twofa == nil || cookie.CustomerID == 0 || twofa.TwoFactorCode == "" {
+	if cookie == nil || twofa == nil {
+		return
+	}
+	if cookie.CustomerID == 0 || twofa.TwoFactorCode == "" {
 		twofa.TwoFactorCode = ""
 		twofa.CustomerID = 0
 		twofa.Set = time.Time{}
@@ -538,6 +553,17 @@ func (s *customerService) TwoFAMiddleware(cookie *models.ClientCookie, twofa *mo
 		twofa.TwoFactorCode = ""
 		twofa.CustomerID = 0
 		twofa.Set = time.Time{}
+	}
+}
+
+func (s *customerService) SignInCodeMiddleware(cookie *models.ClientCookie, si *models.SignInCodeCookie) {
+	if cookie == nil || si == nil {
+		return
+	}
+	if cookie.CustomerID != 0 || si.Param == "" || time.Since(si.Set) > config.SIGNIN_EXPIR_MINS*time.Minute {
+		si.Param = ""
+		si.CustomerID = 0
+		si.Set = time.Time{}
 	}
 }
 
@@ -775,37 +801,64 @@ func (s *customerService) ProcessVerificationEmail(dpi *DataPassIn, param string
 	return s.customerRepo.SetEmailVerified(cust.ID, true)
 }
 
-func (s *customerService) SendSignInEmail(dpi *DataPassIn, email string, emailSubbed bool, tools *config.Tools) (string, error) {
+// Cookie, whether to render full form, error
+func (s *customerService) SendSignInCodeEmail(dpi *DataPassIn, email string, tools *config.Tools) (*models.SignInCodeCookie, bool, error) {
+
 	cust, err := s.customerRepo.GetCustomerByEmail(email)
 	if err != nil {
-		return "", err
+		return nil, false, err
 	} else if cust != nil && cust.Status == "Archived" && time.Since(cust.Archived) <= 7*24*time.Hour {
-		return "", errors.New("recently archived customer")
+		return nil, false, errors.New("recently archived customer")
+	} else if cust != nil && cust.Status == "Active" && cust.Uses2FA {
+		return nil, false, errors.New("uses 2FA customers not allowed to sign in via pin")
+	}
+
+	isCustomer := cust != nil && cust.Status == "Active"
+	custID := 0
+	if isCustomer {
+		custID = cust.ID
 	}
 
 	if !custhelp.VerifyEmail(cust.Email, tools) {
-		// Notify me an existing customer's email not deliverable
-		return "", errors.New("email found to be undeliverable")
+		if cust != nil {
+			// Notify me an existing customer's email not deliverable
+		}
+		return nil, false, errors.New("email found to be undeliverable")
 	}
 
 	id := "SI-" + uuid.NewString()
-	storedParam := models.SignInEmailParam{Param: id, EmailAtTime: email, DeviceCookie: dpi.DeviceID, Set: time.Now(), EmailSubbed: emailSubbed}
+	sixdigit := uint(100000 + rand.Intn(900000))
+	setTime := time.Now()
 
-	return id, s.customerRepo.StoreSignInEmail(storedParam, dpi.Store)
+	storedParam := models.SignInEmailParam{Param: id, EmailAtTime: email, Set: setTime, SixDigitCode: sixdigit, HasCustomer: isCustomer, CustomerID: custID}
+	siCookie := models.SignInCodeCookie{Param: id, IsCustomer: isCustomer, CustomerID: custID}
+
+	return &siCookie, !isCustomer, s.customerRepo.StoreSignInEmail(storedParam, dpi.Store)
 }
 
-func (s *customerService) ProcessSignInEmail(dpi *DataPassIn, param string, tools *config.Tools) (*models.ClientCookie, error) {
-	signinParams, err := s.customerRepo.GetSignInEmail(param, dpi.Store)
+func (s *customerService) ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *models.SignInCodeCookie, sixdigits uint, post *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, error) {
+	if time.Since(siCookie.Set) > config.SIGNIN_EXPIR_MINS*time.Minute {
+		return nil, errors.New("past expiration")
+	}
+
+	if err := s.customerRepo.SetSignInCodeNX(siCookie.Param, dpi.Store); err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if err := s.customerRepo.UnsetTwoFactorNX(siCookie.Param, dpi.Store); err != nil {
+			// Notify me sign in nx not working
+			log.Printf("Unable to unset sign in nx: " + err.Error())
+		}
+	}()
+
+	signinParams, err := s.customerRepo.GetSignInEmail(siCookie.Param, dpi.Store)
 	if err != nil {
 		return nil, err
 	}
 
-	if signinParams.Param != param {
+	if signinParams.Param != siCookie.Param {
 		return nil, errors.New("params do not match")
-	}
-
-	if dpi.DeviceID != signinParams.DeviceCookie {
-		return nil, errors.New("must open link on same device and browser")
 	}
 
 	if time.Since(signinParams.Set) > time.Duration(config.SIGNIN_EXPIR_MINS)*time.Minute {
@@ -813,25 +866,46 @@ func (s *customerService) ProcessSignInEmail(dpi *DataPassIn, param string, tool
 		return nil, errors.New("expired code, not deleted in system")
 	}
 
-	cust, err := s.customerRepo.GetCustomerByEmail(signinParams.EmailAtTime)
-	if err != nil {
-		return nil, err
+	if signinParams.Tries >= config.MAX_SICODE_ATTEMPTS {
+		return nil, errors.New("two many failed attempts")
 	}
 
-	if cust == nil || cust.Status == "Archived" && time.Since(cust.Archived) > 7*24*time.Hour {
-		custPost := models.CustomerPost{
-			Email:           signinParams.EmailAtTime,
-			EmailSubbed:     signinParams.EmailSubbed,
-			IsEmailVerified: true,
+	if siCookie.IsCustomer != signinParams.HasCustomer {
+		return nil, errors.New("unmatching cookie and redis if customer exists")
+	}
+
+	if siCookie.IsCustomer && siCookie.CustomerID != signinParams.CustomerID {
+		return nil, errors.New("incorrect customer between dpi and two factor server side")
+	}
+
+	if siCookie.IsCustomer {
+		if siCookie.CustomerID != signinParams.CustomerID {
+			return nil, errors.New("incorrect customer between dpi and two factor server side")
 		}
-		client, _, _, _, err := s.CreateCustomer(dpi, &custPost, tools)
+
+		cust, err := s.customerRepo.Read(siCookie.CustomerID)
+		if err != nil {
+			return nil, err
+		}
+
+		if cust == nil || cust.Status == "Archived" && time.Since(cust.Archived) > 7*24*time.Hour {
+			return nil, errors.New("no active customer to log in")
+		}
+
+		if cust.Uses2FA {
+			return nil, errors.New("cannot log in if uses 2FA")
+		}
+
+		// other status stuff
+		client, _, err := s.LoginCookie(dpi, signinParams.EmailAtTime, "", false, false)
 		if err != nil {
 			return nil, err
 		}
 		return client, nil
 	}
 
-	client, _, err := s.LoginCookie(dpi, signinParams.EmailAtTime, "", signinParams.EmailSubbed, false)
+	post.IsEmailVerified = true
+	client, _, _, _, err := s.CreateCustomer(dpi, post, tools)
 	if err != nil {
 		return nil, err
 	}

@@ -44,6 +44,14 @@ type TwoFactorCookie struct {
 	Set           time.Time `json:"s"`
 }
 
+// For 6 digit sign in code
+type SignInCodeCookie struct {
+	Param      string    `json:"t"`
+	IsCustomer bool      `json:"i"`
+	CustomerID int       `json:"c"`
+	Set        time.Time `json:"s"`
+}
+
 // For reset email when open
 type ResetEmailCookie struct {
 	Param      string    `json:"p"`

@@ -12,9 +12,11 @@ type VerificationEmailParam struct {
 type SignInEmailParam struct {
 	Param        string    `json:"p"`
 	EmailAtTime  string    `json:"e"`
-	DeviceCookie string    `json:"d"`
 	Set          time.Time `json:"s"`
-	EmailSubbed  bool      `json:"u"`
+	SixDigitCode uint      `json:"x"`
+	HasCustomer  bool      `json:"h"`
+	CustomerID   int       `json:"c"`
+	Tries        int       `json:"r"`
 }
 
 type ResetEmailParam struct {

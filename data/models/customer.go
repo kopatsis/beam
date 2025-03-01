@@ -20,7 +20,7 @@ type Customer struct {
 	Created                  time.Time
 	Archived                 time.Time
 	PhoneNumber              *string
-	Status                   string // Active, Archived
+	Status                   string // Active, Archived, Draft, OnlyEmail
 	AutodiscountPctOff       float64
 	Notes                    string
 	LastReset                time.Time

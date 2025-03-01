@@ -49,8 +49,13 @@ type CustomerRepository interface {
 
 	StoreVerificationEmail(param models.VerificationEmailParam, store string) error
 	GetVerificationEmail(param, store string) (models.VerificationEmailParam, error)
+
 	StoreSignInEmail(param models.SignInEmailParam, store string) error
 	GetSignInEmail(param, store string) (models.SignInEmailParam, error)
+	DeleteSignInCode(param, store string) error
+	SetSignInCodeNX(param, store string) error
+	UnsetSignInCodeNX(param, store string) error
+
 	StoreTwoFactor(param models.TwoFactorEmailParam, store string) error
 	DeleteTwoFactor(param, store string) error
 	GetTwoFactor(param, store string) (models.TwoFactorEmailParam, error)
@@ -106,7 +111,7 @@ func NewCustomerRepository(db *gorm.DB, rdb *redis.Client, store string, ct, len
 }
 
 func (r *customerRepo) Create(customer models.Customer) error {
-	return r.db.Create(&customer).Error
+	return r.db.Save(&customer).Error
 }
 
 func (r *customerRepo) Read(id int) (*models.Customer, error) {
@@ -469,8 +474,8 @@ func (r *customerRepo) GetVerificationEmail(param, store string) (models.Verific
 }
 
 func (r *customerRepo) StoreSignInEmail(param models.SignInEmailParam, store string) error {
-	if param.Param == "" {
-		return errors.New("param cannot be empty")
+	if param.Param == "" || param.SixDigitCode < 100000 {
+		return errors.New("param cannot be empty and six digit must be valid")
 	}
 
 	data, err := json.Marshal(param)
@@ -497,13 +502,31 @@ func (r *customerRepo) GetSignInEmail(param, store string) (models.SignInEmailPa
 		return models.SignInEmailParam{}, err
 	}
 
-	go func() {
-		if err := r.rdb.Del(context.Background(), key).Err(); err != nil {
-			log.Println("error deleting key:", err)
-		}
-	}()
-
 	return result, nil
+}
+
+func (r *customerRepo) SetSignInCodeNX(param, store string) error {
+
+	key := store + "::SINX::" + param
+
+	ok, err := r.rdb.SetNX(context.Background(), key, "1", 5*time.Second).Result()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errors.New("key already set")
+	}
+	return nil
+}
+
+func (r *customerRepo) UnsetSignInCodeNX(param, store string) error {
+	key := store + "::SINX::" + param
+	return r.rdb.Del(context.Background(), key).Err()
+}
+
+func (r *customerRepo) DeleteSignInCode(param, store string) error {
+	key := store + "::SIPE::" + param
+	return r.rdb.Del(context.Background(), key).Err()
 }
 
 func (r *customerRepo) UpdateCustomerCurrency(id int, usesOtherCurrency bool, otherCurrency string) error {
