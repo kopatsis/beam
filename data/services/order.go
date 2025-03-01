@@ -450,6 +450,7 @@ func (s *orderService) MoveOrderToAccount(dpi *DataPassIn, orderID string) error
 		return errors.New("order belongs to a customer already")
 	}
 
+	order.CustomerID = dpi.CustomerID
 	order.Guest = false
 	order.MovedToAccount = true
 	order.MovedToAccountDate = time.Now()
