@@ -35,7 +35,7 @@ type CustomerService interface {
 	DeleteCustomer(dpi *DataPassIn) (*models.Customer, error)
 	UpdateCustomer(dpi *DataPassIn, customer *models.CustomerPost) (*models.Customer, error)
 
-	LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool) (*models.ClientCookie, *models.TwoFactorCookie, error) // To cart/draft/order IF !2FA
+	LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, error) // To cart/draft/order IF !2FA
 	ResetPass(dpi *DataPassIn, email string) error
 	CustomerMiddleware(cookie *models.ClientCookie, device *models.DeviceCookie)
 	GuestMiddleware(cookie *models.ClientCookie, store string)
@@ -60,9 +60,11 @@ type CustomerService interface {
 
 	SendSignInCodeEmail(dpi *DataPassIn, email string, tools *config.Tools) (*models.SignInCodeCookie, bool, error)
 	ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *models.SignInCodeCookie, sixdigits uint, post *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, error) // To cart/draft/order
+	ResendSignInCode(dpi *DataPassIn, siCookie models.SignInCodeCookie, tools *config.Tools) (models.SignInCodeCookie, error)
 
-	CreateTwoFACode(cust *models.Customer, store string) (*models.TwoFactorCookie, error)
+	CreateTwoFACode(cust *models.Customer, store string, tools *config.Tools) (*models.TwoFactorCookie, error)
 	ProcessTwoFactor(dpi *DataPassIn, twofactorcookie *models.TwoFactorCookie, sixdigits uint) (bool, error)
+	ResendTwoFactor(dpi *DataPassIn, twofactorcookie models.TwoFactorCookie, tools *config.Tools) (models.TwoFactorCookie, error)
 
 	ChangeCustomerEmail(dpi *DataPassIn, newEmail, password string, tools *config.Tools) error
 
@@ -314,7 +316,7 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 
 	var twofa *models.TwoFactorCookie
 	if customer.Uses2FA {
-		twofa, err = s.CreateTwoFACode(newCust, dpi.Store)
+		twofa, err = s.CreateTwoFACode(newCust, dpi.Store, tools)
 		if err != nil {
 			return nil, nil, newCust, c, err
 		}
@@ -389,7 +391,7 @@ func (s *customerService) UpdateCustomer(dpi *DataPassIn, customer *models.Custo
 	return cust, nil
 }
 
-func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool) (*models.ClientCookie, *models.TwoFactorCookie, error) {
+func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, error) {
 
 	customer, err := s.customerRepo.GetCustomerByEmail(email)
 	if err != nil {
@@ -425,7 +427,7 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, a
 
 	var twofa *models.TwoFactorCookie
 	if customer.Uses2FA {
-		twofa, err = s.CreateTwoFACode(customer, dpi.Store)
+		twofa, err = s.CreateTwoFACode(customer, dpi.Store, tools)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -833,6 +835,10 @@ func (s *customerService) SendSignInCodeEmail(dpi *DataPassIn, email string, too
 	storedParam := models.SignInEmailParam{Param: id, EmailAtTime: email, Set: setTime, SixDigitCode: sixdigit, HasCustomer: isCustomer, CustomerID: custID}
 	siCookie := models.SignInCodeCookie{Param: id, IsCustomer: isCustomer, CustomerID: custID}
 
+	if err := emails.SignInPin(dpi.Store, storedParam.EmailAtTime, storedParam.SixDigitCode, tools); err != nil {
+		return nil, false, err
+	}
+
 	return &siCookie, !isCustomer, s.customerRepo.StoreSignInEmail(storedParam, dpi.Store)
 }
 
@@ -905,6 +911,10 @@ func (s *customerService) ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *mode
 			return nil, err
 		}
 
+		if cust.Email != signinParams.EmailAtTime {
+			return nil, errors.New("customer email changed")
+		}
+
 		if cust == nil || cust.Status == "Archived" && time.Since(cust.Archived) > 7*24*time.Hour {
 			return nil, errors.New("no active customer to log in")
 		}
@@ -914,7 +924,7 @@ func (s *customerService) ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *mode
 		}
 
 		// other status stuff
-		client, _, err := s.LoginCookie(dpi, signinParams.EmailAtTime, "", false, false)
+		client, _, err := s.LoginCookie(dpi, signinParams.EmailAtTime, "", false, false, tools)
 		if err != nil {
 			return nil, err
 		}
@@ -929,13 +939,17 @@ func (s *customerService) ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *mode
 	return client, nil
 }
 
-func (s *customerService) CreateTwoFACode(cust *models.Customer, store string) (*models.TwoFactorCookie, error) {
+func (s *customerService) CreateTwoFACode(cust *models.Customer, store string, tools *config.Tools) (*models.TwoFactorCookie, error) {
 
 	code := "TF-" + uuid.NewString()
 	sixdigit := uint(100000 + rand.Intn(900000))
 	setTime := time.Now()
 	param := models.TwoFactorEmailParam{Param: code, CustomerID: cust.ID, Set: setTime, SixDigitCode: sixdigit, Tries: 0}
 	cookie := models.TwoFactorCookie{TwoFactorCode: code, CustomerID: cust.ID, Set: setTime}
+
+	if err := emails.TwoFactorEmail(store, cust.Email, sixdigit, tools); err != nil {
+		return &cookie, err
+	}
 
 	return &cookie, s.customerRepo.StoreTwoFactor(param, store)
 }
@@ -1384,4 +1398,167 @@ func (s *customerService) BirthdayEmails(store string, ds DiscountService, tools
 	}
 
 	return nil
+}
+
+func (s *customerService) ResendSignInCode(dpi *DataPassIn, siCookie models.SignInCodeCookie, tools *config.Tools) (models.SignInCodeCookie, error) {
+	if time.Since(siCookie.Set) > config.SIGNIN_EXPIR_MINS*time.Minute {
+		return siCookie, errors.New("past expiration")
+	}
+
+	if err := s.customerRepo.SetSignInCodeNX(siCookie.Param, dpi.Store); err != nil {
+		return siCookie, err
+	}
+
+	removeSI := false
+	defer func() {
+		if removeSI {
+			if err := s.customerRepo.DeleteSignInCode(siCookie.Param, dpi.Store); err != nil {
+				// Notify me unable to delete tfa redis which should be
+				log.Printf("Unable to delete sign in code: " + err.Error())
+			}
+		}
+		if err := s.customerRepo.UnsetTwoFactorNX(siCookie.Param, dpi.Store); err != nil {
+			// Notify me sign in nx not working
+			log.Printf("Unable to unset sign in nx: " + err.Error())
+		}
+	}()
+
+	signinParams, err := s.customerRepo.GetSignInEmail(siCookie.Param, dpi.Store)
+	if err != nil {
+		return siCookie, err
+	}
+	removeSI = true
+
+	if signinParams.Param != siCookie.Param {
+		return siCookie, errors.New("params do not match")
+	}
+
+	if time.Since(signinParams.Set) > time.Duration(config.SIGNIN_EXPIR_MINS)*time.Minute {
+		// Alert me about it, since it should have expired on redis too
+		return siCookie, errors.New("expired code, not deleted in system")
+	}
+
+	if signinParams.Tries >= config.MAX_SICODE_ATTEMPTS {
+		return siCookie, errors.New("two many failed attempts")
+	}
+
+	if siCookie.IsCustomer != signinParams.HasCustomer {
+		return siCookie, errors.New("unmatching cookie and redis if customer exists")
+	}
+
+	if siCookie.IsCustomer {
+		if siCookie.CustomerID != signinParams.CustomerID {
+			return siCookie, errors.New("incorrect customer between dpi and two factor server side")
+		}
+
+		cust, err := s.customerRepo.Read(siCookie.CustomerID)
+		if err != nil {
+			return siCookie, err
+		}
+
+		if cust.Email != signinParams.EmailAtTime {
+			return siCookie, errors.New("customer email changed")
+		}
+
+		if cust == nil || cust.Status == "Archived" && time.Since(cust.Archived) > 7*24*time.Hour {
+			return siCookie, errors.New("no active customer to log in")
+		}
+
+		if cust.Uses2FA {
+			return siCookie, errors.New("cannot log in if uses 2FA")
+		}
+	}
+
+	removeSI = false
+	signinParams.SixDigitCode = uint(100000 + rand.Intn(900000))
+	signinParams.Set = time.Now()
+	siCookie.Set = signinParams.Set
+
+	if err := s.customerRepo.StoreSignInEmail(signinParams, dpi.Store); err != nil {
+		return siCookie, err
+	}
+
+	if err := emails.SignInPin(dpi.Store, signinParams.EmailAtTime, signinParams.SixDigitCode, tools); err != nil {
+		return siCookie, err
+	}
+
+	return siCookie, nil
+}
+
+func (s *customerService) ResendTwoFactor(dpi *DataPassIn, twofactorcookie models.TwoFactorCookie, tools *config.Tools) (models.TwoFactorCookie, error) {
+	if time.Since(twofactorcookie.Set) > config.TWOFA_EXPIR_MINS*time.Minute {
+		return twofactorcookie, errors.New("past expiration")
+	}
+
+	if dpi.CustomerID != twofactorcookie.CustomerID {
+		return twofactorcookie, errors.New("incorrect customer between dpi and two factor cookie")
+	}
+
+	if err := s.customerRepo.SetTwoFactorNX(twofactorcookie.TwoFactorCode, dpi.Store); err != nil {
+		return twofactorcookie, err
+	}
+
+	removeTFA := false
+	defer func() {
+		if removeTFA {
+			if err := s.customerRepo.DeleteTwoFactor(twofactorcookie.TwoFactorCode, dpi.Store); err != nil {
+				// Notify me unable to delete tfa redis which should be
+				log.Printf("Unable to delete two factor: " + err.Error())
+			}
+		}
+		if err := s.customerRepo.UnsetTwoFactorNX(twofactorcookie.TwoFactorCode, dpi.Store); err != nil {
+			// Notify me two factor nx not working
+			log.Printf("Unable to unset two factor nx: " + err.Error())
+		}
+	}()
+
+	serverTwoFA, err := s.customerRepo.GetTwoFactor(twofactorcookie.TwoFactorCode, dpi.Store)
+	if err != nil {
+		return twofactorcookie, err
+	}
+	removeTFA = true
+
+	if time.Since(serverTwoFA.Set) > config.TWOFA_EXPIR_MINS*time.Minute {
+		return twofactorcookie, errors.New("past expiration server side")
+	}
+
+	if serverTwoFA.Tries >= config.MAX_TWOFA_ATTEMPTS {
+		return twofactorcookie, errors.New("two many failed attempts")
+	}
+
+	if serverTwoFA.CustomerID != dpi.CustomerID {
+		return twofactorcookie, errors.New("incorrect customer between dpi and two factor server side")
+	}
+
+	if serverTwoFA.Param != twofactorcookie.TwoFactorCode {
+		return twofactorcookie, errors.New("incorrect two factor code between cookie and server side")
+	}
+
+	if twofactorcookie.CustomerID != serverTwoFA.CustomerID {
+		return twofactorcookie, errors.New("incorrect customer between dpi and two factor server side")
+	}
+
+	cust, err := s.customerRepo.Read(serverTwoFA.CustomerID)
+	if err != nil {
+		return twofactorcookie, err
+	}
+
+	if cust == nil || cust.Status == "Archived" && time.Since(cust.Archived) > 7*24*time.Hour {
+		return twofactorcookie, errors.New("no active customer to log in")
+	}
+
+	removeTFA = false
+	serverTwoFA.SixDigitCode = uint(100000 + rand.Intn(900000))
+	serverTwoFA.Set = time.Now()
+	twofactorcookie.Set = serverTwoFA.Set
+
+	if err := s.customerRepo.StoreTwoFactor(serverTwoFA, dpi.Store); err != nil {
+		return twofactorcookie, err
+	}
+
+	if err := emails.TwoFactorEmail(dpi.Store, cust.Email, serverTwoFA.SixDigitCode, tools); err != nil {
+		return twofactorcookie, err
+	}
+
+	return twofactorcookie, nil
 }
