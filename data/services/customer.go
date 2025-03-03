@@ -82,6 +82,9 @@ type CustomerService interface {
 	ResetPasswordActual(dpi *DataPassIn, resetCookie *models.ResetEmailCookie, password, passwordConfirm string, logAllOut bool) error
 
 	BirthdayEmails(store string, ds DiscountService, tools *config.Tools) error
+
+	PrefillEmailAuth(dpi *DataPassIn, param string, tools *config.Tools) (string, bool, error)
+	GeneratePrefillAuthParam(dpi *DataPassIn, email string) string
 }
 
 type customerService struct {
@@ -1615,4 +1618,33 @@ func (s *customerService) CreateEmailOnlyCustomer(dpi *DataPassIn, email string,
 	}
 
 	return false, false, s.customerRepo.Create(*cust)
+}
+
+// email to prefill (blank for none), create account (vs false = log in), any error
+func (s *customerService) PrefillEmailAuth(dpi *DataPassIn, param string, tools *config.Tools) (string, bool, error) {
+	email, err := config.DecryptString(param)
+	if err != nil {
+		return "", false, err
+	}
+
+	email = strings.ToLower(email)
+
+	if !custhelp.VerifyEmail(email, tools) {
+		return "", false, errors.New("invalid email")
+	}
+
+	cust, err := s.customerRepo.GetCustomerByEmail(email)
+	if err != nil {
+		return "", false, err
+	}
+
+	if cust.Status == "Archived" && time.Since(cust.Archived) <= 7*24*time.Hour {
+		return "", false, errors.New("archived customer in cooldown period")
+	}
+
+	return email, cust == nil || cust.Status == "EmailOnly" || cust.Status == "Archived", nil
+}
+
+func (s *customerService) GeneratePrefillAuthParam(dpi *DataPassIn, email string) string {
+	return config.EncryptString(email)
 }
