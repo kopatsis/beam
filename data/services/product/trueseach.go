@@ -320,6 +320,20 @@ func splitTokens(initial string) (string, []string) {
 	return initial, ret
 }
 
+func outOfStockSeparate(products []models.ProductInfo) []models.ProductInfo {
+	inStock, outOfStock := []models.ProductInfo{}, []models.ProductInfo{}
+
+	for _, product := range products {
+		if product.Inventory > 0 {
+			inStock = append(inStock, product)
+		} else {
+			outOfStock = append(outOfStock, product)
+		}
+	}
+
+	return append(inStock, outOfStock...)
+}
+
 func FullSearch(initial string, provided []models.ProductInfo) []models.ProductInfo {
 
 	searchers := []*Searcher{}
@@ -355,6 +369,8 @@ func FullSearch(initial string, provided []models.ProductInfo) []models.ProductI
 	for _, searcher := range searchers {
 		ret = append(ret, searcher.ProductInfo)
 	}
+
+	ret = outOfStockSeparate(ret)
 
 	return ret
 }
