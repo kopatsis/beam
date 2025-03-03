@@ -1206,7 +1206,7 @@ func (s *customerService) SendResetEmail(dpi *DataPassIn, email string, tools *c
 		return "", errors.New("cannot reset for an unverified email")
 	}
 
-	if !custhelp.VerifyEmail(cust.Email, tools) {
+	if !custhelp.VerifyEmail(email, tools) {
 		// Notify me an existing customer's email not deliverable
 		return "", errors.New("email found to be undeliverable")
 	}
