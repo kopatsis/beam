@@ -28,7 +28,7 @@ func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.Ha
 			return
 		}
 
-		clientCookie, sessionCookie, affiliateCookie, deviceCookie, twofaCookie := GetClientCookie(c), GetSessionCookie(c), GetAffiliateCookie(c), GetDeviceCookie(c), GetTwoFACookie(c)
+		clientCookie, sessionCookie, affiliateCookie, deviceCookie, twofaCookie, signInCookie := GetClientCookie(c), GetSessionCookie(c), GetAffiliateCookie(c), GetDeviceCookie(c), GetTwoFACookie(c), GetSignInCodeCookie(c)
 
 		service, ok := fullService.Map[store]
 		if !ok {
@@ -69,6 +69,11 @@ func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.Ha
 			twofaCookie = &models.TwoFactorCookie{}
 		}
 
+		service.Customer.SignInCodeMiddleware(clientCookie, signInCookie)
+		if signInCookie == nil {
+			signInCookie = &models.SignInCodeCookie{}
+		}
+
 		SetClientCookie(c, *clientCookie)
 		SetSessionCookie(c, *sessionCookie)
 		SetAffiliateCookie(c, *affiliateCookie)
@@ -76,6 +81,8 @@ func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.Ha
 		SetTwoFACookie(c, *twofaCookie)
 
 		c.Next()
+
+		SetCheckCookie(c)
 	}
 }
 
@@ -281,7 +288,7 @@ func SetSignInCodeCookie(c *gin.Context, si models.SignInCodeCookie) {
 	})
 }
 
-func GetSignInCodCookie(c *gin.Context) *models.SignInCodeCookie {
+func GetSignInCodeCookie(c *gin.Context) *models.SignInCodeCookie {
 	cookie, err := c.Cookie("signin6")
 	if err != nil {
 		return nil
@@ -291,4 +298,21 @@ func GetSignInCodCookie(c *gin.Context) *models.SignInCodeCookie {
 		return nil
 	}
 	return &si
+}
+
+func SetCheckCookie(c *gin.Context) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "setcheck",
+		Value:    "checkset",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   0,
+	})
+}
+
+func CheckCookiesAllowed(c *gin.Context) bool {
+	cookie, err := c.Cookie("setcheck")
+	return err != nil && cookie == "checkset"
 }

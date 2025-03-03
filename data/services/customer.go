@@ -41,6 +41,8 @@ type CustomerService interface {
 	GuestMiddleware(cookie *models.ClientCookie, store string)
 	FullMiddleware(cookie *models.ClientCookie, device *models.DeviceCookie, store string)
 	TwoFAMiddleware(cookie *models.ClientCookie, twofa *models.TwoFactorCookie)
+	SignInCodeMiddleware(cookie *models.ClientCookie, si *models.SignInCodeCookie)
+
 	LogoutCookie(dpi *DataPassIn, cookie *models.ClientCookie) error
 
 	GetCookieCurrencies(mutex *config.AllMutexes) ([]models.CodeBlock, []models.CodeBlock)
