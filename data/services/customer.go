@@ -400,9 +400,11 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, a
 	if err != nil {
 		return nil, nil, err
 	} else if customer == nil {
-		return nil, nil, fmt.Errorf("no active customer for email:  %s", email)
+		return nil, nil, fmt.Errorf("no active customer for email: %s", email)
 	} else if customer.Status == "Archived" {
-		return nil, nil, fmt.Errorf("archived customer for email:  %s", email)
+		return nil, nil, fmt.Errorf("archived customer for email: %s", email)
+	} else if customer.Status == "EmailOnly" {
+		return nil, nil, fmt.Errorf("email only customer for email: %s", email)
 	}
 
 	if usesPassword && (!custhelp.PasswordMeetsRequirements(password, "", false) || !custhelp.CheckPassword(customer.PasswordHash, password)) {
@@ -413,9 +415,9 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, a
 	if err != nil {
 		return nil, nil, err
 	} else if serverCookie == nil {
-		return nil, nil, fmt.Errorf("no active server cookie for email:  %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
+		return nil, nil, fmt.Errorf("no active server cookie for email: %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
 	} else if customer.Status == "Archived" {
-		return nil, nil, fmt.Errorf("archived server cookie for email:  %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
+		return nil, nil, fmt.Errorf("archived server cookie for email: %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
 	}
 
 	if addEmailSub {
@@ -453,18 +455,18 @@ func (s *customerService) ResetPass(dpi *DataPassIn, email string) error {
 	if err != nil {
 		return err
 	} else if customer == nil {
-		return fmt.Errorf("no active customer for email:  %s", email)
+		return fmt.Errorf("no active customer for email: %s", email)
 	} else if customer.Status == "Archived" {
-		return fmt.Errorf("archived customer for email:  %s", email)
+		return fmt.Errorf("archived customer for email: %s", email)
 	}
 
 	serverCookie, err := s.customerRepo.GetServerCookie(customer.ID, dpi.Store)
 	if err != nil {
 		return err
 	} else if serverCookie == nil {
-		return fmt.Errorf("no active server cookie for email:  %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
+		return fmt.Errorf("no active server cookie for email: %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
 	} else if customer.Status == "Archived" {
-		return fmt.Errorf("archived server cookie for email:  %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
+		return fmt.Errorf("archived server cookie for email: %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
 	}
 
 	reset := time.Now()
@@ -1175,6 +1177,12 @@ func (s *customerService) UnsubCustomerDirect(store, storeEncr, customerEncr, ti
 	cust, err := s.customerRepo.Read(customerID)
 	if err != nil {
 		return err
+	} else if cust == nil {
+		return nil
+	}
+
+	if cust.Status == "EmailOnly" {
+		return s.customerRepo.Delete(customerID)
 	}
 
 	if !cust.EmailSubbed {
@@ -1572,4 +1580,39 @@ func (s *customerService) ResendTwoFactor(dpi *DataPassIn, twofactorcookie model
 	}
 
 	return twofactorcookie, nil
+}
+
+// Customer already exists normal, customer already exists email only, error (succeess is false, false, nil)
+func (s *customerService) CreateEmailOnlyCustomer(dpi *DataPassIn, email string, tools *config.Tools) (bool, bool, error) {
+	email = strings.ToLower(email)
+	if !custhelp.VerifyEmail(email, tools) {
+		return false, false, errors.New("invalid email")
+	}
+
+	cust, err := s.customerRepo.GetCustomerByEmail(email)
+	if err != nil {
+		return false, false, err
+	}
+
+	if cust != nil {
+		if cust.Status == "Active" || cust.Status == "Draft" {
+			return true, false, nil
+		} else if cust.Status == "Archived" && time.Since(cust.Archived) <= 7*24*time.Hour {
+			return false, false, errors.New("archived and in cooldown ")
+		} else if cust.Status == "Archived" {
+			if err := s.customerRepo.ArchiveCustomerEmail(cust.ID, cust.Email); err != nil {
+				return false, false, err
+			}
+		} else {
+			return false, true, nil
+		}
+	}
+
+	cust = &models.Customer{
+		Email:       email,
+		EmailSubbed: true,
+		Status:      "EmailOnly",
+	}
+
+	return false, false, s.customerRepo.Create(*cust)
 }
