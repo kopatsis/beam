@@ -377,7 +377,6 @@ func (s *customerService) UpdateCustomer(dpi *DataPassIn, customer *models.Custo
 		return nil, fmt.Errorf("inactive customer for id: %d", dpi.CustomerID)
 	}
 
-	cust.Email = customer.Email
 	cust.EmailSubbed = customer.EmailSubbed
 	cust.FirstName = customer.FirstName
 	cust.LastName = customer.LastName
@@ -394,6 +393,8 @@ func (s *customerService) UpdateCustomer(dpi *DataPassIn, customer *models.Custo
 }
 
 func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, error) {
+
+	email = strings.ToLower(email)
 
 	customer, err := s.customerRepo.GetCustomerByEmail(email)
 	if err != nil {
@@ -446,6 +447,8 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, a
 }
 
 func (s *customerService) ResetPass(dpi *DataPassIn, email string) error {
+	email = strings.ToLower(email)
+
 	customer, err := s.customerRepo.GetCustomerByEmail(email)
 	if err != nil {
 		return err
@@ -808,6 +811,8 @@ func (s *customerService) ProcessVerificationEmail(dpi *DataPassIn, param string
 // Cookie, whether to render full form, error
 func (s *customerService) SendSignInCodeEmail(dpi *DataPassIn, email string, tools *config.Tools) (*models.SignInCodeCookie, bool, error) {
 
+	email = strings.ToLower(email)
+
 	cust, err := s.customerRepo.GetCustomerByEmail(email)
 	if err != nil {
 		return nil, false, err
@@ -823,7 +828,7 @@ func (s *customerService) SendSignInCodeEmail(dpi *DataPassIn, email string, too
 		custID = cust.ID
 	}
 
-	if !custhelp.VerifyEmail(cust.Email, tools) {
+	if !custhelp.VerifyEmail(email, tools) {
 		if cust != nil {
 			// Notify me an existing customer's email not deliverable
 		}
@@ -1027,6 +1032,8 @@ func (s *customerService) ProcessTwoFactor(dpi *DataPassIn, twofactorcookie *mod
 
 func (s *customerService) ChangeCustomerEmail(dpi *DataPassIn, newEmail, password string, tools *config.Tools) error {
 
+	newEmail = strings.ToLower(newEmail)
+
 	if !custhelp.VerifyEmail(newEmail, tools) {
 		return errors.New("email not valid")
 	}
@@ -1186,6 +1193,8 @@ func (s *customerService) UnsubCustomerDirect(store, storeEncr, customerEncr, ti
 }
 
 func (s *customerService) SendResetEmail(dpi *DataPassIn, email string, tools *config.Tools) (string, error) {
+	email = strings.ToLower(email)
+
 	cust, err := s.customerRepo.GetCustomerByEmail(email)
 	if err != nil {
 		return "", err
