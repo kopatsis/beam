@@ -185,35 +185,32 @@ func (r *orderRepo) GetOrdersByIDs(ids []string) ([]models.Order, error) {
 }
 
 func (r *orderRepo) GetOrdersByEmail(email string) (bool, error) {
-	count := options.Count()
+	filter := bson.M{"status": bson.M{"$ne": "Cancelled"}, "email": email, "guest": true}
 
-	filter := bson.M{
-		"status": bson.M{"$ne": "Cancelled"}, // update with other statuses
-		"email":  email,
-		"guest":  true,
+	var result struct {
+		ID primitive.ObjectID `bson:"_id"`
 	}
-
-	ct, err := r.coll.CountDocuments(context.Background(), filter, count)
-	return ct > 0, err
+	err := r.coll.FindOne(context.Background(), filter, options.FindOne().SetProjection(bson.M{"_id": 1})).Decode(&result)
+	if err == mongo.ErrNoDocuments {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 func (r *orderRepo) GetOrdersByEmailAndCustomer(email string, custID int) (bool, error) {
-	count := options.Count()
-
 	filter := bson.M{
-		"status": bson.M{"$ne": "Cancelled"}, // update with other statuses
-		"email":  email,
-		"guest":  true,
+		"$or": bson.A{
+			bson.M{"status": bson.M{"$ne": "Cancelled"}, "email": email, "guest": true},
+			bson.M{"status": bson.M{"$ne": "Cancelled"}, "customer_id": custID, "guest": false},
+		},
 	}
 
-	filter2 := bson.M{
-		"status":      bson.M{"$ne": "Cancelled"}, // update with other statuses
-		"customer_id": custID,
-		"guest":       false,
+	var result struct {
+		ID primitive.ObjectID `bson:"_id"`
 	}
-
-	filterAll := bson.A{filter, filter2}
-
-	ct, err := r.coll.CountDocuments(context.Background(), filterAll, count)
-	return ct > 0, err
+	err := r.coll.FindOne(context.Background(), filter, options.FindOne().SetProjection(bson.M{"_id": 1})).Decode(&result)
+	if err == mongo.ErrNoDocuments {
+		return false, nil
+	}
+	return err == nil, err
 }
