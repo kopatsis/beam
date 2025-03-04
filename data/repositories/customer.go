@@ -74,6 +74,10 @@ type CustomerRepository interface {
 	DeleteResetEmail(param, store string) error
 
 	ReadByBirthday(birthMonth, birthDay int) ([]*models.Customer, error)
+
+	CheckPasswordFailedAttempts(store, guestID string, customerID int) (bool, error)
+	SetPasswordFailedAttempts(store, guestID string, customerID int) (bool, error)
+	SuccessfulPasswordAttempt(store, guestID string, customerID int) error
 }
 
 type customerRepo struct {
@@ -685,4 +689,28 @@ func (r *customerRepo) ReadByBirthday(birthMonth, birthDay int) ([]*models.Custo
 	err := r.db.Where("email_subbed = ? AND status = ? AND birthday_set = ? AND birth_month = ? AND birth_day = ?",
 		true, "Active", true, birthMonth, birthDay).Find(&customers).Error
 	return customers, err
+}
+
+func (r *customerRepo) CheckPasswordFailedAttempts(store, guestID string, customerID int) (bool, error) {
+	key := store + "::PWFA::" + guestID + "::" + strconv.Itoa(customerID)
+
+	val, err := r.rdb.Get(context.Background(), key).Int()
+	return val >= config.PASSWORD_MAX_ATTEMPTS, err
+}
+
+func (r *customerRepo) SetPasswordFailedAttempts(store, guestID string, customerID int) (bool, error) {
+	key := store + "::PWFA::" + guestID + "::" + strconv.Itoa(customerID)
+
+	val, err := r.rdb.Incr(context.Background(), key).Result()
+	if err != nil {
+		return false, err
+	}
+	err = r.rdb.Expire(context.Background(), key, config.PASSWORD_FAIL_COOLWDOWN*time.Hour).Err()
+	return val >= config.PASSWORD_MAX_ATTEMPTS, err
+}
+
+func (r *customerRepo) SuccessfulPasswordAttempt(store, guestID string, customerID int) error {
+	key := store + "::PWFA::" + guestID + "::" + strconv.Itoa(customerID)
+
+	return r.rdb.Del(context.Background(), key).Err()
 }

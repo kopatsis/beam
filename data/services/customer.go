@@ -35,7 +35,7 @@ type CustomerService interface {
 	DeleteCustomer(dpi *DataPassIn) (*models.Customer, error)
 	UpdateCustomer(dpi *DataPassIn, customer *models.CustomerPost) (*models.Customer, error)
 
-	LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, error) // To cart/draft/order IF !2FA
+	LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, bool, error) // To cart/draft/order IF !2FA
 	ResetPass(dpi *DataPassIn, email string) error
 	CustomerMiddleware(cookie *models.ClientCookie)
 	GuestMiddleware(cookie *models.ClientCookie, store string)
@@ -397,32 +397,53 @@ func (s *customerService) UpdateCustomer(dpi *DataPassIn, customer *models.Custo
 	return cust, nil
 }
 
-func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, error) {
+// bool is if too many failed password attempts
+func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, bool, error) {
 
 	email = strings.ToLower(email)
 
 	customer, err := s.customerRepo.GetCustomerByEmail(email)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	} else if customer == nil {
-		return nil, nil, fmt.Errorf("no active customer for email: %s", email)
+		return nil, nil, false, fmt.Errorf("no active customer for email: %s", email)
 	} else if customer.Status == "Archived" {
-		return nil, nil, fmt.Errorf("archived customer for email: %s", email)
+		return nil, nil, false, fmt.Errorf("archived customer for email: %s", email)
 	} else if customer.Status == "EmailOnly" {
-		return nil, nil, fmt.Errorf("email only customer for email: %s", email)
+		return nil, nil, false, fmt.Errorf("email only customer for email: %s", email)
 	}
 
 	if usesPassword && (!custhelp.PasswordMeetsRequirements(password, "", false) || !custhelp.CheckPassword(customer.PasswordHash, password)) {
-		return nil, nil, errors.New("password is incorrect or invalid")
+		if tooMany, err := s.customerRepo.CheckPasswordFailedAttempts(dpi.Store, dpi.GuestID, customer.ID); err != nil {
+			return nil, nil, false, err
+		} else if tooMany {
+			return nil, nil, true, nil
+		}
+		if !custhelp.PasswordMeetsRequirements(password, "", false) {
+			if tooMany, err := s.customerRepo.SetPasswordFailedAttempts(dpi.Store, dpi.GuestID, customer.ID); err != nil {
+				return nil, nil, false, err
+			} else if tooMany {
+				return nil, nil, true, nil
+			}
+			return nil, nil, false, errors.New("password is invalid")
+		} else if !custhelp.CheckPassword(customer.PasswordHash, password) {
+			if tooMany, err := s.customerRepo.SetPasswordFailedAttempts(dpi.Store, dpi.GuestID, customer.ID); err != nil {
+				return nil, nil, false, err
+			} else if tooMany {
+				return nil, nil, true, nil
+			}
+			return nil, nil, false, errors.New("password is incorrect")
+		}
+
 	}
 
 	serverCookie, err := s.customerRepo.GetServerCookie(customer.ID, dpi.Store)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	} else if serverCookie == nil {
-		return nil, nil, fmt.Errorf("no active server cookie for email: %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
+		return nil, nil, false, fmt.Errorf("no active server cookie for email: %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
 	} else if customer.Status == "Archived" {
-		return nil, nil, fmt.Errorf("archived server cookie for email: %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
+		return nil, nil, false, fmt.Errorf("archived server cookie for email: %s; customer id: %d; store: %s", email, customer.ID, dpi.Store)
 	}
 
 	if addEmailSub {
@@ -432,25 +453,33 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, a
 	}
 
 	if err := s.customerRepo.SetDeviceMapping(customer.ID, dpi.GuestID, dpi.Store); err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 
 	var twofa *models.TwoFactorCookie
 	if customer.Uses2FA {
 		twofa, err = s.CreateTwoFACode(customer, dpi.Store, tools)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, false, err
 		}
 	}
 
-	return &models.ClientCookie{
+	ret := &models.ClientCookie{
 		Store:         dpi.Store,
 		CustomerID:    customer.ID,
 		CustomerSet:   time.Now(),
 		GuestID:       dpi.GuestID,
 		OtherCurrency: customer.UsesOtherCurrency,
 		Currency:      customer.OtherCurrency,
-	}, twofa, nil
+	}
+
+	if usesPassword {
+		if err := s.customerRepo.SuccessfulPasswordAttempt(dpi.Store, dpi.GuestID, customer.ID); err != nil {
+			return ret, twofa, false, err
+		}
+	}
+
+	return ret, twofa, false, nil
 }
 
 func (s *customerService) ResetPass(dpi *DataPassIn, email string) error {
@@ -938,7 +967,7 @@ func (s *customerService) ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *mode
 		}
 
 		// other status stuff
-		client, _, err := s.LoginCookie(dpi, signinParams.EmailAtTime, "", false, false, tools)
+		client, _, _, err := s.LoginCookie(dpi, signinParams.EmailAtTime, "", false, false, tools)
 		if err != nil {
 			return nil, err
 		}
