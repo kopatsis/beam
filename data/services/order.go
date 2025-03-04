@@ -31,6 +31,9 @@ type OrderService interface {
 	AdjustCheckOrders(store string, sendEmail, delayCheck []string, tools *config.Tools) (error, error)
 
 	MoveOrderToAccount(dpi *DataPassIn, orderID string) error
+
+	GetOrdersByEmail(email string) (bool, error)
+	GetOrdersByEmailAndCustomer(email string, custID int) (bool, error)
 }
 
 type orderService struct {
@@ -456,4 +459,11 @@ func (s *orderService) MoveOrderToAccount(dpi *DataPassIn, orderID string) error
 	order.MovedToAccountDate = time.Now()
 
 	return s.orderRepo.Update(order)
+}
+
+func (s *orderService) GetOrdersByEmail(email string) (bool, error) {
+	return s.orderRepo.GetOrdersByEmail(email)
+}
+func (s *orderService) GetOrdersByEmailAndCustomer(email string, custID int) (bool, error) {
+	return s.orderRepo.GetOrdersByEmailAndCustomer(email, custID)
 }

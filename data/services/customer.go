@@ -85,6 +85,8 @@ type CustomerService interface {
 
 	PrefillEmailAuth(dpi *DataPassIn, param string, tools *config.Tools) (string, bool, error)
 	GeneratePrefillAuthParam(dpi *DataPassIn, email string) string
+
+	CheckIfValidForWelcome(dpi *DataPassIn, email string, ors OrderService) (bool, error)
 }
 
 type customerService struct {
@@ -1647,4 +1649,19 @@ func (s *customerService) PrefillEmailAuth(dpi *DataPassIn, param string, tools 
 
 func (s *customerService) GeneratePrefillAuthParam(dpi *DataPassIn, email string) string {
 	return config.EncryptString(email)
+}
+
+func (s *customerService) CheckIfValidForWelcome(dpi *DataPassIn, email string, ors OrderService) (bool, error) {
+	email = strings.ToLower(email)
+
+	cust, err := s.customerRepo.GetCustomerByEmail(email)
+	if err != nil {
+		return false, err
+	}
+
+	if cust == nil {
+		return ors.GetOrdersByEmail(email)
+	} else {
+		return ors.GetOrdersByEmailAndCustomer(email, cust.ID)
+	}
 }

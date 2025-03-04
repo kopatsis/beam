@@ -45,6 +45,11 @@ type CurrencyMutex struct {
 	List models.CurrencyCodes
 }
 
+type SettingsMutex struct {
+	Mu       sync.RWMutex
+	Settings models.SpecialStoreSettings
+}
+
 type AllMutexes struct {
 	Store    StoreNamesWithMutex
 	Filters  TotalFiltersWithMutex
@@ -53,6 +58,7 @@ type AllMutexes struct {
 	Api      APIKeyMutex
 	Iso      IsoCodesMutex
 	Currency CurrencyMutex
+	Settings SettingsMutex
 }
 
 func unmarshalJSONFile(filePath string, v interface{}) error {
@@ -75,6 +81,7 @@ func LoadAllData() *AllMutexes {
 	countryFile := "static/ref/countryiso.json"
 	stateFile := "static/ref/stateiso.json"
 	currFile := "static/ref/currency.json"
+	settingsFile := "static/ref/storesettings.json"
 
 	var storeNames models.StoreNames
 	var totalFilters models.TotalFilters
@@ -83,6 +90,7 @@ func LoadAllData() *AllMutexes {
 	var states models.StateCodes
 	var currency models.CurrencyCodes
 	var tax map[string]float64
+	var settings models.SpecialStoreSettings
 
 	if err := unmarshalJSONFile(storeNamesFile, &storeNames); err != nil {
 		log.Fatalf("Unable to load the store mutex vars: %v", err)
@@ -105,6 +113,9 @@ func LoadAllData() *AllMutexes {
 	if err := unmarshalJSONFile(currFile, &currency); err != nil {
 		log.Fatalf("Unable to load the currency mutex vars: %v", err)
 	}
+	if err := unmarshalJSONFile(settingsFile, &settings); err != nil {
+		log.Fatalf("Unable to load the store special settings mutex vars: %v", err)
+	}
 
 	keyMap := map[string]string{}
 
@@ -126,5 +137,6 @@ func LoadAllData() *AllMutexes {
 		Api:      APIKeyMutex{KeyMap: keyMap},
 		Iso:      IsoCodesMutex{Countries: countries, States: states},
 		Currency: CurrencyMutex{List: currency},
+		Settings: SettingsMutex{Settings: settings},
 	}
 }

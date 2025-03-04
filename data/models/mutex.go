@@ -49,6 +49,11 @@ type StateCodes struct {
 	AU []CodeBlock `json:"AU"`
 }
 
+type SpecialStoreSettings struct {
+	WelcomePct     map[string]float64
+	AlwaysWorksPct map[string]float64
+}
+
 var sizeOrder = map[string]int{
 	"XXXS": 0,
 	"XXS":  1,

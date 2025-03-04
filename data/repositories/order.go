@@ -21,6 +21,9 @@ type OrderRepository interface {
 	UpdateCheckDeliveryDate(ids []string) error
 	UpdateCheckEmailSent(ids []string) error
 	GetOrdersByIDs(ids []string) ([]models.Order, error)
+
+	GetOrdersByEmail(email string) (bool, error)
+	GetOrdersByEmailAndCustomer(email string, custID int) (bool, error)
 }
 
 type orderRepo struct {
@@ -179,4 +182,38 @@ func (r *orderRepo) GetOrdersByIDs(ids []string) ([]models.Order, error) {
 	}
 
 	return orders, nil
+}
+
+func (r *orderRepo) GetOrdersByEmail(email string) (bool, error) {
+	count := options.Count()
+
+	filter := bson.M{
+		"status": bson.M{"$ne": "Cancelled"}, // update with other statuses
+		"email":  email,
+		"guest":  true,
+	}
+
+	ct, err := r.coll.CountDocuments(context.Background(), filter, count)
+	return ct > 0, err
+}
+
+func (r *orderRepo) GetOrdersByEmailAndCustomer(email string, custID int) (bool, error) {
+	count := options.Count()
+
+	filter := bson.M{
+		"status": bson.M{"$ne": "Cancelled"}, // update with other statuses
+		"email":  email,
+		"guest":  true,
+	}
+
+	filter2 := bson.M{
+		"status":      bson.M{"$ne": "Cancelled"}, // update with other statuses
+		"customer_id": custID,
+		"guest":       false,
+	}
+
+	filterAll := bson.A{filter, filter2}
+
+	ct, err := r.coll.CountDocuments(context.Background(), filterAll, count)
+	return ct > 0, err
 }
