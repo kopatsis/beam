@@ -64,8 +64,8 @@ type CustomerRepository interface {
 
 	UpdateCustomerCurrency(id int, usesOtherCurrency bool, otherCurrency string) error
 
-	SetDeviceMapping(customerID int, deviceID, store string) error
-	GetDeviceMapping(deviceID, store string) (int, error)
+	SetDeviceMapping(customerID int, guestID, store string) error
+	GetDeviceMapping(guestID, store string) (int, error)
 	DeleteIncompleteUnverifiedCustomers() error
 	IncompleteScheduled()
 
@@ -536,8 +536,8 @@ func (r *customerRepo) UpdateCustomerCurrency(id int, usesOtherCurrency bool, ot
 	}).Error
 }
 
-func (r *customerRepo) SetDeviceMapping(customerID int, deviceID, store string) error {
-	key := store + "::DVMP::" + deviceID
+func (r *customerRepo) SetDeviceMapping(customerID int, guestID, store string) error {
+	key := store + "::DVMP::" + guestID
 
 	if customerID == 0 {
 		return r.rdb.Del(context.Background(), key).Err()
@@ -546,8 +546,8 @@ func (r *customerRepo) SetDeviceMapping(customerID int, deviceID, store string) 
 	return r.rdb.Set(context.Background(), key, customerID, 0).Err()
 }
 
-func (r *customerRepo) GetDeviceMapping(deviceID, store string) (int, error) {
-	key := store + "::DVMP::" + deviceID
+func (r *customerRepo) GetDeviceMapping(guestID, store string) (int, error) {
+	key := store + "::DVMP::" + guestID
 	val, err := r.rdb.Get(context.Background(), key).Int()
 	if err == redis.Nil {
 		return 0, nil

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.HandlerFunc {
@@ -28,7 +27,7 @@ func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.Ha
 			return
 		}
 
-		clientCookie, sessionCookie, affiliateCookie, deviceCookie, twofaCookie, signInCookie := GetClientCookie(c), GetSessionCookie(c), GetAffiliateCookie(c), GetDeviceCookie(c), GetTwoFACookie(c), GetSignInCodeCookie(c)
+		clientCookie, sessionCookie, affiliateCookie, twofaCookie, signInCookie := GetClientCookie(c), GetSessionCookie(c), GetAffiliateCookie(c), GetTwoFACookie(c), GetSignInCodeCookie(c)
 
 		service, ok := fullService.Map[store]
 		if !ok {
@@ -37,12 +36,7 @@ func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.Ha
 			return
 		}
 
-		service.Session.DeviceMiddleware(deviceCookie)
-		if deviceCookie == nil {
-			deviceCookie = &models.DeviceCookie{DeviceID: "DV:" + uuid.NewString()}
-		}
-
-		service.Customer.FullMiddleware(clientCookie, deviceCookie, store)
+		service.Customer.FullMiddleware(clientCookie, store)
 		if clientCookie == nil {
 			clientCookie = &models.ClientCookie{}
 		}
@@ -77,7 +71,6 @@ func CookieMiddleware(fullService *data.AllServices, tools *config.Tools) gin.Ha
 		SetClientCookie(c, *clientCookie)
 		SetSessionCookie(c, *sessionCookie)
 		SetAffiliateCookie(c, *affiliateCookie)
-		SetDeviceCookie(c, *deviceCookie)
 		SetTwoFACookie(c, *twofaCookie)
 
 		c.Next()
@@ -159,31 +152,6 @@ func GetAffiliateCookie(c *gin.Context) *models.AffiliateSession {
 		return nil
 	}
 	return &affiliate
-}
-
-func SetDeviceCookie(c *gin.Context, device models.DeviceCookie) {
-	data, _ := json.Marshal(device)
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     "device",
-		Value:    string(data),
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-		MaxAge:   0,
-	})
-}
-
-func GetDeviceCookie(c *gin.Context) *models.DeviceCookie {
-	cookie, err := c.Cookie("device")
-	if err != nil {
-		return nil
-	}
-	var device models.DeviceCookie
-	if err := json.Unmarshal([]byte(cookie), &device); err != nil {
-		return nil
-	}
-	return &device
 }
 
 func SetTwoFACookie(c *gin.Context, twofa models.TwoFactorCookie) {

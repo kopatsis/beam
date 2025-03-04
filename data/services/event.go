@@ -14,7 +14,6 @@ type DataPassIn struct {
 	SessionID     string
 	AffiliateID   int
 	AffiliateCode string
-	DeviceID      string
 	Logger        EventService
 }
 

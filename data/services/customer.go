@@ -37,9 +37,9 @@ type CustomerService interface {
 
 	LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, error) // To cart/draft/order IF !2FA
 	ResetPass(dpi *DataPassIn, email string) error
-	CustomerMiddleware(cookie *models.ClientCookie, device *models.DeviceCookie)
+	CustomerMiddleware(cookie *models.ClientCookie)
 	GuestMiddleware(cookie *models.ClientCookie, store string)
-	FullMiddleware(cookie *models.ClientCookie, device *models.DeviceCookie, store string)
+	FullMiddleware(cookie *models.ClientCookie, store string)
 	TwoFAMiddleware(cookie *models.ClientCookie, twofa *models.TwoFactorCookie)
 	SignInCodeMiddleware(cookie *models.ClientCookie, si *models.SignInCodeCookie)
 
@@ -315,7 +315,7 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 		return nil, nil, newCust, nil, err
 	}
 
-	if err := s.customerRepo.SetDeviceMapping(newCust.ID, dpi.DeviceID, dpi.Store); err != nil {
+	if err := s.customerRepo.SetDeviceMapping(newCust.ID, dpi.GuestID, dpi.Store); err != nil {
 		return nil, nil, newCust, c, err
 	}
 
@@ -429,7 +429,7 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, a
 		}
 	}
 
-	if err := s.customerRepo.SetDeviceMapping(customer.ID, dpi.DeviceID, dpi.Store); err != nil {
+	if err := s.customerRepo.SetDeviceMapping(customer.ID, dpi.GuestID, dpi.Store); err != nil {
 		return nil, nil, err
 	}
 
@@ -484,7 +484,7 @@ func (s *customerService) ResetPass(dpi *DataPassIn, email string) error {
 	return sqlErr
 }
 
-func (s *customerService) CustomerMiddleware(cookie *models.ClientCookie, device *models.DeviceCookie) {
+func (s *customerService) CustomerMiddleware(cookie *models.ClientCookie) {
 
 	if cookie == nil {
 		return
@@ -525,7 +525,7 @@ func (s *customerService) CustomerMiddleware(cookie *models.ClientCookie, device
 		}
 
 		if cookie.CustomerID > 0 {
-			id, err := s.customerRepo.GetDeviceMapping(device.DeviceID, cookie.Store)
+			id, err := s.customerRepo.GetDeviceMapping(cookie.GuestID, cookie.Store)
 			if err != nil || cookie.CustomerID != id {
 				cookie.CustomerID = 0
 				cookie.CustomerSet = time.Time{}
@@ -543,12 +543,12 @@ func (s *customerService) GuestMiddleware(cookie *models.ClientCookie, store str
 	}
 }
 
-func (s *customerService) FullMiddleware(cookie *models.ClientCookie, device *models.DeviceCookie, store string) {
+func (s *customerService) FullMiddleware(cookie *models.ClientCookie, store string) {
 	if cookie == nil {
 		return
 	}
 	s.GuestMiddleware(cookie, store)
-	s.CustomerMiddleware(cookie, device)
+	s.CustomerMiddleware(cookie)
 }
 
 func (s *customerService) TwoFAMiddleware(cookie *models.ClientCookie, twofa *models.TwoFactorCookie) {
@@ -583,7 +583,7 @@ func (s *customerService) LogoutCookie(dpi *DataPassIn, cookie *models.ClientCoo
 	cookie.CustomerID = 0
 	cookie.CustomerSet = time.Time{}
 
-	return s.customerRepo.SetDeviceMapping(0, dpi.DeviceID, dpi.Store)
+	return s.customerRepo.SetDeviceMapping(0, dpi.GuestID, dpi.Store)
 }
 
 func (s *customerService) GetCookieCurrencies(mutex *config.AllMutexes) ([]models.CodeBlock, []models.CodeBlock) {

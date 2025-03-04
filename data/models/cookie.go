@@ -61,11 +61,6 @@ type ResetEmailCookie struct {
 	Initial    time.Time `json:"i"`
 }
 
-// Permanent as opposed to session
-type DeviceCookie struct {
-	DeviceID string `json:"d"`
-}
-
 func (c *ClientCookie) GetCart() int {
 	if c.CustomerID > 0 {
 		return c.CustomerCart
