@@ -31,7 +31,7 @@ type CustomerService interface {
 	UpdateContactAndRender(dpi *DataPassIn, contactID int, newContact *models.Contact, mutex *config.AllMutexes, isDefault bool) ([]*models.Contact, error, error)
 	DeleteContact(dpi *DataPassIn, contactID int) (int, error)
 	DeleteContactAndRender(dpi *DataPassIn, contactID int) ([]*models.Contact, error, error)
-	CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, *models.Customer, *models.ServerCookie, error) // To cart/draft/order IF !2FA
+	CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, ors OrderService, storeSettings *config.SettingsMutex, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, *models.Customer, *models.ServerCookie, error) // To cart/draft/order IF !2FA
 	DeleteCustomer(dpi *DataPassIn) (*models.Customer, error)
 	UpdateCustomer(dpi *DataPassIn, customer *models.CustomerPost) (*models.Customer, error)
 
@@ -61,7 +61,7 @@ type CustomerService interface {
 	ProcessVerificationEmail(dpi *DataPassIn, param string) error // To cart/draft/order ?
 
 	SendSignInCodeEmail(dpi *DataPassIn, email string, tools *config.Tools) (*models.SignInCodeCookie, bool, error)
-	ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *models.SignInCodeCookie, sixdigits uint, post *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, error) // To cart/draft/order
+	ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *models.SignInCodeCookie, sixdigits uint, post *models.CustomerPost, ors OrderService, storeSettings *config.SettingsMutex, tools *config.Tools) (*models.ClientCookie, error) // To cart/draft/order
 	ResendSignInCode(dpi *DataPassIn, siCookie models.SignInCodeCookie, tools *config.Tools) (models.SignInCodeCookie, error)
 
 	CreateTwoFACode(cust *models.Customer, store string, tools *config.Tools) (*models.TwoFactorCookie, error)
@@ -87,6 +87,7 @@ type CustomerService interface {
 	GeneratePrefillAuthParam(dpi *DataPassIn, email string) string
 
 	CheckIfValidForWelcome(dpi *DataPassIn, email string, ors OrderService) (bool, error)
+	WelcomeDiscountEmail(dpi *DataPassIn, email string, cust *models.Customer, isCreate bool, ors OrderService, storeSettings *config.SettingsMutex, tools *config.Tools)
 }
 
 type customerService struct {
@@ -236,7 +237,7 @@ func (s *customerService) DeleteContactAndRender(dpi *DataPassIn, contactID int)
 	return list, updateErr, getErr
 }
 
-func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, *models.Customer, *models.ServerCookie, error) {
+func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.CustomerPost, ors OrderService, storeSettings *config.SettingsMutex, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, *models.Customer, *models.ServerCookie, error) {
 	validate := validator.New()
 	err := validate.Struct(customer)
 	if err != nil {
@@ -328,6 +329,10 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 			return nil, nil, newCust, c, err
 		}
 	}
+
+	go func() {
+		s.WelcomeDiscountEmail(dpi, email, cust, true, ors, storeSettings, tools)
+	}()
 
 	return &models.ClientCookie{
 		Store:         dpi.Store,
@@ -886,7 +891,7 @@ func (s *customerService) SendSignInCodeEmail(dpi *DataPassIn, email string, too
 }
 
 // nil, nil means everything else right, but 6 digit code wrong
-func (s *customerService) ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *models.SignInCodeCookie, sixdigits uint, post *models.CustomerPost, tools *config.Tools) (*models.ClientCookie, error) {
+func (s *customerService) ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *models.SignInCodeCookie, sixdigits uint, post *models.CustomerPost, ors OrderService, storeSettings *config.SettingsMutex, tools *config.Tools) (*models.ClientCookie, error) {
 	if time.Since(siCookie.Set) > config.SIGNIN_EXPIR_MINS*time.Minute {
 		return nil, errors.New("past expiration")
 	}
@@ -975,7 +980,7 @@ func (s *customerService) ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *mode
 	}
 
 	post.IsEmailVerified = true
-	client, _, _, _, err := s.CreateCustomer(dpi, post, tools)
+	client, _, _, _, err := s.CreateCustomer(dpi, post, ors, storeSettings, tools)
 	if err != nil {
 		return nil, err
 	}
@@ -1692,5 +1697,18 @@ func (s *customerService) CheckIfValidForWelcome(dpi *DataPassIn, email string, 
 		return ors.GetOrdersByEmail(email)
 	} else {
 		return ors.GetOrdersByEmailAndCustomer(email, cust.ID)
+	}
+}
+
+func (s *customerService) WelcomeDiscountEmail(dpi *DataPassIn, email string, cust *models.Customer, isCreate bool, ors OrderService, storeSettings *config.SettingsMutex, tools *config.Tools) {
+	welcome, err := s.CheckIfValidForWelcome(dpi, email, ors)
+	if err != nil {
+		// Notify me low priority
+		log.Printf("Error sending welcome email on order check: %v\n", err)
+	}
+
+	if err := emails.WelcomeDiscountEmail(dpi.Store, email, cust, welcome, isCreate, storeSettings, tools); err != nil {
+		// Notify me low priority
+		log.Printf("Error sending welcome email on email send: %v\n", err)
 	}
 }

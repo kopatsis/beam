@@ -50,8 +50,8 @@ type StateCodes struct {
 }
 
 type SpecialStoreSettings struct {
-	WelcomePct     map[string]float64
-	AlwaysWorksPct map[string]float64
+	WelcomePct     map[string]int
+	AlwaysWorksPct map[string]int
 }
 
 var sizeOrder = map[string]int{

@@ -185,7 +185,7 @@ func (r *orderRepo) GetOrdersByIDs(ids []string) ([]models.Order, error) {
 }
 
 func (r *orderRepo) GetOrdersByEmail(email string) (bool, error) {
-	filter := bson.M{"status": bson.M{"$ne": "Cancelled"}, "email": email, "guest": true}
+	filter := bson.M{"status": bson.M{"$ne": "Cancelled"}, "email": email, "guest": true} // Update statuses
 
 	var result struct {
 		ID primitive.ObjectID `bson:"_id"`
@@ -200,8 +200,8 @@ func (r *orderRepo) GetOrdersByEmail(email string) (bool, error) {
 func (r *orderRepo) GetOrdersByEmailAndCustomer(email string, custID int) (bool, error) {
 	filter := bson.M{
 		"$or": bson.A{
-			bson.M{"status": bson.M{"$ne": "Cancelled"}, "email": email, "guest": true},
-			bson.M{"status": bson.M{"$ne": "Cancelled"}, "customer_id": custID, "guest": false},
+			bson.M{"status": bson.M{"$ne": "Cancelled"}, "email": email, "guest": true},         // Update statuses
+			bson.M{"status": bson.M{"$ne": "Cancelled"}, "customer_id": custID, "guest": false}, // Update statuses
 		},
 	}
 
