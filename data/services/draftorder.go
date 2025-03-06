@@ -8,7 +8,6 @@ import (
 	"beam/data/services/draftorderhelp"
 	"errors"
 	"fmt"
-	"net/mail"
 	"sync"
 )
 
@@ -34,7 +33,7 @@ type DraftOrderService interface {
 	RemoveGiftCard(dpi *DataPassIn, draftID string, gcID int) (*models.DraftOrder, error)
 	CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID string, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error, error, bool)
 
-	AddGuestInfoToDraft(dpi *DataPassIn, draftID, name, email string) (*models.DraftOrder, error)
+	AddGuestInfoToDraft(dpi *DataPassIn, draftID, name, email string, tools *config.Tools) (*models.DraftOrder, error)
 	ChangeCustDraftName(dpi *DataPassIn, draftID, name string) (*models.DraftOrder, error)
 
 	Update(draft *models.DraftOrder) error
@@ -635,10 +634,9 @@ func (s *draftOrderService) CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID 
 	return nil, nil, nil, true
 }
 
-func (s *draftOrderService) AddGuestInfoToDraft(dpi *DataPassIn, draftID string, email, name string) (*models.DraftOrder, error) {
-	_, err := mail.ParseAddress(email)
-	if err != nil {
-		return nil, errors.New("Unable to parse email: " + err.Error())
+func (s *draftOrderService) AddGuestInfoToDraft(dpi *DataPassIn, draftID string, email, name string, tools *config.Tools) (*models.DraftOrder, error) {
+	if !custhelp.VerifyEmail(email, tools) {
+		return nil, errors.New("invalid email")
 	}
 
 	if len(name) > 140 {

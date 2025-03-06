@@ -62,6 +62,14 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 		}
 	}
 
+	if draft.Email == "" {
+		if cust != nil {
+			draft.Email = cust.Email
+		} else {
+			return nil, errors.New("no email supplied in draft order")
+		}
+	}
+
 	if useExisting {
 		if draft.ExistingPaymentMethod.ID == "" {
 			return errors.New("requires a chosen payment method if using existing payment method"), nil
