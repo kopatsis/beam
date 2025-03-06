@@ -244,7 +244,7 @@ func (s *discountService) GetDiscountCodeForDraft(code, store string, subtotal, 
 		if email == "" {
 			return nil, nil, errors.New("must supply email for welcome disc")
 		}
-		if allowed, err := cs.CheckIfValidForWelcome(&DataPassIn{Store: store}, email, ors, tools); err != nil {
+		if allowed, err := cs.CheckIfValidForWelcome(&DataPassIn{Store: store}, cust, email, ors, tools); err != nil {
 			return nil, nil, err
 		} else if !allowed {
 			return nil, nil, errors.New("welcome disc doesn't apply as this email has an order")

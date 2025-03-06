@@ -86,7 +86,7 @@ type CustomerService interface {
 	PrefillEmailAuth(dpi *DataPassIn, param string, tools *config.Tools) (string, bool, error)
 	GeneratePrefillAuthParam(dpi *DataPassIn, email string) string
 
-	CheckIfValidForWelcome(dpi *DataPassIn, email string, ors OrderService, tools *config.Tools) (bool, error)
+	CheckIfValidForWelcome(dpi *DataPassIn, custID int, email string, ors OrderService, tools *config.Tools) (bool, error)
 	WelcomeDiscountEmail(dpi *DataPassIn, email string, cust *models.Customer, isCreate bool, ors OrderService, storeSettings *config.SettingsMutex, tools *config.Tools)
 }
 
@@ -1685,16 +1685,25 @@ func (s *customerService) GeneratePrefillAuthParam(dpi *DataPassIn, email string
 	return config.EncryptString(email)
 }
 
-func (s *customerService) CheckIfValidForWelcome(dpi *DataPassIn, email string, ors OrderService, tools *config.Tools) (bool, error) {
+func (s *customerService) CheckIfValidForWelcome(dpi *DataPassIn, custID int, email string, ors OrderService, tools *config.Tools) (bool, error) {
 	email = strings.ToLower(email)
 
 	if !custhelp.VerifyEmail(email, tools) {
 		return false, errors.New("invalid email")
 	}
 
-	cust, err := s.customerRepo.GetCustomerByEmail(email)
-	if err != nil {
-		return false, err
+	err := error(nil)
+	var cust *models.Customer
+	if custID > 0 {
+		cust, err = s.customerRepo.Read(custID)
+		if err != nil {
+			return false, err
+		}
+	} else {
+		cust, err = s.customerRepo.GetCustomerByEmail(email)
+		if err != nil {
+			return false, err
+		}
 	}
 
 	if cust == nil {
@@ -1705,7 +1714,12 @@ func (s *customerService) CheckIfValidForWelcome(dpi *DataPassIn, email string, 
 }
 
 func (s *customerService) WelcomeDiscountEmail(dpi *DataPassIn, email string, cust *models.Customer, isCreate bool, ors OrderService, storeSettings *config.SettingsMutex, tools *config.Tools) {
-	welcome, err := s.CheckIfValidForWelcome(dpi, email, ors, tools)
+	id := 0
+	if cust != nil {
+		id = cust.ID
+	}
+
+	welcome, err := s.CheckIfValidForWelcome(dpi, id, email, ors, tools)
 	if err != nil {
 		// Notify me low priority
 		log.Printf("Error sending welcome email on order check: %v\n", err)
