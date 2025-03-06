@@ -23,7 +23,7 @@ type DraftOrderService interface {
 	ChooseShipRate(dpi *DataPassIn, draftID, rateName string) (*models.DraftOrder, error)
 	ChoosePaymentMethod(dpi *DataPassIn, draftID, paymentMethodID string, cts CustomerService) (*models.DraftOrder, error)
 	RemovePaymentMethod(dpi *DataPassIn, draftID string) (*models.DraftOrder, error)
-	AddDiscountCode(dpi *DataPassIn, draftID, discCode string, ds DiscountService) (*models.DraftOrder, error)
+	AddDiscountCode(dpi *DataPassIn, draftID, discCode string, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (*models.DraftOrder, error)
 	RemoveDiscountCode(dpi *DataPassIn, draftID string) (*models.DraftOrder, error)
 	SetTip(dpi *DataPassIn, draftID string, tip int) (*models.DraftOrder, error)
 	RemoveTip(dpi *DataPassIn, draftID string) (*models.DraftOrder, error)
@@ -32,7 +32,7 @@ type DraftOrderService interface {
 	ApplyGiftCard(dpi *DataPassIn, draftID string, gcID, amount int, useMax bool) (*models.DraftOrder, error)
 	DeApplyGiftCard(dpi *DataPassIn, draftID string, gcID int) (*models.DraftOrder, error)
 	RemoveGiftCard(dpi *DataPassIn, draftID string, gcID int) (*models.DraftOrder, error)
-	CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID string, ds DiscountService) (error, error, error, bool)
+	CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID string, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error, error, bool)
 
 	AddGuestInfoToDraft(dpi *DataPassIn, draftID, name, email string) (*models.DraftOrder, error)
 	ChangeCustDraftName(dpi *DataPassIn, draftID, name string) (*models.DraftOrder, error)
@@ -439,13 +439,13 @@ func (s *draftOrderService) RemovePaymentMethod(dpi *DataPassIn, draftID string)
 	return draft, err
 }
 
-func (s *draftOrderService) AddDiscountCode(dpi *DataPassIn, draftID, discCode string, ds DiscountService) (*models.DraftOrder, error) {
+func (s *draftOrderService) AddDiscountCode(dpi *DataPassIn, draftID, discCode string, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (*models.DraftOrder, error) {
 	draft, err := s.GetDraftPtl(draftID, dpi.GuestID, dpi.CustomerID)
 	if err != nil {
 		return draft, err
 	}
 
-	disc, users, err := ds.GetDiscountCodeForDraft(discCode, draft.Subtotal, dpi.CustomerID, dpi.CustomerID < 1 && dpi.GuestID != "")
+	disc, users, err := ds.GetDiscountCodeForDraft(discCode, dpi.Store, draft.Subtotal, dpi.CustomerID, dpi.CustomerID < 1 && dpi.GuestID != "", draft.Email, storeSettings, tools, cs, ors)
 	if err != nil {
 		return draft, err
 	}
@@ -587,7 +587,7 @@ func (s *draftOrderService) RemoveGiftCard(dpi *DataPassIn, draftID string, gcID
 }
 
 // draftErr error, gcErr error, draftErr error, passes bool
-func (s *draftOrderService) CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID string, ds DiscountService) (error, error, error, bool) {
+func (s *draftOrderService) CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID string, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error, error, bool) {
 	draft, err := s.GetDraftPtl(draftID, dpi.GuestID, dpi.CustomerID)
 	if err != nil {
 		return err, nil, nil, false
@@ -600,7 +600,7 @@ func (s *draftOrderService) CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID 
 			gcsAndAmounts[[2]string{gc.Code, gc.Pin}] = gc.Charged
 		}
 
-		gcErr, draftErr := ds.CheckGiftCardsAndDiscountCodes(gcsAndAmounts, draft.OrderDiscount.DiscountCode, draft.Subtotal, dpi.CustomerID, draft.Guest)
+		gcErr, draftErr := ds.CheckGiftCardsAndDiscountCodes(gcsAndAmounts, draft.OrderDiscount.DiscountCode, dpi.Store, draft.Subtotal, dpi.CustomerID, draft.Guest, draft.Email, storeSettings, tools, cs, ors)
 		if gcErr == nil && draftErr == nil {
 			return nil, nil, nil, true
 		}
@@ -623,7 +623,7 @@ func (s *draftOrderService) CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID 
 
 	} else if draft.OrderDiscount.DiscountCode != "" {
 
-		draftErr := ds.CheckDiscountCode(draft.OrderDiscount.DiscountCode, draft.Subtotal, dpi.CustomerID, draft.Guest)
+		draftErr := ds.CheckDiscountCode(draft.OrderDiscount.DiscountCode, dpi.Store, draft.Subtotal, dpi.CustomerID, draft.Guest, draft.Email, storeSettings, tools, cs, ors)
 		if draftErr == nil {
 			return nil, nil, nil, true
 		}

@@ -23,12 +23,12 @@ type DiscountService interface {
 	RenderGiftCard(code string) (*models.GiftCardRender, error)
 	RetrieveGiftCard(code, pin string) (*models.GiftCard, error)
 	CheckMultipleGiftCards(codesAndAmounts map[[2]string]int) error
-	CheckDiscountCode(code string, subtotal int, cust int, noCustomer bool) error
-	CheckGiftCardsAndDiscountCodes(codesAndAmounts map[[2]string]int, code string, subtotal int, cust int, noCustomer bool) (error, error)
-	GetDiscountCodeForDraft(code string, subtotal, cust int, noCustomer bool) (*models.Discount, []*models.DiscountUser, error)
+	CheckDiscountCode(code, store string, subtotal, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) error
+	CheckGiftCardsAndDiscountCodes(codesAndAmounts map[[2]string]int, code, store string, subtotal int, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error)
+	GetDiscountCodeForDraft(code, store string, subtotal, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (*models.Discount, []*models.DiscountUser, error)
 
 	UseMultipleGiftCards(codesAndAmounts map[[2]string]int, customderID int, guestID, orderID, sessionID string) error
-	UseDiscountCode(code, guestID, orderID, sessionID string, subtotal int, cust int, noCustomer bool) error
+	UseDiscountCode(code, guestID, orderID, sessionID, store string, subtotal int, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) error
 }
 
 type discountService struct {
@@ -210,13 +210,13 @@ func (s *discountService) CheckMultipleGiftCards(codesAndAmounts map[[2]string]i
 	return nil
 }
 
-func (s *discountService) CheckDiscountCode(code string, subtotal int, cust int, noCustomer bool) error {
+func (s *discountService) CheckDiscountCode(code, store string, subtotal, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) error {
 
-	_, _, err := s.GetDiscountCodeForDraft(code, subtotal, cust, noCustomer)
+	_, _, err := s.GetDiscountCodeForDraft(code, store, subtotal, cust, noCustomer, email, storeSettings, tools, cs, ors)
 	return err
 }
 
-func (s *discountService) CheckGiftCardsAndDiscountCodes(codesAndAmounts map[[2]string]int, code string, subtotal int, cust int, noCustomer bool) (error, error) {
+func (s *discountService) CheckGiftCardsAndDiscountCodes(codesAndAmounts map[[2]string]int, code, store string, subtotal int, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error) {
 	var errGiftCards, errDiscountCodes error
 
 	wg := sync.WaitGroup{}
@@ -229,14 +229,47 @@ func (s *discountService) CheckGiftCardsAndDiscountCodes(codesAndAmounts map[[2]
 
 	go func() {
 		defer wg.Done()
-		errDiscountCodes = s.CheckDiscountCode(code, subtotal, cust, noCustomer)
+		errDiscountCodes = s.CheckDiscountCode(code, store, subtotal, cust, noCustomer, email, storeSettings, tools, cs, ors)
 	}()
 
 	wg.Wait()
 	return errGiftCards, errDiscountCodes
 }
 
-func (s *discountService) GetDiscountCodeForDraft(code string, subtotal, cust int, noCustomer bool) (*models.Discount, []*models.DiscountUser, error) {
+func (s *discountService) GetDiscountCodeForDraft(code, store string, subtotal, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (*models.Discount, []*models.DiscountUser, error) {
+
+	welcomeCode, welcomePct, alwaysCode, alwaysPct := discount.SpecialDiscNames(storeSettings, store)
+
+	if code == welcomeCode {
+		if email == "" {
+			return nil, nil, errors.New("must supply email for welcome disc")
+		}
+		if allowed, err := cs.CheckIfValidForWelcome(&DataPassIn{Store: store}, email, ors, tools); err != nil {
+			return nil, nil, err
+		} else if !allowed {
+			return nil, nil, errors.New("welcome disc doesn't apply as this email has an order")
+		}
+		return &models.Discount{
+			ID:              -1,
+			DiscountCode:    welcomeCode,
+			Status:          "Active",
+			IsPercentageOff: true,
+			PercentageOff:   welcomePct,
+			ShortMessage:    "You are most certainly welcome",
+		}, nil, nil
+	}
+
+	if code == alwaysCode {
+		return &models.Discount{
+			ID:              -2,
+			DiscountCode:    alwaysCode,
+			Status:          "Active",
+			IsPercentageOff: true,
+			PercentageOff:   alwaysPct,
+			ShortMessage:    "Told you it always works",
+		}, nil, nil
+	}
+
 	disc, users, err := s.discountRepo.GetDiscountWithUsers(code)
 	if err != nil {
 		return nil, nil, err
@@ -320,9 +353,9 @@ func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[[2]string]int
 	return nil
 }
 
-func (s *discountService) UseDiscountCode(code, guestID, orderID, sessionID string, subtotal int, cust int, noCustomer bool) error {
+func (s *discountService) UseDiscountCode(code, guestID, orderID, sessionID, store string, subtotal int, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) error {
 
-	disc, users, err := s.GetDiscountCodeForDraft(code, subtotal, cust, noCustomer)
+	disc, users, err := s.GetDiscountCodeForDraft(code, store, subtotal, cust, noCustomer, email, storeSettings, tools, cs, ors)
 	if err != nil {
 		return err
 	}

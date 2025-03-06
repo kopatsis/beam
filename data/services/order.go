@@ -196,7 +196,7 @@ func (s *orderService) CompleteOrder(store, orderID string, ds DraftOrderService
 }
 
 // Giftcard error, discount error, both worked
-func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService) (error, error, bool) {
+func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService) (error, error, bool) {
 
 	gcErr, discErr := error(nil), error(nil)
 
@@ -217,7 +217,7 @@ func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.O
 
 	if order.OrderDiscount.DiscountCode != "" {
 
-		discErr = ds.UseDiscountCode(order.OrderDiscount.DiscountCode, dpi.GuestID, order.ID.Hex(), dpi.SessionID, order.Subtotal, dpi.CustomerID, order.Guest)
+		discErr = ds.UseDiscountCode(order.OrderDiscount.DiscountCode, dpi.GuestID, order.ID.Hex(), dpi.SessionID, dpi.Store, order.Subtotal, dpi.CustomerID, order.Guest, order.Email, storeSettings, tools, cs)
 
 		if discErr != nil {
 			return nil, discErr, false
