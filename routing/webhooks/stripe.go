@@ -59,7 +59,7 @@ func PaymentSuccess(c *gin.Context, fullService *data.AllServices, tools *config
 	}
 
 	go func() {
-		service.Order.CompleteOrder(orderInfo.Store, orderInfo.OrderID, service.DraftOrder, service.Discount, service.List, service.Product, service.Session, fullService.Mutex, tools)
+		service.Order.CompleteOrder(orderInfo.Store, orderInfo.OrderID, service.Customer, service.DraftOrder, service.Discount, service.List, service.Product, service.Order, service.Session, fullService.Mutex, tools)
 	}()
 
 	c.Status(http.StatusOK)

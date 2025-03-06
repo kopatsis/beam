@@ -18,14 +18,14 @@ import (
 )
 
 type OrderService interface {
-	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, tools *config.Tools) (error, error)
-	CompleteOrder(store, orderID string, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools)
-	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService) (error, error, bool)
+	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) (error, error)
+	CompleteOrder(store, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools)
+	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error
 	RenderOrder(dpi *DataPassIn, orderID string) (*models.Order, bool, error)
 	GetOrdersList(dpi *DataPassIn, fromURL url.Values) (models.OrderRender, error)
 
-	CheckInvDiscAndGiftCards(order *models.Order, draft *models.DraftOrder, dpi *DataPassIn, ps ProductService, ds DiscountService) error
+	CheckInvDiscAndGiftCards(order *models.Order, draft *models.DraftOrder, dpi *DataPassIn, ps ProductService, ds DiscountService, cs CustomerService, storeSettings *config.SettingsMutex, tools *config.Tools, ors OrderService) error
 
 	GetCheckDateOrders() ([]models.Order, error)
 	AdjustCheckOrders(store string, sendEmail, delayCheck []string, tools *config.Tools) (error, error)
@@ -45,7 +45,7 @@ func NewOrderService(orderRepo repositories.OrderRepository) OrderService {
 }
 
 // Charging error, internal error
-func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, tools *config.Tools) (error, error) {
+func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) (error, error) {
 
 	start := time.Now()
 
@@ -70,7 +70,7 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 		}
 	}
 
-	if err := s.CheckInvDiscAndGiftCards(nil, draft, dpi, ps, dts); err != nil {
+	if err := s.CheckInvDiscAndGiftCards(nil, draft, dpi, ps, dts, cs, storeSettings, tools, ors); err != nil {
 		return nil, err
 	}
 
@@ -121,7 +121,7 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 
 }
 
-func (s *orderService) CompleteOrder(store, orderID string, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools) {
+func (s *orderService) CompleteOrder(store, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools) {
 
 	order, err := s.orderRepo.Read(orderID)
 	if err != nil {
@@ -161,7 +161,7 @@ func (s *orderService) CompleteOrder(store, orderID string, ds DraftOrderService
 		log.Printf("Unable to update inventory for order: %s, in store: %s; error: %v\n", order.ID.Hex(), dpi.Store, err)
 	}
 
-	gcErr, discErr, worked := s.UseDiscountsAndGiftCards(dpi, order, dts)
+	gcErr, discErr, worked := s.UseDiscountsAndGiftCards(dpi, order, dts, &mutexes.Settings, tools, cs, ors)
 	if !worked {
 		if gcErr != nil {
 			go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to post order to mark charging of gift cards after using", tools, order, draft, nil, true, gcErr)
@@ -196,7 +196,7 @@ func (s *orderService) CompleteOrder(store, orderID string, ds DraftOrderService
 }
 
 // Giftcard error, discount error, both worked
-func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService) (error, error, bool) {
+func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error, bool) {
 
 	gcErr, discErr := error(nil), error(nil)
 
@@ -217,7 +217,7 @@ func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.O
 
 	if order.OrderDiscount.DiscountCode != "" {
 
-		discErr = ds.UseDiscountCode(order.OrderDiscount.DiscountCode, dpi.GuestID, order.ID.Hex(), dpi.SessionID, dpi.Store, order.Subtotal, dpi.CustomerID, order.Guest, order.Email, storeSettings, tools, cs)
+		discErr = ds.UseDiscountCode(order.OrderDiscount.DiscountCode, dpi.GuestID, order.ID.Hex(), dpi.SessionID, dpi.Store, order.Subtotal, dpi.CustomerID, order.Guest, order.Email, storeSettings, tools, cs, ors)
 
 		if discErr != nil {
 			return nil, discErr, false
@@ -298,7 +298,7 @@ func (s *orderService) GetOrdersList(dpi *DataPassIn, fromURL url.Values) (model
 	return ret, nil
 }
 
-func (s *orderService) CheckInvDiscAndGiftCards(order *models.Order, draft *models.DraftOrder, dpi *DataPassIn, ps ProductService, ds DiscountService) error {
+func (s *orderService) CheckInvDiscAndGiftCards(order *models.Order, draft *models.DraftOrder, dpi *DataPassIn, ps ProductService, ds DiscountService, cs CustomerService, storeSettings *config.SettingsMutex, tools *config.Tools, ors OrderService) error {
 	dvids := []int{}
 	vinv := map[int]int{}
 
@@ -361,7 +361,7 @@ func (s *orderService) CheckInvDiscAndGiftCards(order *models.Order, draft *mode
 			gcsAndAmounts[[2]string{gc.Code, gc.Pin}] = gc.Charged
 		}
 
-		gcErr, draftErr := ds.CheckGiftCardsAndDiscountCodes(gcsAndAmounts, discCode, subtotal, dpi.CustomerID, orderGuest)
+		gcErr, draftErr := ds.CheckGiftCardsAndDiscountCodes(gcsAndAmounts, discCode, dpi.Store, subtotal, dpi.CustomerID, orderGuest, draft.Email, storeSettings, tools, cs, ors)
 		if gcErr == nil && draftErr == nil {
 			return nil
 		} else if gcErr == nil {
@@ -388,7 +388,7 @@ func (s *orderService) CheckInvDiscAndGiftCards(order *models.Order, draft *mode
 
 	} else if discCode != "" {
 
-		draftErr := ds.CheckDiscountCode(discCode, subtotal, dpi.CustomerID, orderGuest)
+		draftErr := ds.CheckDiscountCode(discCode, dpi.Store, subtotal, dpi.CustomerID, orderGuest, draft.Email, storeSettings, tools, cs, ors)
 		if draftErr == nil {
 			return nil
 		}
