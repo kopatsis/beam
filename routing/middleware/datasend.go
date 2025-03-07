@@ -20,6 +20,12 @@ func FormatDataForFunctions(c *gin.Context, fullService *data.AllServices) servi
 		affiliateCookie = &models.AffiliateSession{}
 	}
 
+	ipStr := c.ClientIP()
+
+	if ipStr == "" || ipStr == "::1" {
+		ipStr = c.Request.Header.Get("X-Forwarded-For")
+	}
+
 	ret := services.DataPassIn{
 		Store:         clientCookie.Store,
 		CustomerID:    clientCookie.CustomerID,
@@ -29,6 +35,7 @@ func FormatDataForFunctions(c *gin.Context, fullService *data.AllServices) servi
 		SessionID:     sessionCookie.SessionID,
 		AffiliateID:   affiliateCookie.ID,
 		AffiliateCode: affiliateCookie.ActualCode,
+		IPAddress:     ipStr,
 	}
 
 	if serv, ok := fullService.Map[clientCookie.Store]; ok {

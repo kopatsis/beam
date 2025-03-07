@@ -5,38 +5,11 @@ import (
 	"beam/data/models"
 	"crypto/sha256"
 	"encoding/hex"
-	"net"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mssola/user_agent"
 	"github.com/ua-parser/uap-go/uaparser"
 )
-
-func GetLocation(ipStr string, tools *config.Tools) (string, string) {
-
-	if ipStr == "" || tools.Geo == nil {
-		return "", ""
-	}
-
-	var city string
-	var country string
-
-	if commaIndex := strings.Index(ipStr, ","); commaIndex != -1 {
-		ipStr = ipStr[:commaIndex]
-	}
-
-	ip := net.ParseIP(ipStr)
-	if ip != nil {
-		record, err := tools.Geo.City(ip)
-		if err == nil && record != nil {
-			city = record.City.Names["en"]
-			country = record.Country.Names["en"]
-		}
-	}
-
-	return city, country
-}
 
 func CreateSessionDetails(c *gin.Context, tools *config.Tools, session *models.Session) {
 
@@ -53,7 +26,7 @@ func CreateSessionDetails(c *gin.Context, tools *config.Tools, session *models.S
 		ipStr = c.Request.Header.Get("X-Forwarded-For")
 	}
 
-	city, country = GetLocation(ipStr, tools)
+	city, country = config.GetLocation(ipStr, tools)
 
 	parser := uaparser.NewFromSaved()
 

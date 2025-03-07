@@ -64,15 +64,15 @@ type CustomerService interface {
 	ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *models.SignInCodeCookie, sixdigits uint, post *models.CustomerPost, ors OrderService, storeSettings *config.SettingsMutex, tools *config.Tools) (*models.ClientCookie, error) // To cart/draft/order
 	ResendSignInCode(dpi *DataPassIn, siCookie models.SignInCodeCookie, tools *config.Tools) (models.SignInCodeCookie, error)
 
-	CreateTwoFACode(cust *models.Customer, store string, tools *config.Tools) (*models.TwoFactorCookie, error)
+	CreateTwoFACode(cust *models.Customer, store, ipStr string, tools *config.Tools) (*models.TwoFactorCookie, error)
 	ProcessTwoFactor(dpi *DataPassIn, twofactorcookie *models.TwoFactorCookie, sixdigits uint) (bool, error)
 	ResendTwoFactor(dpi *DataPassIn, twofactorcookie models.TwoFactorCookie, tools *config.Tools) (models.TwoFactorCookie, error)
 
 	ChangeCustomerEmail(dpi *DataPassIn, newEmail, password string, tools *config.Tools) error
 
-	ActualEmailVerification(store, param string, customer *models.Customer, tools *config.Tools) error
-	DelayedEmailVerification(store, param string, customerID int, wait time.Duration, tools *config.Tools) error
-	SendVerificationToEmail(store, param string, customer *models.Customer, tools *config.Tools) error
+	ActualEmailVerification(store, param, ipStr string, customer *models.Customer, tools *config.Tools) error
+	DelayedEmailVerification(store, param, ipStr string, customerID int, wait time.Duration, tools *config.Tools) error
+	SendVerificationToEmail(store, param, ipStr string, customer *models.Customer, tools *config.Tools) error
 
 	UnsubLinkForEmails(store string, customerID int) (string, string, string)
 	UnsubCustomerDirect(store, storeEncr, customerEncr, timestamp string) error
@@ -324,7 +324,7 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 
 	var twofa *models.TwoFactorCookie
 	if customer.Uses2FA {
-		twofa, err = s.CreateTwoFACode(newCust, dpi.Store, tools)
+		twofa, err = s.CreateTwoFACode(newCust, dpi.Store, dpi.IPAddress, tools)
 		if err != nil {
 			return nil, nil, newCust, c, err
 		}
@@ -463,7 +463,7 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, a
 
 	var twofa *models.TwoFactorCookie
 	if customer.Uses2FA {
-		twofa, err = s.CreateTwoFACode(customer, dpi.Store, tools)
+		twofa, err = s.CreateTwoFACode(customer, dpi.Store, dpi.IPAddress, tools)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -807,7 +807,7 @@ func (s *customerService) SendVerificationEmail(dpi *DataPassIn, tools *config.T
 		return "", err
 	}
 
-	return id, s.ActualEmailVerification(dpi.Store, id, cust, tools)
+	return id, s.ActualEmailVerification(dpi.Store, id, dpi.IPAddress, cust, tools)
 }
 
 func (s *customerService) ProcessVerificationEmail(dpi *DataPassIn, param string) error {
@@ -883,7 +883,7 @@ func (s *customerService) SendSignInCodeEmail(dpi *DataPassIn, email string, too
 	storedParam := models.SignInEmailParam{Param: id, EmailAtTime: email, Set: setTime, SixDigitCode: sixdigit, HasCustomer: isCustomer, CustomerID: custID}
 	siCookie := models.SignInCodeCookie{Param: id, IsCustomer: isCustomer, CustomerID: custID}
 
-	if err := emails.SignInPin(dpi.Store, storedParam.EmailAtTime, storedParam.SixDigitCode, tools); err != nil {
+	if err := emails.SignInPin(dpi.Store, storedParam.EmailAtTime, dpi.IPAddress, storedParam.SixDigitCode, tools); err != nil {
 		return nil, false, err
 	}
 
@@ -987,7 +987,7 @@ func (s *customerService) ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *mode
 	return client, nil
 }
 
-func (s *customerService) CreateTwoFACode(cust *models.Customer, store string, tools *config.Tools) (*models.TwoFactorCookie, error) {
+func (s *customerService) CreateTwoFACode(cust *models.Customer, store, ipStr string, tools *config.Tools) (*models.TwoFactorCookie, error) {
 
 	code := "TF-" + uuid.NewString()
 	sixdigit := uint(100000 + rand.Intn(900000))
@@ -995,7 +995,7 @@ func (s *customerService) CreateTwoFACode(cust *models.Customer, store string, t
 	param := models.TwoFactorEmailParam{Param: code, CustomerID: cust.ID, Set: setTime, SixDigitCode: sixdigit, Tries: 0}
 	cookie := models.TwoFactorCookie{TwoFactorCode: code, CustomerID: cust.ID, Set: setTime}
 
-	if err := emails.TwoFactorEmail(store, cust.Email, sixdigit, tools); err != nil {
+	if err := emails.TwoFactorEmail(store, cust.Email, ipStr, sixdigit, tools); err != nil {
 		return &cookie, err
 	}
 
@@ -1125,8 +1125,8 @@ func (s *customerService) ChangeCustomerEmail(dpi *DataPassIn, newEmail, passwor
 	return nil
 }
 
-func (s *customerService) ActualEmailVerification(store, param string, customer *models.Customer, tools *config.Tools) error {
-	if err := emails.VerificationEmail(store, customer.Email, param, tools); err != nil {
+func (s *customerService) ActualEmailVerification(store, param, ipStr string, customer *models.Customer, tools *config.Tools) error {
+	if err := emails.VerificationEmail(store, customer.Email, param, ipStr, tools); err != nil {
 		return err
 	}
 	customer.LastConfirmSent = time.Now()
@@ -1140,7 +1140,7 @@ func (s *customerService) ActualEmailVerification(store, param string, customer 
 	return s.customerRepo.Update(*customer)
 }
 
-func (s *customerService) DelayedEmailVerification(store, param string, customerID int, wait time.Duration, tools *config.Tools) error {
+func (s *customerService) DelayedEmailVerification(store, param, ipStr string, customerID int, wait time.Duration, tools *config.Tools) error {
 	if wait > config.CONFIRM_EMAIL_WAIT*time.Second {
 		wait = config.CONFIRM_EMAIL_WAIT * time.Second
 	}
@@ -1156,10 +1156,10 @@ func (s *customerService) DelayedEmailVerification(store, param string, customer
 		return errors.New("archived customer")
 	}
 
-	return s.ActualEmailVerification(store, param, cust, tools)
+	return s.ActualEmailVerification(store, param, ipStr, cust, tools)
 }
 
-func (s *customerService) SendVerificationToEmail(store, param string, customer *models.Customer, tools *config.Tools) error {
+func (s *customerService) SendVerificationToEmail(store, param, ipStr string, customer *models.Customer, tools *config.Tools) error {
 	if customer.ConfirmsSent > config.CONFIRM_EMAIL_MAX && time.Since(customer.LastConfirmSent) < config.CONFIRM_EMAIL_COOLDOWN*time.Hour {
 		return errors.New("too many confirms attempted within time period")
 	}
@@ -1176,7 +1176,7 @@ func (s *customerService) SendVerificationToEmail(store, param string, customer 
 
 		go func() {
 			duration := time.Until(customer.LastConfirmSent.Add(config.CONFIRM_EMAIL_WAIT * time.Second))
-			if err := s.DelayedEmailVerification(store, param, customer.ID, duration, tools); err != nil {
+			if err := s.DelayedEmailVerification(store, param, ipStr, customer.ID, duration, tools); err != nil {
 				// Notify me that delay didn't work to send after wait period
 				log.Printf("unable to ")
 			}
@@ -1184,7 +1184,7 @@ func (s *customerService) SendVerificationToEmail(store, param string, customer 
 		return nil
 	}
 
-	return s.ActualEmailVerification(store, param, customer, tools)
+	return s.ActualEmailVerification(store, param, ipStr, customer, tools)
 }
 
 // Customer ID encr, timestamp encr, store check encr
@@ -1270,7 +1270,7 @@ func (s *customerService) SendResetEmail(dpi *DataPassIn, email string, tools *c
 		return "", err
 	}
 
-	emails.ResetEmail(dpi.Store, email, tools)
+	emails.ResetEmail(dpi.Store, email, dpi.IPAddress, tools)
 
 	return id, nil
 }
@@ -1542,7 +1542,7 @@ func (s *customerService) ResendSignInCode(dpi *DataPassIn, siCookie models.Sign
 		return siCookie, err
 	}
 
-	if err := emails.SignInPin(dpi.Store, signinParams.EmailAtTime, signinParams.SixDigitCode, tools); err != nil {
+	if err := emails.SignInPin(dpi.Store, signinParams.EmailAtTime, dpi.IPAddress, signinParams.SixDigitCode, tools); err != nil {
 		return siCookie, err
 	}
 
@@ -1620,7 +1620,7 @@ func (s *customerService) ResendTwoFactor(dpi *DataPassIn, twofactorcookie model
 		return twofactorcookie, err
 	}
 
-	if err := emails.TwoFactorEmail(dpi.Store, cust.Email, serverTwoFA.SixDigitCode, tools); err != nil {
+	if err := emails.TwoFactorEmail(dpi.Store, cust.Email, dpi.IPAddress, serverTwoFA.SixDigitCode, tools); err != nil {
 		return twofactorcookie, err
 	}
 

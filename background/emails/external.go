@@ -7,19 +7,35 @@ import (
 	"fmt"
 )
 
-func VerificationEmail(store, email, param string, tools *config.Tools) error { // City && country
+func VerificationEmail(store, email, param, ipStr string, tools *config.Tools) error {
+	city, country := config.GetLocation(ipStr, tools)
+	if city == "" && country == "" {
+		fmt.Println("unknown location")
+	}
 	panic("not implemented yet")
 }
 
-func SignInPin(store, email string, sixDigits uint, tools *config.Tools) error { // City && country
+func SignInPin(store, email, ipStr string, sixDigits uint, tools *config.Tools) error {
+	city, country := config.GetLocation(ipStr, tools)
+	if city == "" && country == "" {
+		fmt.Println("unknown location")
+	}
 	panic("not implemented yet")
 }
 
-func TwoFactorEmail(store, email string, sixDigits uint, tools *config.Tools) error { // City && country
+func TwoFactorEmail(store, email, ipStr string, sixDigits uint, tools *config.Tools) error {
+	city, country := config.GetLocation(ipStr, tools)
+	if city == "" && country == "" {
+		fmt.Println("unknown location")
+	}
 	panic("not implemented yet")
 }
 
-func ResetEmail(store, email string, tools *config.Tools) error { // City && country
+func ResetEmail(store, email, ipStr string, tools *config.Tools) error {
+	city, country := config.GetLocation(ipStr, tools)
+	if city == "" && country == "" {
+		fmt.Println("unknown location")
+	}
 	panic("not implemented yet")
 }
 
