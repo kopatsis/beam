@@ -3,8 +3,10 @@ package config
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -59,4 +61,26 @@ func IsValidDeviceID(s string) bool {
 		}
 	}
 	return true
+}
+
+func BotDetection(c *gin.Context) error {
+	ua := c.GetHeader("User-Agent")
+
+	if ua == "" {
+		return fmt.Errorf("Blocked")
+	}
+
+	blockedKeywords := []string{
+		"headless", "phantomjs", "selenium", "puppeteer", "scrapy", "curl", "wget", "python-requests",
+		"java", "httpclient", "urllib", "node-fetch", "go-http-client",
+	}
+
+	loweredUA := strings.ToLower(ua)
+	for _, keyword := range blockedKeywords {
+		if strings.Contains(loweredUA, keyword) {
+			return fmt.Errorf("Blocked (%s)", ua)
+		}
+	}
+
+	return nil
 }
