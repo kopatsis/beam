@@ -1266,7 +1266,13 @@ func (s *customerService) SendResetEmail(dpi *DataPassIn, email string, tools *c
 	secret := "SC-" + config.GenerateRandomString()
 	storedParam := models.ResetEmailParam{Param: id, EmailAtTime: email, CustomerID: cust.ID, Set: time.Now(), SecretCode: secret}
 
-	return id, s.customerRepo.StoreResetEmail(storedParam, dpi.Store)
+	if err := s.customerRepo.StoreResetEmail(storedParam, dpi.Store); err != nil {
+		return "", err
+	}
+
+	emails.ResetEmail(dpi.Store, email, tools)
+
+	return id, nil
 }
 
 func (s *customerService) ProcessResetEmail(dpi *DataPassIn, param string) (*models.ResetEmailCookie, error) {

@@ -7,15 +7,19 @@ import (
 	"fmt"
 )
 
-func VerificationEmail(store, email, param string, tools *config.Tools) error {
+func VerificationEmail(store, email, param string, tools *config.Tools) error { // City && country
 	panic("not implemented yet")
 }
 
-func SignInPin(store, email string, sixDigits uint, tools *config.Tools) error {
+func SignInPin(store, email string, sixDigits uint, tools *config.Tools) error { // City && country
 	panic("not implemented yet")
 }
 
-func TwoFactorEmail(store, email string, sixDigits uint, tools *config.Tools) error {
+func TwoFactorEmail(store, email string, sixDigits uint, tools *config.Tools) error { // City && country
+	panic("not implemented yet")
+}
+
+func ResetEmail(store, email string, tools *config.Tools) error { // City && country
 	panic("not implemented yet")
 }
 
