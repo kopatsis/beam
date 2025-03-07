@@ -51,6 +51,11 @@ type CustomerPost struct {
 	HasBirthday     bool    `json:"has_bday"`
 	BirthMonth      int     `json:"bmonth"`
 	BirthDay        int     `json:"bday"`
+	InvisibleField  string  `json:"inv"`
+}
+
+func (c *CustomerPost) HoneyPotPassed() bool {
+	return c.InvisibleField == ""
 }
 
 type Contact struct {
