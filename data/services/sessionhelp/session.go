@@ -13,6 +13,31 @@ import (
 	"github.com/ua-parser/uap-go/uaparser"
 )
 
+func GetLocation(ipStr string, tools *config.Tools) (string, string) {
+
+	if ipStr == "" || tools.Geo == nil {
+		return "", ""
+	}
+
+	var city string
+	var country string
+
+	if commaIndex := strings.Index(ipStr, ","); commaIndex != -1 {
+		ipStr = ipStr[:commaIndex]
+	}
+
+	ip := net.ParseIP(ipStr)
+	if ip != nil {
+		record, err := tools.Geo.City(ip)
+		if err == nil && record != nil {
+			city = record.City.Names["en"]
+			country = record.Country.Names["en"]
+		}
+	}
+
+	return city, country
+}
+
 func CreateSessionDetails(c *gin.Context, tools *config.Tools, session *models.Session) {
 
 	if session == nil {
@@ -28,20 +53,7 @@ func CreateSessionDetails(c *gin.Context, tools *config.Tools, session *models.S
 		ipStr = c.Request.Header.Get("X-Forwarded-For")
 	}
 
-	if ipStr != "" && tools.Geo != nil {
-		if commaIndex := strings.Index(ipStr, ","); commaIndex != -1 {
-			ipStr = ipStr[:commaIndex]
-		}
-
-		ip := net.ParseIP(ipStr)
-		if ip != nil {
-			record, err := tools.Geo.City(ip)
-			if err == nil && record != nil {
-				city = record.City.Names["en"]
-				country = record.Country.Names["en"]
-			}
-		}
-	}
+	city, country = GetLocation(ipStr, tools)
 
 	parser := uaparser.NewFromSaved()
 

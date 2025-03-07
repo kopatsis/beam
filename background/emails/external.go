@@ -3,7 +3,8 @@ package emails
 import (
 	"beam/config"
 	"beam/data/models"
-	"strconv"
+	"beam/data/services/discount"
+	"fmt"
 )
 
 func VerificationEmail(store, email, param string, tools *config.Tools) error {
@@ -27,28 +28,16 @@ func CustBirthdayEmail(store, email, discCode string, cust *models.Customer, isL
 }
 
 func WelcomeDiscountEmail(store, email string, cust *models.Customer, isWelcome, isCreate bool, storeSettings *config.SettingsMutex, tools *config.Tools) error {
-	discCode := config.BASE_WELCOME_CODE
+	var discCode string
+
+	welcome, _, always, _ := discount.SpecialDiscNames(storeSettings, store)
 	if !isWelcome {
-		discCode = config.BASE_ALWAYS_CODE
+		discCode = welcome
+	} else {
+		discCode = always
 	}
 
-	storeSettings.Mu.RLock()
-	if isWelcome {
-		pct, ok := storeSettings.Settings.WelcomePct[store]
-		if ok {
-			discCode += strconv.Itoa(pct)
-		} else {
-			discCode += config.DEFAULT_WELCOME_PCT
-		}
-	} else {
-		pct, ok := storeSettings.Settings.AlwaysWorksPct[store]
-		if ok {
-			discCode += strconv.Itoa(pct)
-		} else {
-			discCode += config.DEFAULT_ALWAYS_PCT
-		}
-	}
-	storeSettings.Mu.RUnlock()
+	fmt.Println(discCode)
 
 	return nil
 }
