@@ -48,3 +48,15 @@ func RateLimit(client *redis.Client, store, classification, trueKey string, maxR
 
 	return true, nil
 }
+
+func IsValidDeviceID(s string) bool {
+	if len(s) != 32 {
+		return false
+	}
+	for _, c := range s {
+		if !(c >= '0' && c <= '9') && !(c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
+}
