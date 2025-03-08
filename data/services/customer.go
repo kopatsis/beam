@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"slices"
 	"strings"
 	"time"
 
@@ -807,7 +808,7 @@ func (s *customerService) SendVerificationEmail(dpi *DataPassIn, tools *config.T
 		return "", err
 	}
 
-	return id, s.ActualEmailVerification(dpi.Store, id, dpi.IPAddress, cust, tools)
+	return id, s.SendVerificationToEmail(dpi.Store, id, dpi.IPAddress, cust, tools)
 }
 
 func (s *customerService) ProcessVerificationEmail(dpi *DataPassIn, param string) error {
@@ -880,10 +881,10 @@ func (s *customerService) SendSignInCodeEmail(dpi *DataPassIn, email string, too
 	sixdigit := uint(100000 + rand.Intn(900000))
 	setTime := time.Now()
 
-	storedParam := models.SignInEmailParam{Param: id, EmailAtTime: email, Set: setTime, SixDigitCode: sixdigit, HasCustomer: isCustomer, CustomerID: custID}
+	storedParam := models.SignInEmailParam{Param: id, EmailAtTime: email, Set: setTime, SixDigitCode: []uint{sixdigit}, HasCustomer: isCustomer, CustomerID: custID}
 	siCookie := models.SignInCodeCookie{Param: id, IsCustomer: isCustomer, CustomerID: custID}
 
-	if err := emails.SignInPin(dpi.Store, storedParam.EmailAtTime, dpi.IPAddress, storedParam.SixDigitCode, tools); err != nil {
+	if err := emails.SignInPin(dpi.Store, storedParam.EmailAtTime, dpi.IPAddress, sixdigit, tools); err != nil {
 		return nil, false, err
 	}
 
@@ -933,11 +934,15 @@ func (s *customerService) ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *mode
 		return nil, errors.New("two many failed attempts")
 	}
 
+	if signinParams.NewCodeReqs > config.MAX_SICODE_NEW || len(signinParams.SixDigitCode) > config.MAX_SICODE_NEW+1 {
+		return nil, errors.New("two many new code requests")
+	}
+
 	if siCookie.IsCustomer != signinParams.HasCustomer {
 		return nil, errors.New("unmatching cookie and redis if customer exists")
 	}
 
-	if signinParams.SixDigitCode != sixdigits {
+	if !slices.Contains(signinParams.SixDigitCode, sixdigits) {
 		signinParams.Tries++
 		if signinParams.Tries >= config.MAX_SICODE_ATTEMPTS {
 			return nil, errors.New("two many failed attempts")
@@ -992,7 +997,7 @@ func (s *customerService) CreateTwoFACode(cust *models.Customer, store, ipStr st
 	code := "TF-" + uuid.NewString()
 	sixdigit := uint(100000 + rand.Intn(900000))
 	setTime := time.Now()
-	param := models.TwoFactorEmailParam{Param: code, CustomerID: cust.ID, Set: setTime, SixDigitCode: sixdigit, Tries: 0}
+	param := models.TwoFactorEmailParam{Param: code, CustomerID: cust.ID, Set: setTime, SixDigitCode: []uint{sixdigit}, Tries: 0}
 	cookie := models.TwoFactorCookie{TwoFactorCode: code, CustomerID: cust.ID, Set: setTime}
 
 	if err := emails.TwoFactorEmail(store, cust.Email, ipStr, sixdigit, tools); err != nil {
@@ -1044,6 +1049,10 @@ func (s *customerService) ProcessTwoFactor(dpi *DataPassIn, twofactorcookie *mod
 		return false, errors.New("two many failed attempts")
 	}
 
+	if serverTwoFA.NewCodeReqs > config.MAX_TWOFA_NEW || len(serverTwoFA.SixDigitCode) > config.MAX_TWOFA_NEW+1 {
+		return false, errors.New("two many new code requests")
+	}
+
 	if serverTwoFA.CustomerID != dpi.CustomerID {
 		return false, errors.New("incorrect customer between dpi and two factor server side")
 	}
@@ -1052,7 +1061,7 @@ func (s *customerService) ProcessTwoFactor(dpi *DataPassIn, twofactorcookie *mod
 		return false, errors.New("incorrect two factor code between cookie and server side")
 	}
 
-	if serverTwoFA.SixDigitCode != sixdigits {
+	if !slices.Contains(serverTwoFA.SixDigitCode, sixdigits) {
 		serverTwoFA.Tries++
 		if serverTwoFA.Tries >= config.MAX_TWOFA_ATTEMPTS {
 			return false, errors.New("two many failed attempts")
@@ -1506,6 +1515,11 @@ func (s *customerService) ResendSignInCode(dpi *DataPassIn, siCookie models.Sign
 		return siCookie, errors.New("two many failed attempts")
 	}
 
+	if signinParams.NewCodeReqs >= config.MAX_SICODE_NEW || len(signinParams.SixDigitCode) > config.MAX_SICODE_NEW {
+		removeSI = false
+		return siCookie, errors.New("two many new code requests")
+	}
+
 	if siCookie.IsCustomer != signinParams.HasCustomer {
 		return siCookie, errors.New("unmatching cookie and redis if customer exists")
 	}
@@ -1534,15 +1548,17 @@ func (s *customerService) ResendSignInCode(dpi *DataPassIn, siCookie models.Sign
 	}
 
 	removeSI = false
-	signinParams.SixDigitCode = uint(100000 + rand.Intn(900000))
+	newCode := uint(100000 + rand.Intn(900000))
+	signinParams.SixDigitCode = append(signinParams.SixDigitCode, newCode)
 	signinParams.Set = time.Now()
 	siCookie.Set = signinParams.Set
+	signinParams.NewCodeReqs++
 
 	if err := s.customerRepo.StoreSignInEmail(signinParams, dpi.Store); err != nil {
 		return siCookie, err
 	}
 
-	if err := emails.SignInPin(dpi.Store, signinParams.EmailAtTime, dpi.IPAddress, signinParams.SixDigitCode, tools); err != nil {
+	if err := emails.SignInPin(dpi.Store, signinParams.EmailAtTime, dpi.IPAddress, newCode, tools); err != nil {
 		return siCookie, err
 	}
 
@@ -1590,6 +1606,11 @@ func (s *customerService) ResendTwoFactor(dpi *DataPassIn, twofactorcookie model
 		return twofactorcookie, errors.New("two many failed attempts")
 	}
 
+	if serverTwoFA.NewCodeReqs >= config.MAX_TWOFA_NEW || len(serverTwoFA.SixDigitCode) > config.MAX_TWOFA_NEW {
+		removeTFA = false
+		return twofactorcookie, errors.New("two many new code requests")
+	}
+
 	if serverTwoFA.CustomerID != dpi.CustomerID {
 		return twofactorcookie, errors.New("incorrect customer between dpi and two factor server side")
 	}
@@ -1612,7 +1633,8 @@ func (s *customerService) ResendTwoFactor(dpi *DataPassIn, twofactorcookie model
 	}
 
 	removeTFA = false
-	serverTwoFA.SixDigitCode = uint(100000 + rand.Intn(900000))
+	newCode := uint(100000 + rand.Intn(900000))
+	serverTwoFA.SixDigitCode = append(serverTwoFA.SixDigitCode, newCode)
 	serverTwoFA.Set = time.Now()
 	twofactorcookie.Set = serverTwoFA.Set
 
@@ -1620,7 +1642,7 @@ func (s *customerService) ResendTwoFactor(dpi *DataPassIn, twofactorcookie model
 		return twofactorcookie, err
 	}
 
-	if err := emails.TwoFactorEmail(dpi.Store, cust.Email, dpi.IPAddress, serverTwoFA.SixDigitCode, tools); err != nil {
+	if err := emails.TwoFactorEmail(dpi.Store, cust.Email, dpi.IPAddress, newCode, tools); err != nil {
 		return twofactorcookie, err
 	}
 

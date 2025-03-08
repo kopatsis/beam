@@ -478,8 +478,18 @@ func (r *customerRepo) GetVerificationEmail(param, store string) (models.Verific
 }
 
 func (r *customerRepo) StoreSignInEmail(param models.SignInEmailParam, store string) error {
-	if param.Param == "" || param.SixDigitCode < 100000 {
-		return errors.New("param cannot be empty and six digit must be valid")
+	if param.Param == "" {
+		return errors.New("param cannot be empty")
+	}
+
+	if len(param.SixDigitCode) > config.MAX_SICODE_NEW+1 || param.NewCodeReqs > config.MAX_SICODE_NEW {
+		return errors.New("over max new code requests")
+	}
+
+	for _, c := range param.SixDigitCode {
+		if c < 100000 || c > 999999 {
+			return errors.New("6 digit codes must be in range")
+		}
 	}
 
 	data, err := json.Marshal(param)
@@ -562,6 +572,16 @@ func (r *customerRepo) GetDeviceMapping(guestID, store string) (int, error) {
 func (r *customerRepo) StoreTwoFactor(param models.TwoFactorEmailParam, store string) error {
 	if param.Param == "" {
 		return errors.New("param cannot be empty")
+	}
+
+	if len(param.SixDigitCode) > config.MAX_TWOFA_NEW+1 || param.NewCodeReqs > config.MAX_TWOFA_NEW {
+		return errors.New("over max new code requests")
+	}
+
+	for _, c := range param.SixDigitCode {
+		if c < 100000 || c > 999999 {
+			return errors.New("6 digit codes must be in range")
+		}
 	}
 
 	data, err := json.Marshal(param)
