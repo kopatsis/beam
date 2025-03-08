@@ -78,6 +78,10 @@ type CustomerRepository interface {
 	CheckPasswordFailedAttempts(store, guestID string, customerID int) (bool, error)
 	SetPasswordFailedAttempts(store, guestID string, customerID int) (bool, error)
 	SuccessfulPasswordAttempt(store, guestID string, customerID int) error
+
+	SaveAuthParams(param models.LoginSpecificParams, store string) error
+	GetAuthParams(param, store string) (models.LoginSpecificParams, error)
+	RemoveAuthParams(param, store string) error
 }
 
 type customerRepo struct {
@@ -733,4 +737,40 @@ func (r *customerRepo) SuccessfulPasswordAttempt(store, guestID string, customer
 	key := store + "::PWFA::" + guestID + "::" + strconv.Itoa(customerID)
 
 	return r.rdb.Del(context.Background(), key).Err()
+}
+
+func (r *customerRepo) SaveAuthParams(param models.LoginSpecificParams, store string) error {
+	if param.Param == "" {
+		return errors.New("param cannot be empty")
+	}
+
+	data, err := json.Marshal(param)
+	if err != nil {
+		return err
+	}
+
+	return r.rdb.Set(context.Background(), store+"::AUSP::"+param.Param, data, config.AUTH_PARAMS_EXPIR*time.Hour).Err()
+}
+
+func (r *customerRepo) GetAuthParams(param, store string) (models.LoginSpecificParams, error) {
+	if param == "" {
+		return models.LoginSpecificParams{}, errors.New("param cannot be empty")
+	}
+	key := store + "::AUSP::" + param
+
+	data, err := r.rdb.Get(context.Background(), key).Bytes()
+	if err != nil {
+		return models.LoginSpecificParams{}, err
+	}
+
+	var result models.LoginSpecificParams
+	if err := json.Unmarshal(data, &result); err != nil {
+		return models.LoginSpecificParams{}, err
+	}
+
+	return result, nil
+}
+
+func (r *customerRepo) RemoveAuthParams(param, store string) error {
+	return r.rdb.Del(context.Background(), store+"::AUSP::"+param).Err()
 }

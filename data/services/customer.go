@@ -88,6 +88,9 @@ type CustomerService interface {
 
 	CheckIfValidForWelcome(dpi *DataPassIn, custID int, email string, ors OrderService, tools *config.Tools) (bool, error)
 	WelcomeDiscountEmail(dpi *DataPassIn, email string, cust *models.Customer, isCreate bool, ors OrderService, storeSettings *config.SettingsMutex, tools *config.Tools)
+
+	CreateAuthParams(dpi *DataPassIn, returnRoute, draftID, orderID string, cartID int) (string, error)
+	ProcessAuthParams(dpi *DataPassIn, param string) (string, int, error)
 }
 
 type customerService struct {
@@ -1820,4 +1823,62 @@ func (s *customerService) SendResetToEmail(store, param, ipStr string, customer 
 	}
 
 	return s.ActualEmailReset(store, param, ipStr, customer, tools)
+}
+
+func (s *customerService) CreateAuthParams(dpi *DataPassIn, returnRoute, draftID, orderID string, cartID int) (string, error) {
+
+	param := models.LoginSpecificParams{}
+	if returnRoute != "" {
+		param.ReturnHandle = returnRoute
+	} else if draftID != "" {
+		param.DraftID = draftID
+	} else if orderID != "" {
+		param.OrderID = orderID
+	} else if cartID > 0 {
+		param.CartID = cartID
+	} else {
+		return "", errors.New("must provide at least one identifier")
+	}
+
+	param.Param = "AU-" + uuid.NewString()
+
+	return param.Param, s.customerRepo.SaveAuthParams(param, dpi.Store)
+}
+
+// Return path, cart ID to assign specifically, error
+func (s *customerService) ProcessAuthParams(dpi *DataPassIn, param string) (string, int, error) {
+	if param == "" {
+		return "", 0, nil
+	}
+
+	authParams, err := s.customerRepo.GetAuthParams(param, dpi.Store)
+	if err != nil {
+		return "", 0, err
+	}
+
+	deleteAP := true
+	defer func() {
+		if deleteAP {
+			if err := s.customerRepo.RemoveAuthParams(param, dpi.Store); err != nil {
+				// Notify me
+				log.Printf("Unable to remove auth params: %v\n", err)
+			}
+		}
+	}()
+
+	if authParams.ReturnHandle != "" {
+		return authParams.ReturnHandle, 0, nil
+	} else if authParams.DraftID != "" {
+		// Code to move over the draft order
+		return config.DRAFTORDER_PATH + "/" + authParams.DraftID, 0, nil
+	} else if authParams.OrderID != "" {
+		// Code to move over the order
+		return config.ORDER_PATH + "/" + authParams.DraftID, 0, nil
+	} else if authParams.CartID > 0 {
+		// Code to move over the cart and return the cart ID
+		return config.CART_PATH, authParams.CartID, nil
+	}
+
+	return "", 0, errors.New("must provide at least one identifier")
+
 }

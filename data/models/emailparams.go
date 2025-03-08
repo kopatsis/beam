@@ -36,3 +36,12 @@ type TwoFactorEmailParam struct {
 	Tries        int       `json:"r"`
 	NewCodeReqs  int       `json:"n"`
 }
+
+type LoginSpecificParams struct {
+	Param        string    `json:"p"`
+	ReturnHandle string    `json:"r"`
+	DraftID      string    `json:"d"`
+	OrderID      string    `json:"o"`
+	CartID       int       `json:"c"`
+	Date         time.Time `json:"t"`
+}
