@@ -31,7 +31,7 @@ func TwoFactorEmail(store, email, ipStr string, sixDigits uint, tools *config.To
 	panic("not implemented yet")
 }
 
-func ResetEmail(store, email, ipStr string, tools *config.Tools) error {
+func ResetEmail(store, email, param, ipStr string, tools *config.Tools) error {
 	city, country := config.GetLocation(ipStr, tools)
 	if city == "" && country == "" {
 		fmt.Println("unknown location")

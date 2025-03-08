@@ -32,6 +32,9 @@ type Customer struct {
 	ConfirmsSent             int
 	LastConfirmSent          time.Time
 	ConfirmInProgress        bool
+	ResetsSent               int
+	LastResetSent            time.Time
+	ResetInProgress          bool
 	BirthdaySet              bool
 	BirthMonth               int
 	BirthDay                 int

@@ -78,7 +78,7 @@ func BotDetection(c *gin.Context) error {
 	loweredUA := strings.ToLower(ua)
 	for _, keyword := range blockedKeywords {
 		if strings.Contains(loweredUA, keyword) {
-			return fmt.Errorf("Blocked (%s)", ua)
+			return fmt.Errorf("blocked (%s)", ua)
 		}
 	}
 

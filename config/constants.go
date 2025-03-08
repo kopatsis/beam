@@ -79,6 +79,10 @@ const CONFIRM_EMAIL_WAIT = 30     // seconds
 const CONFIRM_EMAIL_MAX = 10      // attempts
 const CONFIRM_EMAIL_COOLDOWN = 12 // hours
 
+const RESET_EMAIL_WAIT = 45    // seconds
+const RESET_EMAIL_MAX = 16     // attempts
+const RESET_EMAIL_COOLDOWN = 6 // hours
+
 const SCHEDULED_INCOMPLETE_CUST = 60
 
 const REVIEW_BUCKET_NAME = "reviews-storage-beam-a312"

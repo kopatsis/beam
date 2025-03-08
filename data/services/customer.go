@@ -45,7 +45,6 @@ type CustomerService interface {
 	SignInCodeMiddleware(cookie *models.ClientCookie, si *models.SignInCodeCookie)
 
 	LogoutCookie(dpi *DataPassIn, cookie *models.ClientCookie) error
-
 	GetCookieCurrencies(mutex *config.AllMutexes) ([]models.CodeBlock, []models.CodeBlock)
 	SetCookieCurrency(c *models.ClientCookie, mutex *config.AllMutexes, choice string) error
 
@@ -78,7 +77,7 @@ type CustomerService interface {
 	UnsubLinkForEmails(store string, customerID int) (string, string, string)
 	UnsubCustomerDirect(store, storeEncr, customerEncr, timestamp string) error
 
-	SendResetEmail(dpi *DataPassIn, email string, tools *config.Tools) (string, error)
+	SendResetEmail(dpi *DataPassIn, email, ipStr string, tools *config.Tools) (string, error)
 	ProcessResetEmail(dpi *DataPassIn, param string) (*models.ResetEmailCookie, error)
 	ResetPasswordActual(dpi *DataPassIn, resetCookie *models.ResetEmailCookie, password, passwordConfirm string, logAllOut bool) error
 
@@ -1248,7 +1247,7 @@ func (s *customerService) UnsubCustomerDirect(store, storeEncr, customerEncr, ti
 	return s.customerRepo.SetEmailSubbed(customerID, false)
 }
 
-func (s *customerService) SendResetEmail(dpi *DataPassIn, email string, tools *config.Tools) (string, error) {
+func (s *customerService) SendResetEmail(dpi *DataPassIn, email, ipStr string, tools *config.Tools) (string, error) {
 	email = strings.ToLower(email)
 
 	cust, err := s.customerRepo.GetCustomerByEmail(email)
@@ -1279,7 +1278,9 @@ func (s *customerService) SendResetEmail(dpi *DataPassIn, email string, tools *c
 		return "", err
 	}
 
-	emails.ResetEmail(dpi.Store, email, dpi.IPAddress, tools)
+	if err := s.SendResetToEmail(dpi.Store, id, ipStr, cust, tools); err != nil {
+		return "", err
+	}
 
 	return id, nil
 }
@@ -1757,4 +1758,66 @@ func (s *customerService) WelcomeDiscountEmail(dpi *DataPassIn, email string, cu
 		// Notify me low priority
 		log.Printf("Error sending welcome email on email send: %v\n", err)
 	}
+}
+
+func (s *customerService) ActualEmailReset(store, param, ipStr string, customer *models.Customer, tools *config.Tools) error {
+	if err := emails.ResetEmail(store, customer.Email, param, ipStr, tools); err != nil {
+		return err
+	}
+	customer.LastResetSent = time.Now()
+	customer.ResetInProgress = false
+	if time.Since(customer.LastResetSent) >= config.RESET_EMAIL_COOLDOWN {
+		customer.ResetsSent = 1
+	} else {
+		customer.ResetsSent++
+	}
+
+	return s.customerRepo.Update(*customer)
+}
+
+func (s *customerService) DelayedEmailReset(store, param, ipStr string, customerID int, wait time.Duration, tools *config.Tools) error {
+	if wait > config.RESET_EMAIL_WAIT*time.Second {
+		wait = config.RESET_EMAIL_WAIT * time.Second
+	}
+
+	time.Sleep(wait)
+
+	cust, err := s.customerRepo.Read(customerID)
+	if err != nil {
+		return err
+	} else if cust == nil {
+		return errors.New("nil customer")
+	} else if cust.Status == "Archived" {
+		return errors.New("archived customer")
+	}
+
+	return s.ActualEmailReset(store, param, ipStr, cust, tools)
+}
+
+func (s *customerService) SendResetToEmail(store, param, ipStr string, customer *models.Customer, tools *config.Tools) error {
+	if customer.ResetsSent > config.RESET_EMAIL_MAX && time.Since(customer.LastResetSent) < config.RESET_EMAIL_COOLDOWN*time.Hour {
+		return errors.New("too many resets attempted within time period")
+	}
+
+	if customer.ResetInProgress {
+		return nil
+	}
+
+	if time.Since(customer.LastResetSent) < config.RESET_EMAIL_WAIT*time.Second {
+		customer.ResetInProgress = true
+		if err := s.customerRepo.Update(*customer); err != nil {
+			return errors.New("unable to update customer to reset in progress: " + err.Error())
+		}
+
+		go func() {
+			duration := time.Until(customer.LastResetSent.Add(config.RESET_EMAIL_WAIT * time.Second))
+			if err := s.DelayedEmailReset(store, param, ipStr, customer.ID, duration, tools); err != nil {
+				// Notify me that delay didn't work to send after wait period
+				log.Printf("unable to ")
+			}
+		}()
+		return nil
+	}
+
+	return s.ActualEmailReset(store, param, ipStr, customer, tools)
 }
