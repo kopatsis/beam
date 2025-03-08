@@ -90,7 +90,7 @@ type CustomerService interface {
 	WelcomeDiscountEmail(dpi *DataPassIn, email string, cust *models.Customer, isCreate bool, ors OrderService, storeSettings *config.SettingsMutex, tools *config.Tools)
 
 	CreateAuthParams(dpi *DataPassIn, returnRoute, draftID, orderID string, cartID int) (string, error)
-	ProcessAuthParams(dpi *DataPassIn, param string) (string, int, error)
+	ProcessAuthParams(dpi *DataPassIn, param string, cs CartService, os OrderService, ds DraftOrderService) (string, int, error)
 }
 
 type customerService struct {
@@ -1846,7 +1846,7 @@ func (s *customerService) CreateAuthParams(dpi *DataPassIn, returnRoute, draftID
 }
 
 // Return path, cart ID to assign specifically, error
-func (s *customerService) ProcessAuthParams(dpi *DataPassIn, param string) (string, int, error) {
+func (s *customerService) ProcessAuthParams(dpi *DataPassIn, param string, cs CartService, os OrderService, ds DraftOrderService) (string, int, error) {
 	if param == "" {
 		return "", 0, nil
 	}
@@ -1869,13 +1869,19 @@ func (s *customerService) ProcessAuthParams(dpi *DataPassIn, param string) (stri
 	if authParams.ReturnHandle != "" {
 		return authParams.ReturnHandle, 0, nil
 	} else if authParams.DraftID != "" {
-		// Code to move over the draft order
+		if err := ds.MoveDraftToCustomer(dpi, authParams.DraftID); err != nil {
+			return "", 0, err
+		}
 		return config.DRAFTORDER_PATH + "/" + authParams.DraftID, 0, nil
 	} else if authParams.OrderID != "" {
-		// Code to move over the order
+		if err := os.MoveOrderToAccount(dpi, authParams.OrderID); err != nil {
+			return "", 0, err
+		}
 		return config.ORDER_PATH + "/" + authParams.DraftID, 0, nil
 	} else if authParams.CartID > 0 {
-		// Code to move over the cart and return the cart ID
+		if err := cs.MoveCart(&DataPassIn{CustomerID: dpi.CustomerID, CartID: authParams.CartID}); err != nil {
+			return "", 0, err
+		}
 		return config.CART_PATH, authParams.CartID, nil
 	}
 

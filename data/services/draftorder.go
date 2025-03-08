@@ -37,6 +37,7 @@ type DraftOrderService interface {
 	ChangeCustDraftName(dpi *DataPassIn, draftID, name string) (*models.DraftOrder, error)
 
 	Update(draft *models.DraftOrder) error
+	MoveDraftToCustomer(dpi *DataPassIn, draftID string) error
 }
 
 type draftOrderService struct {
@@ -681,4 +682,29 @@ func (s *draftOrderService) ChangeCustDraftName(dpi *DataPassIn, draftID, name s
 
 func (s *draftOrderService) Update(draft *models.DraftOrder) error {
 	return s.draftOrderRepo.Update(draft)
+}
+
+func (s *draftOrderService) MoveDraftToCustomer(dpi *DataPassIn, draftID string) error {
+	draft, err := s.draftOrderRepo.Read(draftID)
+	if err != nil {
+		return err
+	}
+
+	if draft.Status == "Failed" || draft.Status == "Submitted" || draft.Status == "Expired" || draft.Status == "Abandoned" {
+		err = fmt.Errorf("incorrect status for actions with draft: %s", draft.Status)
+	}
+
+	if draft.Guest {
+		// Any guest to cust actions
+		draft.Guest = false
+	} else if draft.CustomerID == dpi.CustomerID {
+		// Belongs to same customer, no need to do anything
+		return nil
+	} else {
+		// Any cust to cust actions
+	}
+
+	draft.CustomerID = dpi.CustomerID
+
+	return s.Update(draft)
 }
