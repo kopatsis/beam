@@ -79,6 +79,8 @@ type DraftOrder struct {
 	DateCreated           time.Time                    `bson:"date_created" json:"date_created"`
 	DateConverted         time.Time                    `bson:"date_converted" json:"date_converted"`
 	DateSucceeded         time.Time                    `bson:"date_succeeded" json:"date_succeeded"`
+	MovedToAccount        bool                         `bson:"moved_to" json:"moved_to"`
+	MovedToAccountDate    time.Time                    `bson:"moved_to_date" json:"moved_to_date"`
 	DateAbandoned         *time.Time                   `bson:"date_abandoned,omitempty" json:"date_abandoned,omitempty"`
 	StripePaymentIntentID string                       `bson:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
 	StripeMethodID        string                       `bson:"stripe_method_id" json:"stripe_method_id"`

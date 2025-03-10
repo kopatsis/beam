@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 )
 
 type DraftOrderService interface {
@@ -37,7 +38,7 @@ type DraftOrderService interface {
 	ChangeCustDraftName(dpi *DataPassIn, draftID, name string) (*models.DraftOrder, error)
 
 	Update(draft *models.DraftOrder) error
-	MoveDraftToCustomer(dpi *DataPassIn, draftID string) error
+	MoveDraftToCustomer(dpi *DataPassIn, draftID string, cust *models.Customer, cs CartService, ds DiscountService, tools *config.Tools, storeSettings *config.SettingsMutex, cms CustomerService, ors OrderService) (int, error)
 }
 
 type draftOrderService struct {
@@ -684,27 +685,50 @@ func (s *draftOrderService) Update(draft *models.DraftOrder) error {
 	return s.draftOrderRepo.Update(draft)
 }
 
-func (s *draftOrderService) MoveDraftToCustomer(dpi *DataPassIn, draftID string) error {
+func (s *draftOrderService) MoveDraftToCustomer(dpi *DataPassIn, draftID string, cust *models.Customer, cs CartService, ds DiscountService, tools *config.Tools, storeSettings *config.SettingsMutex, cms CustomerService, ors OrderService) (int, error) {
 	draft, err := s.draftOrderRepo.Read(draftID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if draft.Status == "Failed" || draft.Status == "Submitted" || draft.Status == "Expired" || draft.Status == "Abandoned" {
 		err = fmt.Errorf("incorrect status for actions with draft: %s", draft.Status)
 	}
 
-	if draft.Guest {
-		// Any guest to cust actions
-		draft.Guest = false
-	} else if draft.CustomerID == dpi.CustomerID {
-		// Belongs to same customer, no need to do anything
-		return nil
-	} else {
-		// Any cust to cust actions
+	if draft.CustomerID == dpi.CustomerID {
+		return draft.CartID, nil
 	}
 
-	draft.CustomerID = dpi.CustomerID
+	if err := cs.MoveCart(&DataPassIn{CustomerID: dpi.CustomerID, CartID: draft.CartID}); err != nil {
+		return 0, err
+	}
 
-	return s.Update(draft)
+	draft.Guest = false
+	draft.CustomerID = dpi.CustomerID
+	draft.Email = cust.Email
+	draft.MovedToAccount = true
+	draft.MovedToAccountDate = time.Now()
+
+	draft.GiftCards = [3]*models.OrderGiftCard{}
+	draft.GiftCardSum = 0
+	draft.PostGiftCardTotal = draft.PreGiftCardTotal
+	draft.Total = draft.PostGiftCardTotal + draft.GiftCardBuyTotal
+
+	draft.StripeMethodID = ""
+	draft.NewPaymentMethodID = ""
+	draft.AllPaymentMethods = []models.PaymentMethodStripe{}
+	draft.ExistingPaymentMethod = models.PaymentMethodStripe{}
+
+	if draft.OrderDiscount.DiscountCode != "" {
+		disc, users, err := ds.GetDiscountCodeForDraft(draft.OrderDiscount.DiscountCode, dpi.Store, draft.Subtotal, dpi.CustomerID, false, draft.Email, storeSettings, tools, cms, ors)
+		if err != nil {
+			return 0, err
+		}
+
+		if err := draftorderhelp.ApplyDiscountToOrder(disc, users, draft); err != nil {
+			return 0, err
+		}
+	}
+
+	return draft.CartID, s.SaveAndUpdatePtl(draft)
 }
