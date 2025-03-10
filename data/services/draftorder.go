@@ -692,7 +692,7 @@ func (s *draftOrderService) MoveDraftToCustomer(dpi *DataPassIn, draftID string,
 	}
 
 	if draft.Status == "Failed" || draft.Status == "Submitted" || draft.Status == "Expired" || draft.Status == "Abandoned" {
-		err = fmt.Errorf("incorrect status for actions with draft: %s", draft.Status)
+		return 0, fmt.Errorf("incorrect status for actions with draft: %s", draft.Status)
 	}
 
 	if draft.CustomerID == dpi.CustomerID {
@@ -704,6 +704,7 @@ func (s *draftOrderService) MoveDraftToCustomer(dpi *DataPassIn, draftID string,
 	}
 
 	draft.Guest = false
+	draft.GuestID = dpi.GuestID
 	draft.CustomerID = dpi.CustomerID
 	draft.Email = cust.Email
 	draft.MovedToAccount = true
@@ -718,6 +719,17 @@ func (s *draftOrderService) MoveDraftToCustomer(dpi *DataPassIn, draftID string,
 	draft.NewPaymentMethodID = ""
 	draft.AllPaymentMethods = []models.PaymentMethodStripe{}
 	draft.ExistingPaymentMethod = models.PaymentMethodStripe{}
+	draft.StripePaymentIntentID = ""
+	draft.GuestStripeID = ""
+
+	draft.ShippingContact = nil
+	draft.ActualRate = models.ShippingRate{}
+	draft.CurrentShipping = []models.ShippingRate{}
+	draft.AllShippingRates = map[string][]models.ShippingRate{}
+	draft.AllOrderEstimates = map[string]models.OrderEstimateCost{}
+	draft.CATax = false
+	draft.CATaxRate = 0
+	draft.ListedContacts = []*models.Contact{}
 
 	if draft.OrderDiscount.DiscountCode != "" {
 		disc, users, err := ds.GetDiscountCodeForDraft(draft.OrderDiscount.DiscountCode, dpi.Store, draft.Subtotal, dpi.CustomerID, false, draft.Email, storeSettings, tools, cms, ors)
@@ -726,8 +738,26 @@ func (s *draftOrderService) MoveDraftToCustomer(dpi *DataPassIn, draftID string,
 		}
 
 		if err := draftorderhelp.ApplyDiscountToOrder(disc, users, draft); err != nil {
-			return 0, err
+			if err := draftorderhelp.RemoveDiscountFromOrder(draft); err != nil {
+				return 0, err
+			}
 		}
+	}
+
+	contacts, err := cms.GetContactsWithDefault(dpi.CustomerID)
+	if err != nil {
+		return 0, err
+	}
+
+	draftorderhelp.MergeAddresses(draft, contacts)
+
+	_, custUpdate, err := draftorderhelp.ConfirmPaymentIntentDraft(draft, cust, dpi.GuestID)
+	if err != nil {
+		return 0, err
+	}
+
+	if custUpdate {
+		go cms.Update(cust)
 	}
 
 	return draft.CartID, s.SaveAndUpdatePtl(draft)
