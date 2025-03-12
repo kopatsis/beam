@@ -50,10 +50,7 @@ type Order struct {
 	External               bool               `bson:"external" json:"external"`
 	ExternalPlatform       string             `bson:"external_platform" json:"external_platform"`
 	ExternalID             string             `bson:"external_id" json:"external_id"`
-	ShippingCarrier        string             `bson:"shipping_carrier" json:"shipping_carrier"`
-	ShippingService        string             `bson:"shipping_service" json:"shipping_service"`
-	ShippingTrackingNumber string             `bson:"shipping_tracking_number" json:"shipping_tracking_number"`
-	ShippingTrackingURL    string             `bson:"shipping_tracking_url" json:"shipping_tracking_url"`
+	Fulfillments           []OrderFulfillment `bson:"fulfillments" json:"fulfillments"`
 	ActualRate             ShippingRate       `bson:"ship_current" json:"ship_current"`
 	GiftSubject            string             `bson:"gift_sub" json:"gift_sub"`
 	GiftMessage            string             `bson:"gift_mess" json:"gift_mess"`

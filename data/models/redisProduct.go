@@ -64,16 +64,17 @@ type ProductInfo struct {
 }
 
 type OriginalProductRedis struct {
-	Quantity          int    `json:"q"`
-	ProductID         string `json:"p"`
-	VariantID         string `json:"v"`
-	ExternalProductID string `json:"ep"`
-	ExternalVariantID string `json:"ev"`
-	OriginalProductID string `json:"op"`
-	OriginalVariantID string `json:"ov"`
-	FullVariantName   string `json:"f"`
-	SKU               string `json:"s"`
-	RetailPrice       int    `json:"rp"`
+	Quantity          int                 `json:"q"`
+	ProductID         string              `json:"p"`
+	VariantID         string              `json:"v"`
+	ExternalProductID string              `json:"ep"`
+	ExternalVariantID string              `json:"ev"`
+	OriginalProductID string              `json:"op"`
+	OriginalVariantID string              `json:"ov"`
+	FullVariantName   string              `json:"f"`
+	SKU               string              `json:"s"`
+	RetailPrice       int                 `json:"rp"`
+	Fulfillment       *SubLineFulfillment `json:"l"`
 }
 
 type LimitedVariantRedis struct {
