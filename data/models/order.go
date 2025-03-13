@@ -69,7 +69,7 @@ type DraftOrder struct {
 	PrintfulID            string                       `bson:"printful_id" json:"printful_id"`
 	CustomerID            int                          `bson:"customer_id" json:"customer_id"`
 	CartID                int                          `bson:"cart_id" json:"cart_id"`
-	Status                string                       `bson:"status" json:"status"` // Created (default), Modified, Expired, Abandoned, Attempted, Failed, Submitted, Succceeded
+	Status                string                       `bson:"status" json:"status"` // Blank, Created (default), Modified, Expired, Abandoned, Attempted, Failed, Submitted, Succceeded
 	OrderID               string                       `bson:"order_id" json:"order_id"`
 	Email                 string                       `bson:"email" json:"email"`
 	Name                  string                       `bson:"name" json:"name"`

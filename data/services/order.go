@@ -51,17 +51,29 @@ func NewOrderService(orderRepo repositories.OrderRepository) OrderService {
 func (s *orderService) SubmitPayment(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) error {
 	start := time.Now()
 
-	draft, err := ds.GetDraftPtl(draftID, dpi.GuestID, dpi.CustomerID)
-	if err != nil {
-		return err
+	var draft *models.DraftOrder
+	var cust *models.Customer
+	draftErr, custErr := error(nil), error(nil)
+
+	var wg1 sync.WaitGroup
+	wg1.Add(1)
+	go func() {
+		draft, draftErr = ds.GetDraftPtl(draftID, dpi.GuestID, dpi.CustomerID)
+	}()
+
+	if dpi.CustomerID > 0 && !draft.Guest {
+		wg1.Add(1)
+		go func() {
+			cust, custErr = cs.GetCustomerByID(dpi.CustomerID)
+		}()
 	}
 
-	var cust *models.Customer
-	if dpi.CustomerID > 0 && !draft.Guest {
-		cust, err = cs.GetCustomerByID(dpi.CustomerID)
-		if err != nil {
-			return err
-		}
+	wg1.Wait()
+
+	if draftErr != nil {
+		return draftErr
+	} else if custErr != nil {
+		return custErr
 	}
 
 	if draft.Email == "" {
@@ -277,6 +289,19 @@ func (s *orderService) CompleteOrder(store, orderID string, cs CustomerService, 
 	order, err := s.orderRepo.Read(orderID)
 	if err != nil {
 		log.Printf("Unable to retrieve order from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
+		return
+	}
+
+	if timeOut, err := s.orderRepo.MarkOrderPaid(order); err != nil {
+		log.Printf("Unable to mark order paid from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
+		return
+	} else if timeOut {
+		log.Printf("Unable to mark order paid from ID for order confirmation because of timeout awaiting change from status Blank; store; %s; orderID: %s\n", store, orderID)
+		return
+	}
+
+	if err := s.orderRepo.PaymentPublish(orderID, store, "Success"); err != nil {
+		log.Printf("Unable to publish to stream that order paid from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
 		return
 	}
 

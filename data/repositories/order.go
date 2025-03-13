@@ -17,9 +17,12 @@ type OrderRepository interface {
 	CreateBlankOrder() (string, error)
 	Update(order *models.Order) error
 	Read(id string) (*models.Order, error)
+	ReadStatus(id string) (string, error)
 	GetOrders(customerID, limit, offset int, sortColumn string, desc bool) ([]*models.Order, error)
 
 	PaymentListen(orderID, store string, cancelOut time.Duration) (string, error)
+	PaymentPublish(orderID, store, message string) error
+	MarkOrderPaid(order *models.Order) (bool, error)
 
 	GetCheckOrders() ([]models.Order, error)
 	UpdateCheckDeliveryDate(ids []string) error
@@ -82,6 +85,18 @@ func (r *orderRepo) Read(id string) (*models.Order, error) {
 	return &order, err
 }
 
+func (r *orderRepo) ReadStatus(id string) (string, error) {
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return "", err
+	}
+	var result struct {
+		Status string `bson:"status"`
+	}
+	err = r.coll.FindOne(context.Background(), bson.M{"_id": objID}).Decode(&result)
+	return result.Status, err
+}
+
 func (r *orderRepo) PaymentListen(orderID, store string, cancelOut time.Duration) (string, error) {
 	if cancelOut < 10*time.Millisecond {
 		return "", nil
@@ -104,6 +119,48 @@ func (r *orderRepo) PaymentListen(orderID, store string, cancelOut time.Duration
 	}
 
 	return "", nil
+}
+
+func (r *orderRepo) PaymentPublish(orderID, store, message string) error {
+	stream := store + "::PMLN::" + orderID
+	_, err := r.rdb.XAdd(context.Background(), &redis.XAddArgs{
+		Stream: stream,
+		Values: map[string]interface{}{"message": message},
+	}).Result()
+	return err
+}
+
+func (r *orderRepo) MarkOrderPaid(order *models.Order) (bool, error) {
+	if order.Status == "Blank" {
+		start := time.Now()
+		for {
+			if time.Since(start) < 1*time.Second {
+				time.Sleep(250 * time.Millisecond)
+			} else if time.Since(start) < 3*time.Second {
+				time.Sleep(500 * time.Millisecond)
+			} else {
+				time.Sleep(1000 * time.Millisecond)
+			}
+
+			status, err := r.ReadStatus(order.ID.Hex())
+			if err != nil {
+				return false, err
+			}
+			if status != "Blank" {
+				break
+			}
+			if time.Since(start) >= 10*time.Second {
+				return true, nil
+			}
+		}
+	}
+
+	_, err := r.coll.UpdateOne(
+		context.Background(),
+		bson.M{"_id": order.ID},
+		bson.M{"$set": bson.M{"status": "Paid"}},
+	)
+	return false, err
 }
 
 // sortColumn in "date_created", "subtotal", "total"; defaults to "date_created"
