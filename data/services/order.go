@@ -14,11 +14,15 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type OrderService interface {
 	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) (error, error)
+	SubmitPayment(dpi *DataPassIn, draftID, newPayment string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) error
 	CompleteOrder(store, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools)
 	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error
@@ -42,6 +46,145 @@ type orderService struct {
 
 func NewOrderService(orderRepo repositories.OrderRepository) OrderService {
 	return &orderService{orderRepo: orderRepo}
+}
+
+func (s *orderService) SubmitPayment(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) error {
+	start := time.Now()
+
+	draft, err := ds.GetDraftPtl(draftID, dpi.GuestID, dpi.CustomerID)
+	if err != nil {
+		return err
+	}
+
+	var cust *models.Customer
+	if dpi.CustomerID > 0 && !draft.Guest {
+		cust, err = cs.GetCustomerByID(dpi.CustomerID)
+		if err != nil {
+			return err
+		}
+	}
+
+	if draft.Email == "" {
+		if cust != nil {
+			draft.Email = cust.Email
+		} else {
+			return errors.New("no email supplied in draft order")
+		}
+	}
+
+	if useExisting {
+		if draft.ExistingPaymentMethod.ID == "" {
+			return errors.New("requires a chosen payment method if using existing payment method")
+		} else if !(dpi.CustomerID > 0 && !draft.Guest) {
+			return errors.New("requires non guest order if using existing payment method")
+		}
+	}
+
+	if err := s.CheckInvDiscAndGiftCards(nil, draft, dpi, ps, dts, cs, storeSettings, tools, ors); err != nil {
+		return err
+	}
+
+	orderID, err := s.orderRepo.CreateBlankOrder()
+	if err != nil {
+		return err
+	}
+
+	if useExisting && draft.Total > 0 {
+		if cust == nil {
+			return errors.New("nil customer for use existing payment method")
+		} else if cust.StripeID == "" {
+			return errors.New("customer blank stripe id for use existing payment method")
+		}
+		pmid, err := draftorderhelp.CreatePaymentIntent(cust.StripeID, int64(draft.Total), "usd")
+		if err != nil {
+			return err
+		}
+		draft.StripePaymentIntentID = pmid
+	}
+
+	if err := orderhelp.IntentToOrderSet(tools.Redis, draft.StripePaymentIntentID, dpi.Store, orderID); err != nil {
+		return err
+	}
+
+	orderErr, stripeErr := error(nil), error(nil)
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		if draft.Total > 0 {
+			if draft.Total < config.MIN_ORDER_PRICE {
+				stripeErr = errors.New("minimum order price not met")
+				return
+			}
+
+			if draft.Guest {
+				intent, err := draftorderhelp.ChargePaymentIntent(draft.StripePaymentIntentID, newPaymentMethod, false, draft.GuestStripeID)
+				if err != nil {
+					stripeErr = err
+					return
+				} else if intent.Status == "canceled" {
+					stripeErr = errors.New("canceled status for intent immediately")
+					return
+				}
+			} else if draft.Total > 0 {
+				intent, err := draftorderhelp.ChargePaymentIntent(draft.StripePaymentIntentID, newPaymentMethod, saveMethod, cust.StripeID)
+				if err != nil {
+					stripeErr = err
+					return
+				} else if intent.Status == "canceled" {
+					stripeErr = errors.New("canceled status for intent immediately")
+					return
+				}
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		order := orderhelp.CreateOrderFromDraft(draft, dpi.SessionID, dpi.AffiliateCode, dpi.AffiliateID)
+		hexID, err := primitive.ObjectIDFromHex(orderID)
+		if err != nil {
+			orderErr = err
+			return
+		}
+		order.ID = hexID
+
+		if err := s.orderRepo.Update(order); err != nil {
+			orderErr = err
+			return
+		}
+
+		draft.Status = "Submitted"
+		draft.DateConverted = time.Now()
+
+		if err := ds.Update(draft); err != nil {
+			go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Error when updating draft for order on mongodb", tools, order, draft, nil, false, err)
+		}
+	}()
+
+	wg.Wait()
+
+	if stripeErr != nil {
+		return stripeErr
+	} else if orderErr != nil {
+		return orderErr
+	}
+
+	cancelOut := 10*time.Millisecond - time.Since(start)
+	if cancelOut < 500*time.Millisecond {
+		return nil
+	}
+
+	orderMessage, err := s.orderRepo.PaymentListen(orderID, dpi.Store, cancelOut)
+	if err != nil {
+		return err
+	} else if orderMessage == config.FAILED_ORDER_MESSAGE {
+		return errors.New("order failed from webhook side")
+	}
+
+	return nil
+
 }
 
 // Charging error, internal error

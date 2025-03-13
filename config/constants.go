@@ -98,3 +98,5 @@ const AUTH_PARAMS_EXPIR = 24 // hours
 const CART_PATH = "/cart"
 const DRAFTORDER_PATH = "/checkout"
 const ORDER_PATH = "/order"
+
+const FAILED_ORDER_MESSAGE = "failure"
