@@ -24,6 +24,8 @@ type OrderService interface {
 	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) (error, error)
 	SubmitPayment(dpi *DataPassIn, draftID, newPayment string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) (error, error)
 	CompleteOrder(store, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools)
+	FailOrder(store, orderID string)
+
 	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error
 	RenderOrder(dpi *DataPassIn, orderID string) (*models.Order, bool, error)
@@ -174,6 +176,7 @@ func (s *orderService) SubmitPayment(dpi *DataPassIn, draftID, newPaymentMethod 
 
 		draft.Status = "Submitted"
 		draft.DateConverted = time.Now()
+		draft.OrderID = orderID
 
 		if err := ds.Update(draft); err != nil {
 			go emails.AlertRecoverableOrderSubmitError(dpi.Store, draftID, order.ID.Hex(), "Error when updating draft for order on mongodb", tools, order, draft, nil, false, err)
@@ -295,7 +298,7 @@ func (s *orderService) CompleteOrder(store, orderID string, cs CustomerService, 
 		return
 	}
 
-	if timeOut, err := s.orderRepo.MarkOrderPaid(order); err != nil {
+	if timeOut, err := s.orderRepo.MarkOrderStatusUpdate(order, "Paid"); err != nil {
 		log.Printf("Unable to mark order paid from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
 		return
 	} else if timeOut {
@@ -372,6 +375,27 @@ func (s *orderService) CompleteOrder(store, orderID string, cs CustomerService, 
 	}
 
 	ss.AddAffiliateSale(dpi, order.ID.Hex())
+}
+
+func (s *orderService) FailOrder(store, orderID string) {
+	order, err := s.orderRepo.Read(orderID)
+	if err != nil {
+		log.Printf("Unable to retrieve order from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
+		return
+	}
+
+	if timeOut, err := s.orderRepo.MarkOrderStatusUpdate(order, "Failed"); err != nil {
+		log.Printf("Unable to mark order paid from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
+		return
+	} else if timeOut {
+		log.Printf("Unable to mark order paid from ID for order confirmation because of timeout awaiting change from status Blank; store; %s; orderID: %s\n", store, orderID)
+		return
+	}
+
+	if err := s.orderRepo.PaymentPublish(orderID, store, config.FAILED_ORDER_MESSAGE); err != nil {
+		log.Printf("Unable to publish to stream that order paid from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
+		return
+	}
 }
 
 // Giftcard error, discount error, both worked

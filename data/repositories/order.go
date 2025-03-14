@@ -22,7 +22,7 @@ type OrderRepository interface {
 
 	PaymentListen(orderID, store string, cancelOut time.Duration) (string, error)
 	PaymentPublish(orderID, store, message string) error
-	MarkOrderPaid(order *models.Order) (bool, error)
+	MarkOrderStatusUpdate(order *models.Order, status string) (bool, error)
 
 	GetCheckOrders() ([]models.Order, error)
 	UpdateCheckDeliveryDate(ids []string) error
@@ -130,7 +130,7 @@ func (r *orderRepo) PaymentPublish(orderID, store, message string) error {
 	return err
 }
 
-func (r *orderRepo) MarkOrderPaid(order *models.Order) (bool, error) {
+func (r *orderRepo) MarkOrderStatusUpdate(order *models.Order, status string) (bool, error) {
 	if order.Status == "Blank" {
 		start := time.Now()
 		for {
@@ -158,7 +158,7 @@ func (r *orderRepo) MarkOrderPaid(order *models.Order) (bool, error) {
 	_, err := r.coll.UpdateOne(
 		context.Background(),
 		bson.M{"_id": order.ID},
-		bson.M{"$set": bson.M{"status": "Paid"}},
+		bson.M{"$set": bson.M{"status": status}},
 	)
 	return false, err
 }

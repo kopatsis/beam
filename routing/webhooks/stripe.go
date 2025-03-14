@@ -65,3 +65,54 @@ func PaymentSuccess(c *gin.Context, fullService *data.AllServices, tools *config
 	c.Status(http.StatusOK)
 
 }
+
+func PaymentFailure(c *gin.Context, fullService *data.AllServices, tools *config.Tools) {
+	const maxBodyBytes = int64(65536)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodyBytes)
+	payload, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	sigHeader := c.GetHeader("Stripe-Signature")
+	event, err := webhook.ConstructEvent(payload, sigHeader, os.Getenv("STRIPE_SECRET"))
+	if err != nil {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	if event.Type != "payment_intent.payment_failed" {
+		c.Status(http.StatusOK)
+		return
+	}
+
+	var intent stripe.PaymentIntent
+	err = json.Unmarshal(event.Data.Raw, &intent)
+	if err != nil {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	paymentIntentID := intent.ID
+
+	orderInfo, err := orderhelp.IntentToOrderGet(tools.Redis, paymentIntentID)
+	if err != nil {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	service, ok := fullService.Map[orderInfo.Store]
+	if !ok {
+		log.Printf("Store unable to be found in service map: %s\n", orderInfo.Store)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	go func() {
+		service.Order.FailOrder(orderInfo.Store, orderInfo.OrderID)
+	}()
+
+	c.Status(http.StatusOK)
+
+}
