@@ -22,7 +22,7 @@ import (
 
 type OrderService interface {
 	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) (error, error)
-	SubmitPayment(dpi *DataPassIn, draftID, newPayment string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) error
+	SubmitPayment(dpi *DataPassIn, draftID, newPayment string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) (error, error)
 	CompleteOrder(store, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools)
 	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error
@@ -48,7 +48,8 @@ func NewOrderService(orderRepo repositories.OrderRepository) OrderService {
 	return &orderService{orderRepo: orderRepo}
 }
 
-func (s *orderService) SubmitPayment(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) error {
+// Charging error, internal error
+func (s *orderService) SubmitPayment(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) (error, error) {
 	start := time.Now()
 
 	var draft *models.DraftOrder
@@ -71,55 +72,55 @@ func (s *orderService) SubmitPayment(dpi *DataPassIn, draftID, newPaymentMethod 
 	wg1.Wait()
 
 	if draftErr != nil {
-		return draftErr
+		return nil, draftErr
 	} else if custErr != nil {
-		return custErr
+		return nil, custErr
 	}
 
 	if draft.OrderID != "" || draft.Status == "Succceeded" || draft.Status == "Submitted" {
-		return errors.New("already paid for order based on draft")
+		return nil, errors.New("already paid for order based on draft")
 	}
 
 	if draft.Email == "" {
 		if cust != nil {
 			draft.Email = cust.Email
 		} else {
-			return errors.New("no email supplied in draft order")
+			return nil, errors.New("no email supplied in draft order")
 		}
 	}
 
 	if useExisting {
 		if draft.ExistingPaymentMethod.ID == "" {
-			return errors.New("requires a chosen payment method if using existing payment method")
+			return nil, errors.New("requires a chosen payment method if using existing payment method")
 		} else if !(dpi.CustomerID > 0 && !draft.Guest) {
-			return errors.New("requires non guest order if using existing payment method")
+			return nil, errors.New("requires non guest order if using existing payment method")
 		}
 	}
 
 	if err := s.CheckInvDiscAndGiftCards(nil, draft, dpi, ps, dts, cs, storeSettings, tools, ors); err != nil {
-		return err
+		return nil, err
 	}
 
 	orderID, err := s.orderRepo.CreateBlankOrder()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if useExisting && draft.Total > 0 {
 		if cust == nil {
-			return errors.New("nil customer for use existing payment method")
+			return nil, errors.New("nil customer for use existing payment method")
 		} else if cust.StripeID == "" {
-			return errors.New("customer blank stripe id for use existing payment method")
+			return nil, errors.New("customer blank stripe id for use existing payment method")
 		}
 		pmid, err := draftorderhelp.CreatePaymentIntent(cust.StripeID, int64(draft.Total), "usd")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		draft.StripePaymentIntentID = pmid
 	}
 
 	if err := orderhelp.IntentToOrderSet(tools.Redis, draft.StripePaymentIntentID, dpi.Store, orderID); err != nil {
-		return err
+		return nil, err
 	}
 
 	orderErr, stripeErr := error(nil), error(nil)
@@ -181,25 +182,23 @@ func (s *orderService) SubmitPayment(dpi *DataPassIn, draftID, newPaymentMethod 
 
 	wg.Wait()
 
-	if stripeErr != nil {
-		return stripeErr
-	} else if orderErr != nil {
-		return orderErr
+	if stripeErr != nil || orderErr != nil {
+		return stripeErr, orderErr
 	}
 
 	cancelOut := 10*time.Millisecond - time.Since(start)
 	if cancelOut < 500*time.Millisecond {
-		return nil
+		return nil, nil
 	}
 
 	orderMessage, err := s.orderRepo.PaymentListen(orderID, dpi.Store, cancelOut)
 	if err != nil {
-		return err
+		return nil, err
 	} else if orderMessage == config.FAILED_ORDER_MESSAGE {
-		return errors.New("order failed from webhook side")
+		return errors.New("order failed from webhook side"), nil
 	}
 
-	return nil
+	return nil, nil
 
 }
 
