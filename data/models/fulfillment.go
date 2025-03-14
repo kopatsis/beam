@@ -3,6 +3,7 @@ package models
 import "time"
 
 type SubLineFulfillment struct {
+	LineItemID          int
 	OrderFulfillmentIDs []string
 	Status              string // Unfulfilled, Partial, Fulfilled
 }

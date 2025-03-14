@@ -125,9 +125,13 @@ func CreatePrintfulOrder(order *models.Order, mutex *config.AllMutexes) (*apidat
 		}
 	}
 
-	i := 0
+	i := 1000
+	vidToLine := map[string]int{}
+
 	for vid, line := range itemMap {
 		i++
+
+		vidToLine[vid] = i
 
 		varID, err := strconv.Atoi(vid)
 		if err != nil {
@@ -151,6 +155,19 @@ func CreatePrintfulOrder(order *models.Order, mutex *config.AllMutexes) (*apidat
 			RetailPrice:       fmt.Sprintf("%d.%02d", line.RetailPrice/100, line.RetailPrice%100),
 			Name:              line.FullVariantName,
 		})
+	}
+
+	for i, line := range order.Lines {
+		for j, o := range line.PrintfulID {
+			lineID := vidToLine[o.VariantID]
+			o.Fulfillment = &models.SubLineFulfillment{
+				LineItemID:          lineID,
+				OrderFulfillmentIDs: []string{},
+				Status:              "Unfulfilled",
+			}
+			line.PrintfulID[j] = o
+		}
+		order.Lines[i] = line
 	}
 
 	if order.GiftSubject != "" || order.GiftMessage != "" {
