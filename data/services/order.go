@@ -76,6 +76,10 @@ func (s *orderService) SubmitPayment(dpi *DataPassIn, draftID, newPaymentMethod 
 		return custErr
 	}
 
+	if draft.OrderID != "" || draft.Status == "Succceeded" || draft.Status == "Submitted" {
+		return errors.New("already paid for order based on draft")
+	}
+
 	if draft.Email == "" {
 		if cust != nil {
 			draft.Email = cust.Email
