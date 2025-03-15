@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -616,6 +617,69 @@ func (s *orderService) ShipOrder(store string, payload apidata.PackageShippedPF)
 	}
 	if order.Status == "Blank" || order.Status == "Cancelled" || order.Status == "AdminError" {
 		return errors.New("not allowed to ship an order under status: " + order.Status)
+	}
+
+	shipment := payload.Data.Shipment
+	t, err := time.Parse("2006-01-02", shipment.ShipDate)
+	if err != nil {
+		log.Printf("Failed to parse date '2020-05-05': %v", err)
+	}
+	fulfillmentID := "FL-" + uuid.NewString()
+
+	order.Fulfillments = append(order.Fulfillments, models.OrderFulfillment{
+		ID:             fulfillmentID,
+		Status:         "Active",
+		PrintfulID:     shipment.ID,
+		Carrier:        shipment.Carrier,
+		Service:        shipment.Service,
+		TrackingNumber: shipment.TrackingNumber,
+		TrackingURL:    shipment.TrackingURL,
+		Created:        time.Unix(int64(shipment.Created), 0),
+		ShipDate:       t,
+		ShippedAt:      time.Unix(int64(shipment.ShippedAt), 0),
+	})
+
+outerItem:
+	for _, item := range shipment.Items {
+
+		lineID := item.ItemID
+		quantityLeft := item.Quantity
+		if quantityLeft <= 0 {
+			continue
+		}
+
+		for _, ol := range order.Lines {
+
+			for _, originalPF := range ol.PrintfulID {
+
+				fulfillment := originalPF.Fulfillment
+				needed := fulfillment.SubLineQuantity - len(fulfillment.OrderFulfillmentIDs)
+
+				if fulfillment.LineItemID == lineID && needed > 0 {
+
+					if needed < quantityLeft {
+						for i := 0; i < needed; i++ {
+							fulfillment.OrderFulfillmentIDs = append(fulfillment.OrderFulfillmentIDs, fulfillmentID)
+						}
+						quantityLeft -= needed
+					} else {
+						for i := 0; i < quantityLeft; i++ {
+							fulfillment.OrderFulfillmentIDs = append(fulfillment.OrderFulfillmentIDs, fulfillmentID)
+						}
+						quantityLeft = 0
+					}
+				}
+
+				if quantityLeft <= 0 {
+					continue outerItem
+				}
+
+			}
+		}
+
+		if quantityLeft > 0 {
+			log.Printf("Unable to allocate shipped variant per line id: %d; fulfillment ID: %s; PF fullfillment ID: %d; orderID: %s; stores: %s\n", lineID, fulfillmentID, shipment.ID, orderID, store)
+		}
 	}
 
 	return nil

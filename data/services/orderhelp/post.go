@@ -162,6 +162,7 @@ func CreatePrintfulOrder(order *models.Order, mutex *config.AllMutexes) (*apidat
 			lineID := vidToLine[o.VariantID]
 			o.Fulfillment = &models.SubLineFulfillment{
 				LineItemID:          lineID,
+				SubLineQuantity:     o.Quantity * line.Quantity,
 				OrderFulfillmentIDs: []string{},
 				Status:              "Unfulfilled",
 			}

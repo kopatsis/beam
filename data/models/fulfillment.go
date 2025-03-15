@@ -4,12 +4,14 @@ import "time"
 
 type SubLineFulfillment struct {
 	LineItemID          int
+	SubLineQuantity     int
 	OrderFulfillmentIDs []string
 	Status              string // Unfulfilled, Partial, Fulfilled
 }
 
 type OrderFulfillment struct {
 	ID             string
+	Status         string    // Active, Inactive
 	PrintfulID     int       `json:"id"`
 	Carrier        string    `json:"carrier"`
 	Service        string    `json:"service"`
