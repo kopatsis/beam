@@ -1,6 +1,7 @@
 package services
 
 import (
+	"beam/background/apidata"
 	"beam/background/emails"
 	"beam/config"
 	"beam/data/models"
@@ -32,6 +33,8 @@ type OrderService interface {
 	GetOrdersList(dpi *DataPassIn, fromURL url.Values) (models.OrderRender, error)
 
 	CheckInvDiscAndGiftCards(order *models.Order, draft *models.DraftOrder, dpi *DataPassIn, ps ProductService, ds DiscountService, cs CustomerService, storeSettings *config.SettingsMutex, tools *config.Tools, ors OrderService) error
+
+	ShipOrder(store string, payload apidata.PackageShippedPF) error
 
 	GetCheckDateOrders() ([]models.Order, error)
 	AdjustCheckOrders(store string, sendEmail, delayCheck []string, tools *config.Tools) (error, error)
@@ -598,6 +601,21 @@ func (s *orderService) CheckInvDiscAndGiftCards(order *models.Order, draft *mode
 
 		return draftErr
 
+	}
+
+	return nil
+}
+
+func (s *orderService) ShipOrder(store string, payload apidata.PackageShippedPF) error {
+	orderID := payload.Data.Order.ExternalID
+	order, err := s.orderRepo.Read(orderID)
+	if err != nil {
+		return err
+	} else if order == nil {
+		return errors.New("nil order with ID: " + orderID)
+	}
+	if order.Status == "Blank" || order.Status == "Cancelled" || order.Status == "AdminError" {
+		return errors.New("not allowed to ship an order under status: " + order.Status)
 	}
 
 	return nil
