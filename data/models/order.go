@@ -6,12 +6,22 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// Order Statuses:
+// Blank = JUST created for the ID and to save the space
+// Created = Successfully made the order, but charge is not complete
+// Payment Failed = Failure before the charge occurred full, not resolved
+// Processed = Payment success, no parts shipped yet
+// Partially Shipped = Some items have shipped, others have not
+// Shipped = All items have at least shipped
+// Delivered = Manually confirmed that items all arrived and sent out feedback email
+// Cancelled = Payment succeeded, but order was cancelled for other reason (in message), including returns
+
 type Order struct {
 	ID                     primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	PrintfulID             string             `bson:"printful_id" json:"printful_id"`
 	CustomerID             int                `bson:"customer_id" json:"customer_id"`
 	DraftOrderID           string             `bson:"draft_order_id" json:"draft_order_id"`
-	Status                 string             `bson:"status" json:"status"` // Created, Cancelled, Processed, Shipped, Delivered, ReturnedInit, ReturnedComp, AdminError
+	Status                 string             `bson:"status" json:"status"` // Blank, Created, Payment Failed, Processed, Partially Shipped, Shipped, Delivered, Cancelled
 	Email                  string             `bson:"email" json:"email"`
 	Name                   string             `bson:"name" json:"name"`
 	DateCreated            time.Time          `bson:"date_created" json:"date_created"`
@@ -62,6 +72,7 @@ type Order struct {
 	StripeRefundID         *string            `bson:"rf_id,omitempty" json:"rf_id,omitempty"`
 	MovedToAccount         bool               `bson:"moved_to" json:"moved_to"`
 	MovedToAccountDate     time.Time          `bson:"moved_to_date" json:"moved_to_date"`
+	CancellationMessage    string             `bson:"cancel_mess" json:"cancel_mess"`
 }
 
 type DraftOrder struct {
@@ -69,7 +80,7 @@ type DraftOrder struct {
 	PrintfulID            string                       `bson:"printful_id" json:"printful_id"`
 	CustomerID            int                          `bson:"customer_id" json:"customer_id"`
 	CartID                int                          `bson:"cart_id" json:"cart_id"`
-	Status                string                       `bson:"status" json:"status"` // Blank, Created (default), Modified, Expired, Abandoned, Attempted, Failed, Submitted, Succceeded
+	Status                string                       `bson:"status" json:"status"` // Created (default), Modified, Expired, Abandoned, Attempted, Failed, Submitted, Succceeded
 	OrderID               string                       `bson:"order_id" json:"order_id"`
 	Email                 string                       `bson:"email" json:"email"`
 	Name                  string                       `bson:"name" json:"name"`

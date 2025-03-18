@@ -246,7 +246,7 @@ func (r *orderRepo) UpdateCheckEmailSent(ids []string) error {
 	}
 
 	filter := bson.M{"_id": bson.M{"$in": objectIDs}}
-	update := bson.M{"$set": bson.M{"check_sent": true}}
+	update := bson.M{"$set": bson.M{"check_sent": true, "status": "Delivered"}}
 
 	_, err := r.coll.UpdateMany(context.Background(), filter, update)
 	return err
