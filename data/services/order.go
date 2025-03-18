@@ -615,7 +615,7 @@ func (s *orderService) ShipOrder(store string, payload apidata.PackageShippedPF)
 	} else if order == nil {
 		return errors.New("nil order with ID: " + orderID)
 	}
-	if order.Status == "Blank" || order.Status == "Cancelled" || order.Status == "AdminError" {
+	if order.Status == "Blank" || order.Status == "Cancelled" || order.Status == "AdminError" { // Add to this
 		return errors.New("not allowed to ship an order under status: " + order.Status)
 	}
 
@@ -648,9 +648,9 @@ outerItem:
 			continue
 		}
 
-		for _, ol := range order.Lines {
+		for i, ol := range order.Lines {
 
-			for _, originalPF := range ol.PrintfulID {
+			for j, originalPF := range ol.PrintfulID {
 
 				fulfillment := originalPF.Fulfillment
 				needed := fulfillment.SubLineQuantity - len(fulfillment.OrderFulfillmentIDs)
@@ -670,6 +670,10 @@ outerItem:
 					}
 				}
 
+				originalPF.Fulfillment = fulfillment
+				ol.PrintfulID[j] = originalPF
+				order.Lines[i] = ol
+
 				if quantityLeft <= 0 {
 					continue outerItem
 				}
@@ -682,7 +686,32 @@ outerItem:
 		}
 	}
 
-	return nil
+	newStatus := "Shipped"
+outerLine:
+	for _, ol := range order.Lines {
+		for _, originalPF := range ol.PrintfulID {
+			if originalPF.Fulfillment.SubLineQuantity > len(originalPF.Fulfillment.OrderFulfillmentIDs) {
+				newStatus = "Partially Shipped"
+				break outerLine
+			} else if originalPF.Fulfillment.SubLineQuantity < len(originalPF.Fulfillment.OrderFulfillmentIDs) {
+				log.Printf("Too many shipments for op for line id: %d; fulfillment ID: %s; PF fullfillment ID: %d; orderID: %s; stores: %s\n", originalPF.Fulfillment.LineItemID, fulfillmentID, shipment.ID, orderID, store)
+			}
+		}
+	}
+
+	pfStatus := payload.Data.Order.Status
+	if pfStatus != "partial" && pfStatus != "fulfilled" {
+		log.Printf("Unknown status for printful order from shipping; status: %s; fulfillment ID: %s; PF fullfillment ID: %d; orderID: %s; stores: %s\n", pfStatus, fulfillmentID, shipment.ID, orderID, store)
+	} else if pfStatus == "partial" && newStatus == "Shipped" {
+		newStatus = "Partially Shipped"
+		log.Printf("Status mismatch for order, internal = Shipped, printful = partial; fulfillment ID: %s; PF fullfillment ID: %d; orderID: %s; stores: %s\n", fulfillmentID, shipment.ID, orderID, store)
+	} else if pfStatus == "fulfilled" && newStatus == "Partially Shipped" {
+		log.Printf("Status mismatch for order, internal = Partially Shipped, printful = fulfilled; fulfillment ID: %s; PF fullfillment ID: %d; orderID: %s; stores: %s\n", fulfillmentID, shipment.ID, orderID, store)
+	}
+
+	order.Status = newStatus
+
+	return s.orderRepo.Update(order)
 }
 
 func (s *orderService) GetCheckDateOrders() ([]models.Order, error) {
