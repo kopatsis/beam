@@ -27,6 +27,7 @@ type OrderService interface {
 	SubmitPayment(dpi *DataPassIn, draftID, newPayment string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) (error, error)
 	CompleteOrder(store, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools)
 	FailOrder(store, orderID string)
+	OrderPaymentFailure(store, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools)
 
 	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error
@@ -388,13 +389,32 @@ func (s *orderService) FailOrder(store, orderID string) {
 		return
 	}
 
-	if timeOut, err := s.orderRepo.MarkOrderStatusUpdate(order, "Failed"); err != nil {
+	if timeOut, err := s.orderRepo.MarkOrderStatusUpdate(order, "Cancelled"); err != nil {
 		log.Printf("Unable to mark order paid from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
 		return
 	} else if timeOut {
 		log.Printf("Unable to mark order paid from ID for order confirmation because of timeout awaiting change from status Blank; store; %s; orderID: %s\n", store, orderID)
 		return
 	}
+
+}
+
+func (s *orderService) OrderPaymentFailure(store, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools) {
+	order, err := s.orderRepo.Read(orderID)
+	if err != nil {
+		log.Printf("Unable to retrieve order from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
+		return
+	}
+
+	if timeOut, err := s.orderRepo.MarkOrderStatusUpdate(order, "Payment Failed"); err != nil {
+		log.Printf("Unable to mark order paid from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
+		return
+	} else if timeOut {
+		log.Printf("Unable to mark order paid from ID for order confirmation because of timeout awaiting change from status Blank; store; %s; orderID: %s\n", store, orderID)
+		return
+	}
+
+	order.FormerPaymentIntentIDs = append(order.FormerPaymentIntentIDs, order.StripePaymentIntentID)
 
 	if err := s.orderRepo.PaymentPublish(orderID, store, config.FAILED_ORDER_MESSAGE); err != nil {
 		log.Printf("Unable to publish to stream that order paid from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
@@ -712,6 +732,8 @@ outerLine:
 	order.Status = newStatus
 
 	return s.orderRepo.Update(order)
+
+	// Send email update
 }
 
 func (s *orderService) GetCheckDateOrders() ([]models.Order, error) {

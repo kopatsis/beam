@@ -32,6 +32,7 @@ type Order struct {
 	DateReturnInitiated    time.Time          `bson:"date_return_initiated" json:"date_return_initiated"`
 	DateReturnCompleted    time.Time          `bson:"date_return_completed" json:"date_return_completed"`
 	StripePaymentIntentID  string             `bson:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
+	FormerPaymentIntentIDs []string           `bson:"former_payment_intent_id" json:"former_payment_intent_id"`
 	Subtotal               int                `bson:"subtotal" json:"subtotal"`
 	OrderLevelDiscount     int                `bson:"order_level_discount" json:"order_level_discount"`
 	PostDiscountTotal      int                `bson:"post_disc_total" json:"post_disc_total"`
