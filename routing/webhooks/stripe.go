@@ -110,7 +110,7 @@ func PaymentFailure(c *gin.Context, fullService *data.AllServices, tools *config
 	}
 
 	go func() {
-		service.Order.FailOrder(orderInfo.Store, orderInfo.OrderID)
+		service.Order.OrderPaymentFailure(orderInfo.Store, orderInfo.OrderID, fullService.Mutex, tools)
 	}()
 
 	c.Status(http.StatusOK)

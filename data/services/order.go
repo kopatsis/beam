@@ -27,7 +27,8 @@ type OrderService interface {
 	SubmitPayment(dpi *DataPassIn, draftID, newPayment string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) (error, error)
 	CompleteOrder(store, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools)
 	FailOrder(store, orderID string)
-	OrderPaymentFailure(store, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools)
+	OrderPaymentFailure(store, orderID string, mutexes *config.AllMutexes, tools *config.Tools)
+	OrderPaymentFix(dpi *DataPassIn, orderID string, newPaymentMethod string, saveMethod bool, useExisting bool) error
 
 	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error
@@ -151,7 +152,7 @@ func (s *orderService) SubmitPayment(dpi *DataPassIn, draftID, newPaymentMethod 
 					stripeErr = errors.New("canceled status for intent immediately")
 					return
 				}
-			} else if draft.Total > 0 {
+			} else {
 				intent, err := draftorderhelp.ChargePaymentIntent(draft.StripePaymentIntentID, newPaymentMethod, saveMethod, cust.StripeID)
 				if err != nil {
 					stripeErr = err
@@ -194,7 +195,7 @@ func (s *orderService) SubmitPayment(dpi *DataPassIn, draftID, newPaymentMethod 
 		return stripeErr, orderErr
 	}
 
-	cancelOut := 10*time.Millisecond - time.Since(start)
+	cancelOut := 10*time.Second - time.Since(start)
 	if cancelOut < 500*time.Millisecond {
 		return nil, nil
 	}
@@ -399,7 +400,7 @@ func (s *orderService) FailOrder(store, orderID string) {
 
 }
 
-func (s *orderService) OrderPaymentFailure(store, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools) {
+func (s *orderService) OrderPaymentFailure(store, orderID string, mutexes *config.AllMutexes, tools *config.Tools) {
 	order, err := s.orderRepo.Read(orderID)
 	if err != nil {
 		log.Printf("Unable to retrieve order from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
@@ -415,11 +416,87 @@ func (s *orderService) OrderPaymentFailure(store, orderID string, cs CustomerSer
 	}
 
 	order.FormerPaymentIntentIDs = append(order.FormerPaymentIntentIDs, order.StripePaymentIntentID)
+	if order.Guest {
+		if order.GuestStripeID == "" {
+			log.Printf("Guest order with no guest stripe ID; store; %s; orderID: %s\n", store, orderID)
+			return
+		}
+		newID, err := draftorderhelp.CreatePaymentIntent(order.GuestStripeID, int64(order.Total), "usd")
+		if err != nil {
+			log.Printf("Error creating new payment intent for failed payment; store; %s; orderID: %s; err: %v\n", store, orderID, err)
+			return
+		}
+		order.StripePaymentIntentID = newID
+	} else {
+		if order.CustStripeID == "" {
+			log.Printf("Customer order with no cust stripe ID; store; %s; orderID: %s\n", store, orderID)
+			return
+		}
+		newID, err := draftorderhelp.CreatePaymentIntent(order.CustStripeID, int64(order.Total), "usd")
+		if err != nil {
+			log.Printf("Error creating new payment intent for failed payment; store; %s; orderID: %s; err: %v\n", store, orderID, err)
+			return
+		}
+		order.StripePaymentIntentID = newID
+	}
+
+	if err := s.orderRepo.Update(order); err != nil {
+		log.Printf("Error saving changed order for failed payment; store; %s; orderID: %s; err: %v\n", store, orderID, err)
+		return
+	}
 
 	if err := s.orderRepo.PaymentPublish(orderID, store, config.FAILED_ORDER_MESSAGE); err != nil {
 		log.Printf("Unable to publish to stream that order paid from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
-		return
 	}
+}
+
+func (s *orderService) OrderPaymentFix(dpi *DataPassIn, orderID string, newPaymentMethod string, saveMethod bool, useExisting bool) error {
+	start := time.Now()
+
+	order, err := s.orderRepo.Read(orderID)
+	if err != nil {
+		return err
+	} else if order == nil {
+		return errors.New("nil order")
+	} else if order.Status != "Payment Failed" { // Can modify status check
+		return errors.New("not payment failed for order status")
+	}
+
+	if order.Total <= 0 {
+		return errors.New("0 total order")
+	} else if order.Total < config.MIN_ORDER_PRICE {
+		return errors.New("minimum order price not met")
+	}
+
+	if order.Guest {
+		intent, err := draftorderhelp.ChargePaymentIntent(order.StripePaymentIntentID, newPaymentMethod, false, order.GuestStripeID)
+		if err != nil {
+			return err
+		} else if intent.Status == "canceled" {
+			return errors.New("canceled status for intent immediately")
+		}
+	} else {
+		intent, err := draftorderhelp.ChargePaymentIntent(order.StripePaymentIntentID, newPaymentMethod, saveMethod, order.CustStripeID)
+		if err != nil {
+			return err
+		} else if intent.Status == "canceled" {
+			return errors.New("canceled status for intent immediately")
+		}
+	}
+
+	cancelOut := 10*time.Second - time.Since(start)
+	if cancelOut < 500*time.Millisecond {
+		return nil
+	}
+
+	orderMessage, err := s.orderRepo.PaymentListen(orderID, dpi.Store, cancelOut)
+	if err != nil {
+		return err
+	} else if orderMessage == config.FAILED_ORDER_MESSAGE {
+		return errors.New("order failed from webhook side")
+	}
+
+	return nil
 }
 
 // Giftcard error, discount error, both worked

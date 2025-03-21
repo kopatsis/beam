@@ -57,6 +57,7 @@ func CreateOrderFromDraft(draft *models.DraftOrder, sessionID, affiliateCode str
 		Guest:              draft.Guest,
 		GuestID:            draft.GuestID,
 		GuestStripeID:      draft.GuestStripeID,
+		CustStripeID:       draft.CustStripeID,
 		AffiliateCode:      affiliateCode,
 		AffiliateID:        affiliateID,
 		SessionID:          sessionID,

@@ -55,6 +55,7 @@ type Order struct {
 	Guest                  bool               `bson:"guest" json:"guest"`
 	GuestID                string             `bson:"guest_id" json:"guest_id"`
 	GuestStripeID          string             `bson:"guest_stripe" json:"guest_stripe"`
+	CustStripeID           string             `bson:"cust_stripe" json:"cust_stripe"`
 	SessionID              string             `bson:"session" json:"session"`
 	AffiliateID            int                `bson:"affiliate_id" json:"affiliate_id"`
 	AffiliateCode          string             `bson:"affiliate_code" json:"affiliate_code"`
@@ -114,6 +115,7 @@ type DraftOrder struct {
 	Guest                 bool                         `bson:"guest" json:"guest"`
 	GuestID               string                       `bson:"guest_id" json:"guest_id"`
 	GuestStripeID         string                       `bson:"guest_stripe" json:"guest_stripe"`
+	CustStripeID          string                       `bson:"cust_stripe" json:"cust_stripe"`
 	ActualRate            ShippingRate                 `bson:"ship_actual" json:"ship_actual"`
 	CurrentShipping       []ShippingRate               `bson:"ship_current" json:"ship_current"`
 	AllShippingRates      map[string][]ShippingRate    `bson:"ship_all" json:"ship_all"`

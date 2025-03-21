@@ -67,6 +67,11 @@ func ConfirmPaymentIntentDraft(draftOrder *models.DraftOrder, customer *models.C
 		}
 		customer.StripeID = c.ID
 		custChange = true
+		draftOrder.CustStripeID = c.ID
+		draftChange = true
+	} else if draftOrder.CustStripeID == "" {
+		draftOrder.CustStripeID = customer.StripeID
+		draftChange = true
 	}
 
 	useID := ""
