@@ -85,6 +85,54 @@ type EventNew struct {
 	AllErrorsSt         []string           `bson:"errors" json:"errors"`
 }
 
+type EventFinal struct {
+	ID               string    `json:"id"`
+	Store            string    `json:"store"`
+	Timestamp        time.Time `json:"timestamp"`
+	SessionID        string    `json:"session_id"`
+	SessionLineID    string    `json:"session_line_id"`
+	CustomerID       int       `json:"customer_id"`
+	GuestID          string    `json:"guest_id"`
+	ModelName        string    `json:"model_name"`
+	FunctionName     string    `json:"function_name"`
+	HasError         bool      `json:"has_error"`
+	ErrorDescription string    `json:"error_description,omitempty"`
+	ErrorValueSt     string    `json:"error_value_st,omitempty"`
+	OptionalNote     string    `json:"optional_note,omitempty"`
+	OrderID          string    `json:"order_id,omitempty"`
+	DraftOrderID     string    `json:"draft_order_id,omitempty"`
+	ProductID        int       `json:"product_id,omitempty"`
+	ProductHandle    string    `json:"product_handle,omitempty"`
+	VariantID        int       `json:"variant_id,omitempty"`
+	SavesID          int       `json:"saves_id,omitempty"`
+	FavesID          int       `json:"faves_id,omitempty"`
+	LastOrderListID  int       `json:"last_order_list_id,omitempty"`
+	CartID           int       `json:"cart_id,omitempty"`
+	CartLineID       int       `json:"cart_line_id,omitempty"`
+	DiscountID       int       `json:"discount_id,omitempty"`
+	DiscountCode     string    `json:"discount_code,omitempty"`
+	GiftCardID       int       `json:"gift_card_id,omitempty"`
+	GiftCardCode     string    `json:"gift_card_code,omitempty"`
+}
+
+type EventPassInFinal struct {
+	OrderID         string
+	DraftOrderID    string
+	ProductID       int
+	ProductHandle   string
+	VariantID       int
+	SavesID         int
+	FavesID         int
+	LastOrderListID int
+	CartID          int
+	CartLineID      int
+	DiscountID      int
+	DiscountCode    string
+	GiftCardID      int
+	GiftCardCode    string
+	SessionID       string
+}
+
 type EventIDPassIn struct {
 	CustomerID      int
 	GuestID         string

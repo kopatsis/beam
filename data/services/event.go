@@ -3,6 +3,11 @@ package services
 import (
 	"beam/data/models"
 	"beam/data/repositories"
+	"encoding/json"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type DataPassIn struct {
@@ -12,10 +17,67 @@ type DataPassIn struct {
 	GuestID       string
 	CartID        int
 	SessionID     string
+	SessionLineID string
 	AffiliateID   int
 	AffiliateCode string
 	IPAddress     string
 	Logger        EventService
+	Logs          []models.EventFinal
+	LogsMutex     sync.Mutex
+}
+
+func (d *DataPassIn) AddLog(modelName, funcName, errorDesc, extraNote string, err error, ids models.EventPassInFinal) {
+	new := models.EventFinal{
+		ID:              "EV-" + uuid.NewString(),
+		Store:           d.Store,
+		Timestamp:       time.Now(),
+		SessionID:       d.SessionID,
+		SessionLineID:   d.SessionLineID,
+		CustomerID:      d.CustomerID,
+		GuestID:         d.GuestID,
+		ModelName:       modelName,
+		FunctionName:    funcName,
+		HasError:        err != nil,
+		OptionalNote:    extraNote,
+		OrderID:         ids.OrderID,
+		DraftOrderID:    ids.DraftOrderID,
+		ProductID:       ids.ProductID,
+		ProductHandle:   ids.ProductHandle,
+		VariantID:       ids.VariantID,
+		SavesID:         ids.SavesID,
+		FavesID:         ids.FavesID,
+		LastOrderListID: ids.LastOrderListID,
+		CartID:          ids.CartID,
+		CartLineID:      ids.CartLineID,
+		DiscountID:      ids.DiscountID,
+		DiscountCode:    ids.DiscountCode,
+		GiftCardID:      ids.GiftCardID,
+		GiftCardCode:    ids.GiftCardCode,
+	}
+
+	if err != nil {
+		new.ErrorValueSt = err.Error()
+		new.ErrorDescription = errorDesc
+	}
+
+	d.LogsMutex.Lock()
+	d.Logs = append(d.Logs, new)
+	d.LogsMutex.Unlock()
+}
+
+func (d *DataPassIn) MarshalLogs() ([]byte, error) {
+	d.LogsMutex.Lock()
+	defer d.LogsMutex.Unlock()
+
+	if len(d.Logs) == 0 {
+		return nil, nil
+	}
+
+	payload, err := json.Marshal(d.Logs)
+	if err != nil {
+		return nil, err
+	}
+	return payload, nil
 }
 
 type EventService interface {
