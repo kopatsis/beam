@@ -4,10 +4,12 @@ import (
 	"beam/background/emails"
 	"beam/config"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -68,7 +70,15 @@ func AsyncCriticalError(tools *config.Tools, logID, description string) {
 }
 
 func HeartBeat(tools *config.Tools) {
-	payload := []byte(`{"level":"Informational","Success":true}`)
+
+	payload := []byte(`{"level":"Debug","Success":true}`)
+
+	allowed, err := tools.Redis.SetNX(context.Background(), "HEARTBEAT_SENT", "TRUE", config.HEARTBEAT_MINUTES*time.Minute-5*time.Second).Result()
+	if err != nil {
+		emails.BackupLogEmail("Unable to get Redis Heartbeat with setnx", string(payload), err, tools)
+	} else if !allowed {
+		return
+	}
 
 	token := os.Getenv("LOGGLY_TOKEN")
 	req, err := http.NewRequest("POST", "https://logs-01.loggly.com/inputs/"+token+"/tag/http/", bytes.NewReader(payload))
@@ -86,5 +96,14 @@ func HeartBeat(tools *config.Tools) {
 
 	if resp.StatusCode != http.StatusOK {
 		emails.BackupLogEmail("Unable to push heartbeat message to Loggly", string(payload), fmt.Errorf("failed to send logs, status code: %d", resp.StatusCode), tools)
+	}
+}
+
+func StartHeartBeat(tools *config.Tools) {
+	ticker := time.NewTicker(config.HEARTBEAT_MINUTES * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		HeartBeat(tools)
 	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"beam/background/logging"
 	"beam/config"
 	"beam/data"
 	"beam/routing"
@@ -19,6 +20,8 @@ func main() {
 
 	fullService := data.NewMainService(pgDBs, redis, mongoDBs, mutexes)
 	tools := config.NewTools(redis)
+
+	logging.StartHeartBeat(tools)
 
 	rtr := routing.New(fullService, tools)
 

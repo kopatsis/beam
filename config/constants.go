@@ -95,6 +95,8 @@ const DEFAULT_ALWAYS_PCT = 10
 
 const AUTH_PARAMS_EXPIR = 24 // hours
 
+const HEARTBEAT_MINUTES = 15
+
 const CART_PATH = "/cart"
 const DRAFTORDER_PATH = "/checkout"
 const ORDER_PATH = "/order"
