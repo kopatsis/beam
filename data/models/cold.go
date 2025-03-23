@@ -87,6 +87,7 @@ type EventNew struct {
 
 type EventFinal struct {
 	ID               string    `json:"id"`
+	Level            string    `json:"level"`
 	Store            string    `json:"store"`
 	Timestamp        time.Time `json:"timestamp"`
 	SessionID        string    `json:"session_id"`

@@ -56,8 +56,11 @@ func (d *DataPassIn) AddLog(modelName, funcName, errorDesc, extraNote string, er
 	}
 
 	if err != nil {
+		new.Level = "Warn"
 		new.ErrorValueSt = err.Error()
 		new.ErrorDescription = errorDesc
+	} else {
+		new.Level = "Trace"
 	}
 
 	d.LogsMutex.Lock()

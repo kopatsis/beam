@@ -60,10 +60,10 @@ func (s *sessionService) SessionMiddleware(cookie *models.SessionCookie, custome
 	}
 	cookie.CustomerID = customerID
 
-	if cookie.GuestID != guestID || cookie.Store != store || len(cookie.SessionID) < 2 || cookie.SessionID[:2] != "S-" {
+	if cookie.GuestID != guestID || cookie.Store != store || len(cookie.SessionID) < 2 || cookie.SessionID[:2] != "SN-" {
 		cookie.GuestID = guestID
 		cookie.Store = store
-		cookie.SessionID = "S-" + uuid.NewString()
+		cookie.SessionID = "SN-" + uuid.NewString()
 		cookie.Assigned = time.Now()
 
 		session := &models.Session{

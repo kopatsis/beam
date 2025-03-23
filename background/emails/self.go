@@ -395,3 +395,24 @@ func AlertGeneralRatingsError(pid int, handle string, store string, logistics bo
 		log.Printf("Error sending email: %v", err)
 	}
 }
+
+func BackupLogEmail(subject, body string, logErr error, tools *config.Tools) {
+	fromEmail := os.Getenv("ADMIN_EMAIL")
+	if fromEmail == "" {
+		log.Println("ADMIN_EMAIL is not set")
+		log.Printf("Subject: %s; Body: %s; Error: %v\n", subject, body, logErr)
+		return
+	}
+
+	from := mail.NewEmail("Admin", fromEmail)
+	to := mail.NewEmail("Admin", fromEmail)
+	content := mail.NewContent("text/plain", fmt.Sprintf("Body: %s; Error: %v\n", body, logErr))
+	mailMessage := mail.NewV3MailInit(from, subject, to, content)
+
+	_, err := tools.SendGrid.Send(mailMessage)
+	if err != nil {
+		log.Printf("Error sending email: %v", err)
+		log.Printf("Subject: %s; Body: %s; Error: %v\n", subject, body, logErr)
+		return
+	}
+}

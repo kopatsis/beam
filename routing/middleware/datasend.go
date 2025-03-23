@@ -4,11 +4,13 @@ import (
 	"beam/data"
 	"beam/data/models"
 	"beam/data/services"
+	"sync"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
-func FormatDataForFunctions(c *gin.Context, fullService *data.AllServices) services.DataPassIn {
+func FormatDataForFunctions(c *gin.Context, fullService *data.AllServices) *services.DataPassIn {
 	clientCookie, sessionCookie, affiliateCookie := GetClientCookie(c), GetSessionCookie(c), GetAffiliateCookie(c)
 	if clientCookie == nil {
 		clientCookie = &models.ClientCookie{}
@@ -33,14 +35,17 @@ func FormatDataForFunctions(c *gin.Context, fullService *data.AllServices) servi
 		IsLoggedIn:    clientCookie.CustomerID > 0,
 		CartID:        clientCookie.GetCart(),
 		SessionID:     sessionCookie.SessionID,
+		SessionLineID: "SL-" + uuid.NewString(),
 		AffiliateID:   affiliateCookie.ID,
 		AffiliateCode: affiliateCookie.ActualCode,
 		IPAddress:     ipStr,
+		Logs:          []models.EventFinal{},
+		LogsMutex:     sync.Mutex{},
 	}
 
 	if serv, ok := fullService.Map[clientCookie.Store]; ok {
 		ret.Logger = serv.Event
 	}
 
-	return ret
+	return &ret
 }
