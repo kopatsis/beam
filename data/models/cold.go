@@ -177,7 +177,9 @@ type SessionLine struct {
 	ID         string    `gorm:"primaryKey" json:"i"`
 	SessionID  string    `gorm:"index" json:"si"`
 	CustomerID int       `gorm:"index" json:"ci"` // At the time of line
-	Route      string    `json:"r"`
+	BaseRoute  string    `json:"br"`
+	FullRoute  string    `json:"fr"`
+	FullURL    string    `json:"fu"`
 	Accessed   time.Time `json:"a"`
 	Ended      time.Time `json:"t"`
 }

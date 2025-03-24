@@ -18,7 +18,7 @@ type SessionService interface {
 	UpdateSession(session *models.Session) error
 	DeleteSession(id string) error
 	AddToSession(session *models.Session, line *models.SessionLine)
-	AddSessionLine(dpi *DataPassIn, route string)
+	AddSessionLine(dpi *DataPassIn, c *gin.Context)
 
 	SessionMiddleware(cookie *models.SessionCookie, customerID int, guestID, store string, c *gin.Context, tools *config.Tools)
 	AffiliateMiddleware(cookie *models.AffiliateSession, sessionID, store string, c *gin.Context)
@@ -54,11 +54,22 @@ func (s *sessionService) AddToSession(session *models.Session, line *models.Sess
 	s.sessionRepo.AddToBatch(session, line)
 }
 
-func (s *sessionService) AddSessionLine(dpi *DataPassIn, route string) {
+func (s *sessionService) AddSessionLine(dpi *DataPassIn, c *gin.Context) {
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	}
+
+	baseRoute := c.Request.URL.Path
+	fullRoute := c.Request.URL.RequestURI()
+	fullURL := scheme + "://" + c.Request.Host + fullRoute
+
 	sl := &models.SessionLine{
 		ID:        dpi.SessionLineID,
 		SessionID: dpi.SessionID,
-		Route:     route,
+		BaseRoute: baseRoute,
+		FullRoute: fullRoute,
+		FullURL:   fullURL,
 		Accessed:  dpi.TimeStarted,
 		Ended:     time.Now(),
 	}
