@@ -17,64 +17,65 @@ import (
 // Cancelled = Payment succeeded, but order was cancelled for other reason (in message), including returns
 
 type Order struct {
-	ID                     primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	PrintfulID             string             `bson:"printful_id" json:"printful_id"`
-	CustomerID             int                `bson:"customer_id" json:"customer_id"`
-	DraftOrderID           string             `bson:"draft_order_id" json:"draft_order_id"`
-	Status                 string             `bson:"status" json:"status"` // Blank, Created, Payment Failed, Processed, Partially Shipped, Shipped, Delivered, Cancelled
-	Email                  string             `bson:"email" json:"email"`
-	Name                   string             `bson:"name" json:"name"`
-	DateCreated            time.Time          `bson:"date_created" json:"date_created"`
-	DateCancelled          time.Time          `bson:"date_cancelled" json:"date_cancelled"`
-	DateProcessedPrintful  time.Time          `bson:"date_processed_printful" json:"date_processed_printful"`
-	DateShipped            time.Time          `bson:"date_shipped" json:"date_shipped"`
-	DateDelivered          time.Time          `bson:"date_delivered" json:"date_delivered"`
-	DateReturnInitiated    time.Time          `bson:"date_return_initiated" json:"date_return_initiated"`
-	DateReturnCompleted    time.Time          `bson:"date_return_completed" json:"date_return_completed"`
-	StripePaymentIntentID  string             `bson:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
-	FormerPaymentIntentIDs []string           `bson:"former_payment_intent_id" json:"former_payment_intent_id"`
-	Subtotal               int                `bson:"subtotal" json:"subtotal"`
-	OrderLevelDiscount     int                `bson:"order_level_discount" json:"order_level_discount"`
-	PostDiscountTotal      int                `bson:"post_disc_total" json:"post_disc_total"`
-	Shipping               int                `bson:"shipping" json:"shipping"`
-	Tax                    int                `bson:"tax" json:"tax"`
-	PostTaxTotal           int                `bson:"post_tax_total" json:"post_tax_total"`
-	Tip                    int                `bson:"tip" json:"tip"`
-	PreGiftCardTotal       int                `bson:"pgc_total" json:"pgc_total"`
-	GiftCardSum            int                `bson:"gc_sum" json:"gc_sum"`         // To apply towards order
-	PostGiftCardTotal      int                `bson:"post_total" json:"post_total"` // After GC applied, before added purchasing GC
-	GiftCardBuyTotal       int                `bson:"gc_total" json:"gc_total"`     // For purchasing
-	Total                  int                `bson:"total" json:"total"`
-	OrderDiscount          OrderDiscount      `bson:"non_stacking_discount_code" json:"non_stacking_discount_code"`
-	ShippingContact        *Contact           `bson:"shipping_contact" json:"shipping_contact"`
-	Lines                  []OrderLine        `bson:"lines" json:"lines"`
-	GiftCardBuyLines       []GiftCardBuyLine  `bson:"gc_lines" json:"gc_lines"`     // For purchasing
-	GiftCards              [3]*OrderGiftCard  `bson:"gift_cards" json:"gift_cards"` // To apply towards order
-	Tags                   []string           `bson:"tags" json:"tags"`
-	ShippingIdentification string             `bson:"shipping_identification" json:"shipping_identification"`
-	Guest                  bool               `bson:"guest" json:"guest"`
-	GuestID                string             `bson:"guest_id" json:"guest_id"`
-	GuestStripeID          string             `bson:"guest_stripe" json:"guest_stripe"`
-	CustStripeID           string             `bson:"cust_stripe" json:"cust_stripe"`
-	SessionID              string             `bson:"session" json:"session"`
-	AffiliateID            int                `bson:"affiliate_id" json:"affiliate_id"`
-	AffiliateCode          string             `bson:"affiliate_code" json:"affiliate_code"`
-	External               bool               `bson:"external" json:"external"`
-	ExternalPlatform       string             `bson:"external_platform" json:"external_platform"`
-	ExternalID             string             `bson:"external_id" json:"external_id"`
-	Fulfillments           []OrderFulfillment `bson:"fulfillments" json:"fulfillments"`
-	ActualRate             ShippingRate       `bson:"ship_current" json:"ship_current"`
-	GiftSubject            string             `bson:"gift_sub" json:"gift_sub"`
-	GiftMessage            string             `bson:"gift_mess" json:"gift_mess"`
-	CATax                  bool               `bson:"ca_tax" json:"ca_tax"`
-	CATaxRate              float64            `bson:"ca_tax_rate" json:"ca_tax_rate"`
-	CheckDeliveryDate      time.Time          `bson:"check_date" json:"check_date"`
-	CheckEmailSent         bool               `bson:"check_sent" json:"check_sent"`
-	PaymentMethodID        string             `bson:"pm_id" json:"pm_id"`
-	StripeRefundID         *string            `bson:"rf_id,omitempty" json:"rf_id,omitempty"`
-	MovedToAccount         bool               `bson:"moved_to" json:"moved_to"`
-	MovedToAccountDate     time.Time          `bson:"moved_to_date" json:"moved_to_date"`
-	CancellationMessage    string             `bson:"cancel_mess" json:"cancel_mess"`
+	ID                      primitive.ObjectID    `bson:"_id,omitempty" json:"id"`
+	PrintfulID              string                `bson:"printful_id" json:"printful_id"`
+	CustomerID              int                   `bson:"customer_id" json:"customer_id"`
+	DraftOrderID            string                `bson:"draft_order_id" json:"draft_order_id"`
+	Status                  string                `bson:"status" json:"status"` // Blank, Created, Payment Failed, Processed, Partially Shipped, Shipped, Delivered, Cancelled
+	Email                   string                `bson:"email" json:"email"`
+	Name                    string                `bson:"name" json:"name"`
+	DateCreated             time.Time             `bson:"date_created" json:"date_created"`
+	DateCancelled           time.Time             `bson:"date_cancelled" json:"date_cancelled"`
+	DateProcessedPrintful   time.Time             `bson:"date_processed_printful" json:"date_processed_printful"`
+	DateShipped             time.Time             `bson:"date_shipped" json:"date_shipped"`
+	DateDelivered           time.Time             `bson:"date_delivered" json:"date_delivered"`
+	DateReturnInitiated     time.Time             `bson:"date_return_initiated" json:"date_return_initiated"`
+	DateReturnCompleted     time.Time             `bson:"date_return_completed" json:"date_return_completed"`
+	StripePaymentIntentID   string                `bson:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
+	FormerPaymentIntentIDs  []string              `bson:"former_payment_intent_id" json:"former_payment_intent_id"`
+	Subtotal                int                   `bson:"subtotal" json:"subtotal"`
+	OrderLevelDiscount      int                   `bson:"order_level_discount" json:"order_level_discount"`
+	PostDiscountTotal       int                   `bson:"post_disc_total" json:"post_disc_total"`
+	Shipping                int                   `bson:"shipping" json:"shipping"`
+	Tax                     int                   `bson:"tax" json:"tax"`
+	PostTaxTotal            int                   `bson:"post_tax_total" json:"post_tax_total"`
+	Tip                     int                   `bson:"tip" json:"tip"`
+	PreGiftCardTotal        int                   `bson:"pgc_total" json:"pgc_total"`
+	GiftCardSum             int                   `bson:"gc_sum" json:"gc_sum"`         // To apply towards order
+	PostGiftCardTotal       int                   `bson:"post_total" json:"post_total"` // After GC applied, before added purchasing GC
+	GiftCardBuyTotal        int                   `bson:"gc_total" json:"gc_total"`     // For purchasing
+	Total                   int                   `bson:"total" json:"total"`
+	OrderDiscount           OrderDiscount         `bson:"non_stacking_discount_code" json:"non_stacking_discount_code"`
+	ShippingContact         *Contact              `bson:"shipping_contact" json:"shipping_contact"`
+	Lines                   []OrderLine           `bson:"lines" json:"lines"`
+	GiftCardBuyLines        []GiftCardBuyLine     `bson:"gc_lines" json:"gc_lines"`     // For purchasing
+	GiftCards               [3]*OrderGiftCard     `bson:"gift_cards" json:"gift_cards"` // To apply towards order
+	Tags                    []string              `bson:"tags" json:"tags"`
+	ShippingIdentification  string                `bson:"shipping_identification" json:"shipping_identification"`
+	Guest                   bool                  `bson:"guest" json:"guest"`
+	GuestID                 string                `bson:"guest_id" json:"guest_id"`
+	GuestStripeID           string                `bson:"guest_stripe" json:"guest_stripe"`
+	CustStripeID            string                `bson:"cust_stripe" json:"cust_stripe"`
+	SessionID               string                `bson:"session" json:"session"`
+	AffiliateID             int                   `bson:"affiliate_id" json:"affiliate_id"`
+	AffiliateCode           string                `bson:"affiliate_code" json:"affiliate_code"`
+	External                bool                  `bson:"external" json:"external"`
+	ExternalPlatform        string                `bson:"external_platform" json:"external_platform"`
+	ExternalID              string                `bson:"external_id" json:"external_id"`
+	Fulfillments            []OrderFulfillment    `bson:"fulfillments" json:"fulfillments"`
+	ActualRate              ShippingRate          `bson:"ship_current" json:"ship_current"`
+	GiftSubject             string                `bson:"gift_sub" json:"gift_sub"`
+	GiftMessage             string                `bson:"gift_mess" json:"gift_mess"`
+	CATax                   bool                  `bson:"ca_tax" json:"ca_tax"`
+	CATaxRate               float64               `bson:"ca_tax_rate" json:"ca_tax_rate"`
+	CheckDeliveryDate       time.Time             `bson:"check_date" json:"check_date"`
+	CheckEmailSent          bool                  `bson:"check_sent" json:"check_sent"`
+	PaymentMethodID         string                `bson:"pm_id" json:"pm_id"`
+	StripeRefundID          *string               `bson:"rf_id,omitempty" json:"rf_id,omitempty"`
+	MovedToAccount          bool                  `bson:"moved_to" json:"moved_to"`
+	MovedToAccountDate      time.Time             `bson:"moved_to_date" json:"moved_to_date"`
+	CancellationMessage     string                `bson:"cancel_mess" json:"cancel_mess"`
+	PaymentMethodsForFailed []PaymentMethodStripe `bson:"all_pm" json:"all_pm"`
 }
 
 type DraftOrder struct {

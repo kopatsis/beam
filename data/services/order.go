@@ -28,11 +28,11 @@ type OrderService interface {
 	CompleteOrder(store, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools)
 	FailOrder(store, orderID string)
 	OrderPaymentFailure(store, orderID string, mutexes *config.AllMutexes, tools *config.Tools)
-	OrderPaymentFix(dpi *DataPassIn, orderID string, newPaymentMethod string, saveMethod bool, useExisting bool) error
+	OrderPaymentFix(dpi *DataPassIn, orderID string, newPaymentMethod, oldPaymentMethod string, saveMethod bool, useExisting bool) error
 
 	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error
-	RenderOrder(dpi *DataPassIn, orderID string) (*models.Order, bool, error)
+	RenderOrder(dpi *DataPassIn, orderID string, cs CustomerService) (*models.Order, bool, error)
 	GetOrdersList(dpi *DataPassIn, fromURL url.Values) (models.OrderRender, error)
 
 	CheckInvDiscAndGiftCards(order *models.Order, draft *models.DraftOrder, dpi *DataPassIn, ps ProductService, ds DiscountService, cs CustomerService, storeSettings *config.SettingsMutex, tools *config.Tools, ors OrderService) error
@@ -450,7 +450,7 @@ func (s *orderService) OrderPaymentFailure(store, orderID string, mutexes *confi
 	}
 }
 
-func (s *orderService) OrderPaymentFix(dpi *DataPassIn, orderID string, newPaymentMethod string, saveMethod bool, useExisting bool) error {
+func (s *orderService) OrderPaymentFix(dpi *DataPassIn, orderID string, newPaymentMethod, oldPaymentMethod string, saveMethod bool, useExisting bool) error {
 	start := time.Now()
 
 	order, err := s.orderRepo.Read(orderID)
@@ -468,6 +468,26 @@ func (s *orderService) OrderPaymentFix(dpi *DataPassIn, orderID string, newPayme
 		return errors.New("minimum order price not met")
 	}
 
+	if useExisting {
+		if order.Guest {
+			return errors.New("cannot use existing payment method for guest order")
+		} else if oldPaymentMethod == "" {
+			return errors.New("need to provide payment method id if using old one")
+		}
+
+		found := false
+		for _, pm := range order.PaymentMethodsForFailed {
+			if pm.ID == oldPaymentMethod {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return errors.New("provided existing payment method id not in user's list of methods")
+		}
+	}
+
 	if order.Guest {
 		intent, err := draftorderhelp.ChargePaymentIntent(order.StripePaymentIntentID, newPaymentMethod, false, order.GuestStripeID)
 		if err != nil {
@@ -476,7 +496,12 @@ func (s *orderService) OrderPaymentFix(dpi *DataPassIn, orderID string, newPayme
 			return errors.New("canceled status for intent immediately")
 		}
 	} else {
-		intent, err := draftorderhelp.ChargePaymentIntent(order.StripePaymentIntentID, newPaymentMethod, saveMethod, order.CustStripeID)
+		method := newPaymentMethod
+		if useExisting {
+			method = oldPaymentMethod
+		}
+
+		intent, err := draftorderhelp.ChargePaymentIntent(order.StripePaymentIntentID, method, saveMethod, order.CustStripeID)
 		if err != nil {
 			return err
 		} else if intent.Status == "canceled" {
@@ -552,7 +577,7 @@ func (s *orderService) MarkOrderAndDraftAsSuccess(order *models.Order, draft *mo
 }
 
 // Actual order, display order doesn't belong to this account (guest), error
-func (s *orderService) RenderOrder(dpi *DataPassIn, orderID string) (*models.Order, bool, error) {
+func (s *orderService) RenderOrder(dpi *DataPassIn, orderID string, cs CustomerService) (*models.Order, bool, error) {
 	o, err := s.orderRepo.Read(orderID)
 	if err != nil {
 		return nil, false, err
@@ -562,12 +587,27 @@ func (s *orderService) RenderOrder(dpi *DataPassIn, orderID string) (*models.Ord
 		return nil, false, errors.New("order does not belong to customer")
 	}
 
-	if o.Status == "Created" {
+	if o.Status == "Created" || o.Status == "Blank" {
 		return nil, false, errors.New("order does not exist yet")
 	}
 
 	if o.Guest && dpi.CustomerID > 0 {
 		return o, true, nil
+	}
+
+	if o.Status == "Payment Failed" && !o.Guest {
+		cust, err := cs.GetCustomerByID(o.CustomerID)
+		if err != nil {
+			return o, false, err
+		}
+
+		if cust.StripeID != o.CustStripeID {
+			o.CustStripeID = cust.StripeID
+		}
+
+		if err := orderhelp.OrderPaymentMethodUpdate(o, o.CustStripeID); err != nil {
+			return o, false, err
+		}
 	}
 
 	return o, false, nil
