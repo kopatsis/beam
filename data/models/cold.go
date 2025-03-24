@@ -174,13 +174,12 @@ type Session struct {
 }
 
 type SessionLine struct {
-	ID         int       `gorm:"primaryKey" json:"i"`
+	ID         string    `gorm:"primaryKey" json:"i"`
 	SessionID  string    `gorm:"index" json:"si"`
 	CustomerID int       `gorm:"index" json:"ci"` // At the time of line
 	Route      string    `json:"r"`
 	Accessed   time.Time `json:"a"`
-	AnyError   bool      `json:"ae"`
-	ErrorSt    string    `json:"es"`
+	Ended      time.Time `json:"t"`
 }
 
 type Affiliate struct {

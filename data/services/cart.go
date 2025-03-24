@@ -642,8 +642,11 @@ func (s *cartService) DirectCartRetrieval(dpi *DataPassIn) (int, error, bool) {
 func (s *cartService) CopyCartFromShare(dpi *DataPassIn, sharedCartID int) error {
 	newID, err := s.cartRepo.CopyCartWithLines(sharedCartID, dpi.CustomerID, dpi.GuestID)
 	if err != nil {
+		dpi.AddLog("Cart", "Cart.CopyCartFromShare", "Unable to copy cart with lines with cart repo", "", err, models.EventPassInFinal{CartID: sharedCartID})
 		return err
 	}
+
 	dpi.CartID = newID
+	dpi.AddLog("Cart", "Cart.CopyCartFromShare", "", "", nil, models.EventPassInFinal{CartID: newID})
 	return nil
 }

@@ -1,10 +1,13 @@
 package middleware
 
 import (
+	"beam/background/logging"
+	"beam/config"
 	"beam/data"
 	"beam/data/models"
 	"beam/data/services"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -39,6 +42,7 @@ func FormatDataForFunctions(c *gin.Context, fullService *data.AllServices) *serv
 		AffiliateID:   affiliateCookie.ID,
 		AffiliateCode: affiliateCookie.ActualCode,
 		IPAddress:     ipStr,
+		TimeStarted:   time.Now(),
 		Logs:          []models.EventFinal{},
 		LogsMutex:     sync.Mutex{},
 	}
@@ -48,4 +52,14 @@ func FormatDataForFunctions(c *gin.Context, fullService *data.AllServices) *serv
 	}
 
 	return &ret
+}
+
+func PostLogs(dpi *services.DataPassIn, tools *config.Tools) {
+	payload, err := dpi.MarshalLogs()
+	if err != nil {
+		logging.AsyncCriticalError(tools, "", "Unable to marshal to payload logs from dpi", err)
+		return
+	}
+
+	logging.LogsToLoggly(tools, payload)
 }

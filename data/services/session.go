@@ -18,6 +18,8 @@ type SessionService interface {
 	UpdateSession(session *models.Session) error
 	DeleteSession(id string) error
 	AddToSession(session *models.Session, line *models.SessionLine)
+	AddSessionLine(dpi *DataPassIn, route string)
+
 	SessionMiddleware(cookie *models.SessionCookie, customerID int, guestID, store string, c *gin.Context, tools *config.Tools)
 	AffiliateMiddleware(cookie *models.AffiliateSession, sessionID, store string, c *gin.Context)
 
@@ -50,6 +52,17 @@ func (s *sessionService) DeleteSession(id string) error {
 
 func (s *sessionService) AddToSession(session *models.Session, line *models.SessionLine) {
 	s.sessionRepo.AddToBatch(session, line)
+}
+
+func (s *sessionService) AddSessionLine(dpi *DataPassIn, route string) {
+	sl := &models.SessionLine{
+		ID:        dpi.SessionLineID,
+		SessionID: dpi.SessionID,
+		Route:     route,
+		Accessed:  dpi.TimeStarted,
+		Ended:     time.Now(),
+	}
+	s.AddToSession(nil, sl)
 }
 
 func (s *sessionService) SessionMiddleware(cookie *models.SessionCookie, customerID int, guestID, store string, c *gin.Context, tools *config.Tools) {

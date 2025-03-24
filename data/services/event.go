@@ -21,6 +21,7 @@ type DataPassIn struct {
 	AffiliateID   int
 	AffiliateCode string
 	IPAddress     string
+	TimeStarted   time.Time
 	Logger        EventService
 	Logs          []models.EventFinal
 	LogsMutex     sync.Mutex

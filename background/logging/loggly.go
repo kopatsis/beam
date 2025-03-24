@@ -36,17 +36,26 @@ func LogsToLoggly(tools *config.Tools, payload []byte) {
 	}()
 }
 
-func AsyncCriticalError(tools *config.Tools, logID, description string) {
+func AsyncCriticalError(tools *config.Tools, logID, description string, passedErr error) {
 	go func() {
 		log := gin.H{
 			"level":         "Error",
 			"associated_id": logID,
 			"description":   description,
+			"timestamp":     time.Now().Format(time.RFC3339),
+		}
+
+		if passedErr != nil {
+			log["error_string"] = passedErr.Error()
 		}
 
 		payload, err := json.Marshal(log)
 		if err != nil {
-			payload = []byte(`{"level":"Error","associated_id":"` + logID + `","description":"` + description + `"}`)
+			payloadSt := `{"level":"Error","associated_id":"` + logID + `","description":"` + description + `","timestamp":"` + time.Now().Format(time.RFC3339) + `"}`
+			if passedErr != nil {
+				payloadSt += `,"error_string":"` + passedErr.Error() + `"`
+			}
+			payload = []byte(payloadSt)
 		}
 
 		token := os.Getenv("LOGGLY_TOKEN")
