@@ -18,7 +18,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -32,7 +34,7 @@ type OrderService interface {
 
 	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error, bool)
 	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error
-	RenderOrder(dpi *DataPassIn, orderID string, cs CustomerService) (*models.Order, bool, error)
+	RenderOrder(dpi *DataPassIn, orderID string, cs CustomerService) (*models.Order, bool, bool, error)
 	GetOrdersList(dpi *DataPassIn, fromURL url.Values) (models.OrderRender, error)
 
 	CheckInvDiscAndGiftCards(order *models.Order, draft *models.DraftOrder, dpi *DataPassIn, ps ProductService, ds DiscountService, cs CustomerService, storeSettings *config.SettingsMutex, tools *config.Tools, ors OrderService) error
@@ -576,29 +578,31 @@ func (s *orderService) MarkOrderAndDraftAsSuccess(order *models.Order, draft *mo
 	return nil
 }
 
-// Actual order, display order doesn't belong to this account (guest), error
-func (s *orderService) RenderOrder(dpi *DataPassIn, orderID string, cs CustomerService) (*models.Order, bool, error) {
+// Actual order, display order doesn't belong to this account (guest), include websocket, error
+func (s *orderService) RenderOrder(dpi *DataPassIn, orderID string, cs CustomerService) (*models.Order, bool, bool, error) {
 	o, err := s.orderRepo.Read(orderID)
 	if err != nil {
-		return nil, false, err
+		return nil, false, false, err
+	} else if o == nil {
+		return nil, false, false, errors.New("nil order")
 	}
 
 	if !o.Guest && o.CustomerID != dpi.CustomerID {
-		return nil, false, errors.New("order does not belong to customer")
+		return nil, false, false, errors.New("order does not belong to customer")
 	}
 
-	if o.Status == "Created" || o.Status == "Blank" {
-		return nil, false, errors.New("order does not exist yet")
+	if o.Status == "Blank" {
+		return nil, false, false, errors.New("order does not exist yet")
 	}
 
-	if o.Guest && dpi.CustomerID > 0 {
-		return o, true, nil
+	if !o.Guest && dpi.CustomerID != o.CustomerID {
+		return o, true, false, nil
 	}
 
 	if o.Status == "Payment Failed" && !o.Guest {
 		cust, err := cs.GetCustomerByID(o.CustomerID)
 		if err != nil {
-			return o, false, err
+			return o, false, false, err
 		}
 
 		if cust.StripeID != o.CustStripeID {
@@ -606,11 +610,11 @@ func (s *orderService) RenderOrder(dpi *DataPassIn, orderID string, cs CustomerS
 		}
 
 		if err := orderhelp.OrderPaymentMethodUpdate(o, o.CustStripeID); err != nil {
-			return o, false, err
+			return o, false, false, err
 		}
 	}
 
-	return o, false, nil
+	return o, false, o.Status == "Created", nil
 }
 
 func (s *orderService) GetOrdersList(dpi *DataPassIn, fromURL url.Values) (models.OrderRender, error) {
@@ -919,4 +923,55 @@ func (s *orderService) GetOrdersByEmail(email string) (bool, error) {
 }
 func (s *orderService) GetOrdersByEmailAndCustomer(email string, custID int) (bool, error) {
 	return s.orderRepo.GetOrdersByEmailAndCustomer(email, custID)
+}
+
+func (s *orderService) WatchOrderStatus(dpi *DataPassIn, orderID string, conn *websocket.Conn) {
+
+	order, err := s.orderRepo.Read(orderID)
+	if err != nil {
+		conn.WriteJSON(gin.H{"error_reason": "Order unable to be read by ID", "error": err.Error()})
+		conn.Close()
+		return
+	} else if order == nil {
+		conn.WriteJSON(gin.H{"error_reason": "Order unable to be read by ID", "error": errors.New("nil order")})
+		conn.Close()
+		return
+	} else if !order.Guest && order.CustomerID != dpi.CustomerID {
+		conn.WriteJSON(gin.H{"error_reason": "Order unable to be read by ID", "error": errors.New("order doesn't belong to customer")})
+		conn.Close()
+		return
+	} else if order.Status != "Created" {
+		conn.WriteMessage(websocket.TextMessage, []byte("refresh"))
+		conn.Close()
+		return
+	}
+
+	intervals := []time.Duration{2500 * time.Millisecond, 5000 * time.Millisecond, 10000 * time.Millisecond}
+	limits := []time.Duration{20 * time.Second, 60 * time.Second, 300 * time.Second}
+
+	time.Sleep(1250 * time.Millisecond)
+	start := time.Now()
+
+	for i, interval := range intervals {
+		deadline := start.Add(limits[i])
+		for time.Now().Before(deadline) {
+			nextCheck := time.Now().Add(interval)
+
+			status, err := s.orderRepo.ReadStatus(orderID)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("cease"))
+				conn.Close()
+				return
+			} else if status != "Created" {
+				conn.WriteMessage(websocket.TextMessage, []byte("refresh"))
+				conn.Close()
+				return
+			}
+
+			time.Sleep(time.Until(nextCheck))
+		}
+	}
+
+	conn.WriteMessage(websocket.TextMessage, []byte("cease"))
+	conn.Close()
 }

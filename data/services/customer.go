@@ -762,8 +762,8 @@ func (s *customerService) WatchEmailVerification(dpi *DataPassIn, conn *websocke
 		return
 	}
 
-	intervals := []time.Duration{2500 * time.Millisecond, 5000 * time.Millisecond, 10000 * time.Millisecond, 25000 * time.Millisecond}
-	limits := []time.Duration{15 * time.Second, 45 * time.Second, 105 * time.Second, 240 * time.Second}
+	intervals := []time.Duration{2500 * time.Millisecond, 5000 * time.Millisecond, 10000 * time.Millisecond}
+	limits := []time.Duration{20 * time.Second, 100 * time.Second, 600 * time.Second}
 
 	start := time.Now()
 	for i, interval := range intervals {
@@ -783,6 +783,8 @@ func (s *customerService) WatchEmailVerification(dpi *DataPassIn, conn *websocke
 			time.Sleep(time.Until(nextCheck))
 		}
 	}
+
+	conn.WriteMessage(websocket.TextMessage, []byte("cease"))
 	conn.Close()
 }
 
