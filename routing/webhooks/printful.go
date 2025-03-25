@@ -5,6 +5,7 @@ import (
 	"beam/background/emails"
 	"beam/config"
 	"beam/data"
+	"beam/routing/middleware"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -51,6 +52,7 @@ func HandlePrintfulWebhooks(c *gin.Context, fullService *data.AllServices, tools
 	}
 
 	store := c.Param("store")
+	dpi := middleware.FormatDataWebhooks(c, fullService, store)
 
 	if eventType, ok := payload["type"].(string); !ok || eventType != "package_shipped" {
 		emails.HandleWebhook(tools, payload)
@@ -70,7 +72,7 @@ func HandlePrintfulWebhooks(c *gin.Context, fullService *data.AllServices, tools
 		return
 	}
 
-	if err := service.Order.ShipOrder(store, shippedData); err != nil {
+	if err := service.Order.ShipOrder(dpi, store, shippedData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

@@ -27,27 +27,29 @@ import (
 type OrderService interface {
 	SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) (error, error)
 	SubmitPayment(dpi *DataPassIn, draftID, newPayment string, saveMethod bool, useExisting bool, ds DraftOrderService, dts DiscountService, cs CustomerService, ps ProductService, ors OrderService, tools *config.Tools, storeSettings *config.SettingsMutex) (error, error)
-	CompleteOrder(store, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools)
-	FailOrder(store, orderID string)
-	OrderPaymentFailure(store, orderID string, mutexes *config.AllMutexes, tools *config.Tools)
+	CompleteOrder(dpi *DataPassIn, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools)
+	FailOrder(dpi *DataPassIn, store, orderID string)
+	OrderPaymentFailure(dpi *DataPassIn, store, orderID string, mutexes *config.AllMutexes, tools *config.Tools)
 	OrderPaymentFix(dpi *DataPassIn, orderID string, newPaymentMethod, oldPaymentMethod string, saveMethod bool, useExisting bool) error
 
 	UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.Order, ds DiscountService, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error, bool)
-	MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error
+	MarkOrderAndDraftAsSuccess(dpi *DataPassIn, order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error
 	RenderOrder(dpi *DataPassIn, orderID string, cs CustomerService) (*models.Order, bool, bool, error)
 	GetOrdersList(dpi *DataPassIn, fromURL url.Values) (models.OrderRender, error)
 
 	CheckInvDiscAndGiftCards(order *models.Order, draft *models.DraftOrder, dpi *DataPassIn, ps ProductService, ds DiscountService, cs CustomerService, storeSettings *config.SettingsMutex, tools *config.Tools, ors OrderService) error
 
-	ShipOrder(store string, payload apidata.PackageShippedPF) error
+	ShipOrder(dpi *DataPassIn, store string, payload apidata.PackageShippedPF) error
 
-	GetCheckDateOrders() ([]models.Order, error)
-	AdjustCheckOrders(store string, sendEmail, delayCheck []string, tools *config.Tools) (error, error)
+	GetCheckDateOrders(dpi *DataPassIn) ([]models.Order, error)
+	AdjustCheckOrders(dpi *DataPassIn, store string, sendEmail, delayCheck []string, tools *config.Tools) (error, error)
 
 	MoveOrderToAccount(dpi *DataPassIn, orderID string) error
 
-	GetOrdersByEmail(email string) (bool, error)
-	GetOrdersByEmailAndCustomer(email string, custID int) (bool, error)
+	GetOrdersByEmail(dpi *DataPassIn, email string) (bool, error)
+	GetOrdersByEmailAndCustomer(dpi *DataPassIn, email string, custID int) (bool, error)
+
+	WatchOrderStatus(dpi *DataPassIn, orderID string, conn *websocket.Conn)
 }
 
 type orderService struct {
@@ -298,13 +300,21 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 
 }
 
-func (s *orderService) CompleteOrder(store, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools) {
+func (s *orderService) CompleteOrder(dpi *DataPassIn, orderID string, cs CustomerService, ds DraftOrderService, dts DiscountService, ls ListService, ps ProductService, ors OrderService, ss SessionService, mutexes *config.AllMutexes, tools *config.Tools) {
+
+	store := dpi.Store
 
 	order, err := s.orderRepo.Read(orderID)
 	if err != nil {
 		log.Printf("Unable to retrieve order from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
 		return
 	}
+
+	dpi.GuestID = order.GuestID
+	dpi.CustomerID = order.CustomerID
+	dpi.SessionID = order.SessionID
+	dpi.AffiliateID = order.AffiliateID
+	dpi.AffiliateCode = order.AffiliateCode
 
 	if timeOut, err := s.orderRepo.MarkOrderStatusUpdate(order, "Paid"); err != nil {
 		log.Printf("Unable to mark order paid from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
@@ -323,15 +333,6 @@ func (s *orderService) CompleteOrder(store, orderID string, cs CustomerService, 
 	if err != nil {
 		log.Printf("Unable to retrieve draft order from ID for order confirmation; store; %s; orderID: %s; draft orderID: %s; err: %v\n", store, orderID, order.DraftOrderID, err)
 		return
-	}
-
-	dpi := &DataPassIn{
-		Store:         store,
-		GuestID:       order.GuestID,
-		CustomerID:    order.CustomerID,
-		SessionID:     order.SessionID,
-		AffiliateID:   order.AffiliateID,
-		AffiliateCode: order.AffiliateCode,
 	}
 
 	vids := []int{}
@@ -370,7 +371,7 @@ func (s *orderService) CompleteOrder(store, orderID string, cs CustomerService, 
 		go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Bad response from posting order to printful after charging", tools, order, draft, resp, false, err)
 	}
 
-	if err := s.MarkOrderAndDraftAsSuccess(order, draft, ds); err != nil {
+	if err := s.MarkOrderAndDraftAsSuccess(dpi, order, draft, ds); err != nil {
 		go emails.AlertRecoverableOrderSubmitError(dpi.Store, order.DraftOrderID, order.ID.Hex(), "Unable to save order and draft order after successful creation", tools, order, draft, nil, false, err)
 	}
 
@@ -385,7 +386,7 @@ func (s *orderService) CompleteOrder(store, orderID string, cs CustomerService, 
 	ss.AddAffiliateSale(dpi, order.ID.Hex())
 }
 
-func (s *orderService) FailOrder(store, orderID string) {
+func (s *orderService) FailOrder(dpi *DataPassIn, store, orderID string) {
 	order, err := s.orderRepo.Read(orderID)
 	if err != nil {
 		log.Printf("Unable to retrieve order from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
@@ -402,7 +403,7 @@ func (s *orderService) FailOrder(store, orderID string) {
 
 }
 
-func (s *orderService) OrderPaymentFailure(store, orderID string, mutexes *config.AllMutexes, tools *config.Tools) {
+func (s *orderService) OrderPaymentFailure(dpi *DataPassIn, store, orderID string, mutexes *config.AllMutexes, tools *config.Tools) {
 	order, err := s.orderRepo.Read(orderID)
 	if err != nil {
 		log.Printf("Unable to retrieve order from ID for order confirmation; store; %s; orderID: %s; err: %v\n", store, orderID, err)
@@ -538,7 +539,7 @@ func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.O
 			gcsAndAmounts[[2]string{gc.Code, gc.Pin}] = gc.Charged
 		}
 
-		gcErr = ds.UseMultipleGiftCards(gcsAndAmounts, dpi.CustomerID, dpi.GuestID, order.ID.Hex(), dpi.SessionID)
+		gcErr = ds.UseMultipleGiftCards(dpi, gcsAndAmounts, dpi.CustomerID, dpi.GuestID, order.ID.Hex(), dpi.SessionID)
 
 		if gcErr != nil {
 			return gcErr, nil, false
@@ -548,7 +549,7 @@ func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.O
 
 	if order.OrderDiscount.DiscountCode != "" {
 
-		discErr = ds.UseDiscountCode(order.OrderDiscount.DiscountCode, dpi.GuestID, order.ID.Hex(), dpi.SessionID, dpi.Store, order.Subtotal, dpi.CustomerID, order.Guest, order.Email, storeSettings, tools, cs, ors)
+		discErr = ds.UseDiscountCode(dpi, order.OrderDiscount.DiscountCode, dpi.GuestID, order.ID.Hex(), dpi.SessionID, dpi.Store, order.Subtotal, dpi.CustomerID, order.Guest, order.Email, storeSettings, tools, cs, ors)
 
 		if discErr != nil {
 			return nil, discErr, false
@@ -558,7 +559,7 @@ func (s *orderService) UseDiscountsAndGiftCards(dpi *DataPassIn, order *models.O
 	return nil, nil, true
 }
 
-func (s *orderService) MarkOrderAndDraftAsSuccess(order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error {
+func (s *orderService) MarkOrderAndDraftAsSuccess(dpi *DataPassIn, order *models.Order, draft *models.DraftOrder, ds DraftOrderService) error {
 	now := time.Now()
 
 	order.Status = "Procesed"
@@ -709,7 +710,7 @@ func (s *orderService) CheckInvDiscAndGiftCards(order *models.Order, draft *mode
 			gcsAndAmounts[[2]string{gc.Code, gc.Pin}] = gc.Charged
 		}
 
-		gcErr, draftErr := ds.CheckGiftCardsAndDiscountCodes(gcsAndAmounts, discCode, dpi.Store, subtotal, dpi.CustomerID, orderGuest, draft.Email, storeSettings, tools, cs, ors)
+		gcErr, draftErr := ds.CheckGiftCardsAndDiscountCodes(dpi, gcsAndAmounts, discCode, dpi.Store, subtotal, dpi.CustomerID, orderGuest, draft.Email, storeSettings, tools, cs, ors)
 		if gcErr == nil && draftErr == nil {
 			return nil
 		} else if gcErr == nil {
@@ -727,7 +728,7 @@ func (s *orderService) CheckInvDiscAndGiftCards(order *models.Order, draft *mode
 			gcsAndAmounts[[2]string{gc.Code, gc.Pin}] = gc.Charged
 		}
 
-		gcErr := ds.CheckMultipleGiftCards(gcsAndAmounts)
+		gcErr := ds.CheckMultipleGiftCards(dpi, gcsAndAmounts)
 		if gcErr == nil {
 			return nil
 		}
@@ -736,7 +737,7 @@ func (s *orderService) CheckInvDiscAndGiftCards(order *models.Order, draft *mode
 
 	} else if discCode != "" {
 
-		draftErr := ds.CheckDiscountCode(discCode, dpi.Store, subtotal, dpi.CustomerID, orderGuest, draft.Email, storeSettings, tools, cs, ors)
+		draftErr := ds.CheckDiscountCode(dpi, discCode, dpi.Store, subtotal, dpi.CustomerID, orderGuest, draft.Email, storeSettings, tools, cs, ors)
 		if draftErr == nil {
 			return nil
 		}
@@ -748,7 +749,7 @@ func (s *orderService) CheckInvDiscAndGiftCards(order *models.Order, draft *mode
 	return nil
 }
 
-func (s *orderService) ShipOrder(store string, payload apidata.PackageShippedPF) error {
+func (s *orderService) ShipOrder(dpi *DataPassIn, store string, payload apidata.PackageShippedPF) error {
 	orderID := payload.Data.Order.ExternalID
 	order, err := s.orderRepo.Read(orderID)
 	if err != nil {
@@ -857,11 +858,11 @@ outerLine:
 	// Send email update
 }
 
-func (s *orderService) GetCheckDateOrders() ([]models.Order, error) {
+func (s *orderService) GetCheckDateOrders(dpi *DataPassIn) ([]models.Order, error) {
 	return s.orderRepo.GetCheckOrders()
 }
 
-func (s *orderService) AdjustCheckOrders(store string, sendEmail, delayCheck []string, tools *config.Tools) (error, error) {
+func (s *orderService) AdjustCheckOrders(dpi *DataPassIn, store string, sendEmail, delayCheck []string, tools *config.Tools) (error, error) {
 	sendError, delayError := error(nil), error(nil)
 	if len(sendEmail) > 0 {
 		orders, err := s.orderRepo.GetOrdersByIDs(sendEmail)
@@ -918,10 +919,10 @@ func (s *orderService) MoveOrderToAccount(dpi *DataPassIn, orderID string) error
 	return s.orderRepo.Update(order)
 }
 
-func (s *orderService) GetOrdersByEmail(email string) (bool, error) {
+func (s *orderService) GetOrdersByEmail(dpi *DataPassIn, email string) (bool, error) {
 	return s.orderRepo.GetOrdersByEmail(email)
 }
-func (s *orderService) GetOrdersByEmailAndCustomer(email string, custID int) (bool, error) {
+func (s *orderService) GetOrdersByEmailAndCustomer(dpi *DataPassIn, email string, custID int) (bool, error) {
 	return s.orderRepo.GetOrdersByEmailAndCustomer(email, custID)
 }
 

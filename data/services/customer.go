@@ -38,6 +38,7 @@ type CustomerService interface {
 
 	LoginCookie(dpi *DataPassIn, email, password string, addEmailSub, usesPassword bool, tools *config.Tools) (*models.ClientCookie, *models.TwoFactorCookie, bool, error) // To cart/draft/order IF !2FA
 	ResetPass(dpi *DataPassIn, email string) error
+
 	CustomerMiddleware(cookie *models.ClientCookie)
 	GuestMiddleware(cookie *models.ClientCookie, store string)
 	FullMiddleware(cookie *models.ClientCookie, store string)
@@ -81,7 +82,7 @@ type CustomerService interface {
 	ProcessResetEmail(dpi *DataPassIn, param string) (*models.ResetEmailCookie, error)
 	ResetPasswordActual(dpi *DataPassIn, resetCookie *models.ResetEmailCookie, password, passwordConfirm string, logAllOut bool) error
 
-	BirthdayEmails(store string, ds DiscountService, tools *config.Tools) error
+	BirthdayEmails(dpi *DataPassIn, store string, ds DiscountService, tools *config.Tools) error
 
 	PrefillEmailAuth(dpi *DataPassIn, param string, tools *config.Tools) (string, bool, error)
 	GeneratePrefillAuthParam(dpi *DataPassIn, email string) string
@@ -1426,7 +1427,7 @@ func (s *customerService) ResetPasswordActual(dpi *DataPassIn, resetCookie *mode
 	return nil
 }
 
-func (s *customerService) BirthdayEmails(store string, ds DiscountService, tools *config.Tools) error {
+func (s *customerService) BirthdayEmails(dpi *DataPassIn, store string, ds DiscountService, tools *config.Tools) error {
 	currentDate := time.Now()
 	day := currentDate.Day()
 	month := int(currentDate.Month())
@@ -1458,7 +1459,7 @@ func (s *customerService) BirthdayEmails(store string, ds DiscountService, tools
 		ShortMessage:    "Happy Birthday :P",
 	}
 
-	if err := ds.AddDiscount(*disc); err != nil {
+	if err := ds.AddDiscount(dpi, *disc); err != nil {
 		return err
 	}
 
@@ -1741,9 +1742,9 @@ func (s *customerService) CheckIfValidForWelcome(dpi *DataPassIn, custID int, em
 	}
 
 	if cust == nil {
-		return ors.GetOrdersByEmail(email)
+		return ors.GetOrdersByEmail(dpi, email)
 	} else {
-		return ors.GetOrdersByEmailAndCustomer(email, cust.ID)
+		return ors.GetOrdersByEmailAndCustomer(dpi, email, cust.ID)
 	}
 }
 

@@ -54,7 +54,7 @@ type ListService interface {
 	RetrieveAllListsAndCounts(dpi *DataPassIn, fromURL url.Values) (models.AllListsAndCounts, error)
 
 	SetCustomPublicStatus(dpi *DataPassIn, listID int, public bool) error
-	RenderSharedCustomList(providedCustID string, page, listID int, ps ProductService) (models.CustomListRender, bool, error)
+	RenderSharedCustomList(dpi *DataPassIn, providedCustID string, page, listID int, ps ProductService) (models.CustomListRender, bool, error)
 	ShareCustomList(dpi *DataPassIn, listID int) (int, string, error)
 
 	UndoFavesDelete(dpi *DataPassIn, variantID int, dateSt string, page int, ps ProductService, cs CustomerService) (models.FavesListRender, error)
@@ -791,7 +791,7 @@ func (s *listService) ShareCustomList(dpi *DataPassIn, listID int) (int, string,
 }
 
 // Render, is public, error
-func (s *listService) RenderSharedCustomList(providedCustID string, page, listID int, ps ProductService) (models.CustomListRender, bool, error) {
+func (s *listService) RenderSharedCustomList(dpi *DataPassIn, providedCustID string, page, listID int, ps ProductService) (models.CustomListRender, bool, error) {
 
 	unencryptedID, err := config.DecryptInt(providedCustID)
 	if err != nil {

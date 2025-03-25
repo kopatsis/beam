@@ -446,7 +446,7 @@ func (s *draftOrderService) AddDiscountCode(dpi *DataPassIn, draftID, discCode s
 		return draft, err
 	}
 
-	disc, users, err := ds.GetDiscountCodeForDraft(discCode, dpi.Store, draft.Subtotal, dpi.CustomerID, dpi.CustomerID < 1 && dpi.GuestID != "", draft.Email, storeSettings, tools, cs, ors)
+	disc, users, err := ds.GetDiscountCodeForDraft(dpi, discCode, dpi.Store, draft.Subtotal, dpi.CustomerID, dpi.CustomerID < 1 && dpi.GuestID != "", draft.Email, storeSettings, tools, cs, ors)
 	if err != nil {
 		return draft, err
 	}
@@ -528,7 +528,7 @@ func (s *draftOrderService) AddGiftCard(dpi *DataPassIn, draftID, gcCode, pin st
 		return draft, errors.New("maximum number of gift cards to add reached")
 	}
 
-	gc, err := ds.RetrieveGiftCard(gcCode, pin)
+	gc, err := ds.RetrieveGiftCard(dpi, gcCode, pin)
 	if err != nil {
 		return draft, err
 	}
@@ -601,7 +601,7 @@ func (s *draftOrderService) CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID 
 			gcsAndAmounts[[2]string{gc.Code, gc.Pin}] = gc.Charged
 		}
 
-		gcErr, draftErr := ds.CheckGiftCardsAndDiscountCodes(gcsAndAmounts, draft.OrderDiscount.DiscountCode, dpi.Store, draft.Subtotal, dpi.CustomerID, draft.Guest, draft.Email, storeSettings, tools, cs, ors)
+		gcErr, draftErr := ds.CheckGiftCardsAndDiscountCodes(dpi, gcsAndAmounts, draft.OrderDiscount.DiscountCode, dpi.Store, draft.Subtotal, dpi.CustomerID, draft.Guest, draft.Email, storeSettings, tools, cs, ors)
 		if gcErr == nil && draftErr == nil {
 			return nil, nil, nil, true
 		}
@@ -615,7 +615,7 @@ func (s *draftOrderService) CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID 
 			gcsAndAmounts[[2]string{gc.Code, gc.Pin}] = gc.Charged
 		}
 
-		gcErr := ds.CheckMultipleGiftCards(gcsAndAmounts)
+		gcErr := ds.CheckMultipleGiftCards(dpi, gcsAndAmounts)
 		if gcErr == nil {
 			return nil, nil, nil, true
 		}
@@ -624,7 +624,7 @@ func (s *draftOrderService) CheckDiscountsAndGiftCards(dpi *DataPassIn, draftID 
 
 	} else if draft.OrderDiscount.DiscountCode != "" {
 
-		draftErr := ds.CheckDiscountCode(draft.OrderDiscount.DiscountCode, dpi.Store, draft.Subtotal, dpi.CustomerID, draft.Guest, draft.Email, storeSettings, tools, cs, ors)
+		draftErr := ds.CheckDiscountCode(dpi, draft.OrderDiscount.DiscountCode, dpi.Store, draft.Subtotal, dpi.CustomerID, draft.Guest, draft.Email, storeSettings, tools, cs, ors)
 		if draftErr == nil {
 			return nil, nil, nil, true
 		}
@@ -732,7 +732,7 @@ func (s *draftOrderService) MoveDraftToCustomer(dpi *DataPassIn, draftID string,
 	draft.ListedContacts = []*models.Contact{}
 
 	if draft.OrderDiscount.DiscountCode != "" {
-		disc, users, err := ds.GetDiscountCodeForDraft(draft.OrderDiscount.DiscountCode, dpi.Store, draft.Subtotal, dpi.CustomerID, false, draft.Email, storeSettings, tools, cms, ors)
+		disc, users, err := ds.GetDiscountCodeForDraft(dpi, draft.OrderDiscount.DiscountCode, dpi.Store, draft.Subtotal, dpi.CustomerID, false, draft.Email, storeSettings, tools, cms, ors)
 		if err != nil {
 			return 0, err
 		}

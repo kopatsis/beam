@@ -4,6 +4,7 @@ import (
 	"beam/config"
 	"beam/data"
 	"beam/data/services/orderhelp"
+	"beam/routing/middleware"
 	"encoding/json"
 	"io"
 	"log"
@@ -50,6 +51,7 @@ func PaymentSuccess(c *gin.Context, fullService *data.AllServices, tools *config
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
+	dpi := middleware.FormatDataWebhooks(c, fullService, orderInfo.Store)
 
 	service, ok := fullService.Map[orderInfo.Store]
 	if !ok {
@@ -59,7 +61,7 @@ func PaymentSuccess(c *gin.Context, fullService *data.AllServices, tools *config
 	}
 
 	go func() {
-		service.Order.CompleteOrder(orderInfo.Store, orderInfo.OrderID, service.Customer, service.DraftOrder, service.Discount, service.List, service.Product, service.Order, service.Session, fullService.Mutex, tools)
+		service.Order.CompleteOrder(dpi, orderInfo.OrderID, service.Customer, service.DraftOrder, service.Discount, service.List, service.Product, service.Order, service.Session, fullService.Mutex, tools)
 	}()
 
 	c.Status(http.StatusOK)
@@ -102,6 +104,8 @@ func PaymentFailure(c *gin.Context, fullService *data.AllServices, tools *config
 		return
 	}
 
+	dpi := middleware.FormatDataWebhooks(c, fullService, orderInfo.Store)
+
 	service, ok := fullService.Map[orderInfo.Store]
 	if !ok {
 		log.Printf("Store unable to be found in service map: %s\n", orderInfo.Store)
@@ -110,7 +114,7 @@ func PaymentFailure(c *gin.Context, fullService *data.AllServices, tools *config
 	}
 
 	go func() {
-		service.Order.OrderPaymentFailure(orderInfo.Store, orderInfo.OrderID, fullService.Mutex, tools)
+		service.Order.OrderPaymentFailure(dpi, orderInfo.Store, orderInfo.OrderID, fullService.Mutex, tools)
 	}()
 
 	c.Status(http.StatusOK)

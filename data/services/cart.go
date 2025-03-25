@@ -295,7 +295,7 @@ func (s *cartService) AddGiftCard(dpi *DataPassIn, message string, cents int, di
 	}
 	dpi.CartID = id
 
-	idDB, _, gccode, err := discService.CreateGiftCard(cents, message, dpi.Store, tools)
+	idDB, _, gccode, err := discService.CreateGiftCard(dpi, cents, message, dpi.Store, tools)
 	if err != nil {
 		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddGiftCard", "Unable to create gift card to add to cart", "", "", "", "", "", "", "", "", strconv.Itoa(cart.ID), "", "", "", []error{err})
 		return nil, err

@@ -14,21 +14,21 @@ import (
 )
 
 type DiscountService interface {
-	AddDiscount(discount models.Discount) error
-	GetDiscountByID(id int) (*models.Discount, error)
-	UpdateDiscount(discount models.Discount) error
-	DeleteDiscount(id int) error
+	AddDiscount(dpi *DataPassIn, discount models.Discount) error
+	GetDiscountByID(dpi *DataPassIn, id int) (*models.Discount, error)
+	UpdateDiscount(dpi *DataPassIn, discount models.Discount) error
+	DeleteDiscount(dpi *DataPassIn, id int) error
 
-	CreateGiftCard(cents int, message string, store string, tools *config.Tools) (int, string, string, error)
-	RenderGiftCard(code string) (*models.GiftCardRender, error)
-	RetrieveGiftCard(code, pin string) (*models.GiftCard, error)
-	CheckMultipleGiftCards(codesAndAmounts map[[2]string]int) error
-	CheckDiscountCode(code, store string, subtotal, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) error
-	CheckGiftCardsAndDiscountCodes(codesAndAmounts map[[2]string]int, code, store string, subtotal int, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error)
-	GetDiscountCodeForDraft(code, store string, subtotal, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (*models.Discount, []*models.DiscountUser, error)
+	CreateGiftCard(dpi *DataPassIn, cents int, message string, store string, tools *config.Tools) (int, string, string, error)
+	RenderGiftCard(dpi *DataPassIn, code string) (*models.GiftCardRender, error)
+	RetrieveGiftCard(dpi *DataPassIn, code, pin string) (*models.GiftCard, error)
+	CheckMultipleGiftCards(dpi *DataPassIn, codesAndAmounts map[[2]string]int) error
+	CheckDiscountCode(dpi *DataPassIn, code, store string, subtotal, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) error
+	CheckGiftCardsAndDiscountCodes(dpi *DataPassIn, codesAndAmounts map[[2]string]int, code, store string, subtotal int, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error)
+	GetDiscountCodeForDraft(dpi *DataPassIn, code, store string, subtotal, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (*models.Discount, []*models.DiscountUser, error)
 
-	UseMultipleGiftCards(codesAndAmounts map[[2]string]int, customderID int, guestID, orderID, sessionID string) error
-	UseDiscountCode(code, guestID, orderID, sessionID, store string, subtotal int, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) error
+	UseMultipleGiftCards(dpi *DataPassIn, codesAndAmounts map[[2]string]int, customderID int, guestID, orderID, sessionID string) error
+	UseDiscountCode(dpi *DataPassIn, code, guestID, orderID, sessionID, store string, subtotal int, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) error
 }
 
 type discountService struct {
@@ -39,23 +39,23 @@ func NewDiscountService(discountRepo repositories.DiscountRepository) DiscountSe
 	return &discountService{discountRepo: discountRepo}
 }
 
-func (s *discountService) AddDiscount(discount models.Discount) error {
+func (s *discountService) AddDiscount(dpi *DataPassIn, discount models.Discount) error {
 	return s.discountRepo.Create(discount)
 }
 
-func (s *discountService) GetDiscountByID(id int) (*models.Discount, error) {
+func (s *discountService) GetDiscountByID(dpi *DataPassIn, id int) (*models.Discount, error) {
 	return s.discountRepo.Read(id)
 }
 
-func (s *discountService) UpdateDiscount(discount models.Discount) error {
+func (s *discountService) UpdateDiscount(dpi *DataPassIn, discount models.Discount) error {
 	return s.discountRepo.Update(discount)
 }
 
-func (s *discountService) DeleteDiscount(id int) error {
+func (s *discountService) DeleteDiscount(dpi *DataPassIn, id int) error {
 	return s.discountRepo.Delete(id)
 }
 
-func (s *discountService) CreateGiftCard(cents int, message string, store string, tools *config.Tools) (int, string, string, error) {
+func (s *discountService) CreateGiftCard(dpi *DataPassIn, cents int, message string, store string, tools *config.Tools) (int, string, string, error) {
 	if len(message) > 256 {
 		message = message[:255]
 	}
@@ -91,7 +91,7 @@ func (s *discountService) CreateGiftCard(cents int, message string, store string
 	return idDB, discount.SpaceDisplayGC(idSt), pin, nil
 }
 
-func (s *discountService) RetrieveGiftCard(code, pin string) (*models.GiftCard, error) {
+func (s *discountService) RetrieveGiftCard(dpi *DataPassIn, code, pin string) (*models.GiftCard, error) {
 	if !discount.CheckID(code) {
 		return nil, errors.New("invalid gift card code")
 	} else if matched, err := regexp.MatchString(`^\d{3}$`, pin); !matched || err != nil {
@@ -122,7 +122,7 @@ func (s *discountService) RetrieveGiftCard(code, pin string) (*models.GiftCard, 
 	return gc, nil
 }
 
-func (s *discountService) RenderGiftCard(code string) (*models.GiftCardRender, error) {
+func (s *discountService) RenderGiftCard(dpi *DataPassIn, code string) (*models.GiftCardRender, error) {
 	if !discount.CheckID(code) {
 		return nil, errors.New("invalid gift card code")
 	}
@@ -134,7 +134,7 @@ func (s *discountService) RenderGiftCard(code string) (*models.GiftCardRender, e
 	return &models.GiftCardRender{GiftCard: *gc, Expired: gc.Expired.Before(time.Now())}, nil
 }
 
-func (s *discountService) CheckMultipleGiftCards(codesAndAmounts map[[2]string]int) error {
+func (s *discountService) CheckMultipleGiftCards(dpi *DataPassIn, codesAndAmounts map[[2]string]int) error {
 	allCodes := []string{}
 	re := regexp.MustCompile(`^\d{3}$`)
 
@@ -210,13 +210,13 @@ func (s *discountService) CheckMultipleGiftCards(codesAndAmounts map[[2]string]i
 	return nil
 }
 
-func (s *discountService) CheckDiscountCode(code, store string, subtotal, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) error {
+func (s *discountService) CheckDiscountCode(dpi *DataPassIn, code, store string, subtotal, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) error {
 
-	_, _, err := s.GetDiscountCodeForDraft(code, store, subtotal, cust, noCustomer, email, storeSettings, tools, cs, ors)
+	_, _, err := s.GetDiscountCodeForDraft(dpi, code, store, subtotal, cust, noCustomer, email, storeSettings, tools, cs, ors)
 	return err
 }
 
-func (s *discountService) CheckGiftCardsAndDiscountCodes(codesAndAmounts map[[2]string]int, code, store string, subtotal int, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error) {
+func (s *discountService) CheckGiftCardsAndDiscountCodes(dpi *DataPassIn, codesAndAmounts map[[2]string]int, code, store string, subtotal int, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (error, error) {
 	var errGiftCards, errDiscountCodes error
 
 	wg := sync.WaitGroup{}
@@ -224,19 +224,19 @@ func (s *discountService) CheckGiftCardsAndDiscountCodes(codesAndAmounts map[[2]
 
 	go func() {
 		defer wg.Done()
-		errGiftCards = s.CheckMultipleGiftCards(codesAndAmounts)
+		errGiftCards = s.CheckMultipleGiftCards(dpi, codesAndAmounts)
 	}()
 
 	go func() {
 		defer wg.Done()
-		errDiscountCodes = s.CheckDiscountCode(code, store, subtotal, cust, noCustomer, email, storeSettings, tools, cs, ors)
+		errDiscountCodes = s.CheckDiscountCode(dpi, code, store, subtotal, cust, noCustomer, email, storeSettings, tools, cs, ors)
 	}()
 
 	wg.Wait()
 	return errGiftCards, errDiscountCodes
 }
 
-func (s *discountService) GetDiscountCodeForDraft(code, store string, subtotal, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (*models.Discount, []*models.DiscountUser, error) {
+func (s *discountService) GetDiscountCodeForDraft(dpi *DataPassIn, code, store string, subtotal, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) (*models.Discount, []*models.DiscountUser, error) {
 
 	welcomeCode, welcomePct, alwaysCode, alwaysPct := discount.SpecialDiscNames(storeSettings, store)
 
@@ -322,7 +322,7 @@ func (s *discountService) GetDiscountCodeForDraft(code, store string, subtotal, 
 	return disc, users, nil
 }
 
-func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[[2]string]int, customderID int, guestID, orderID, sessionID string) error {
+func (s *discountService) UseMultipleGiftCards(dpi *DataPassIn, codesAndAmounts map[[2]string]int, customderID int, guestID, orderID, sessionID string) error {
 	re := regexp.MustCompile(`^\d{3}$`)
 
 	for idCode, amt := range codesAndAmounts {
@@ -353,9 +353,9 @@ func (s *discountService) UseMultipleGiftCards(codesAndAmounts map[[2]string]int
 	return nil
 }
 
-func (s *discountService) UseDiscountCode(code, guestID, orderID, sessionID, store string, subtotal int, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) error {
+func (s *discountService) UseDiscountCode(dpi *DataPassIn, code, guestID, orderID, sessionID, store string, subtotal int, cust int, noCustomer bool, email string, storeSettings *config.SettingsMutex, tools *config.Tools, cs CustomerService, ors OrderService) error {
 
-	disc, users, err := s.GetDiscountCodeForDraft(code, store, subtotal, cust, noCustomer, email, storeSettings, tools, cs, ors)
+	disc, users, err := s.GetDiscountCodeForDraft(dpi, code, store, subtotal, cust, noCustomer, email, storeSettings, tools, cs, ors)
 	if err != nil {
 		return err
 	}

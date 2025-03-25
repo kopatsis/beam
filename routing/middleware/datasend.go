@@ -54,6 +54,28 @@ func FormatDataForFunctions(c *gin.Context, fullService *data.AllServices) *serv
 	return &ret
 }
 
+func FormatDataWebhooks(c *gin.Context, fullService *data.AllServices, store string) *services.DataPassIn {
+	ipStr := c.ClientIP()
+
+	if ipStr == "" || ipStr == "::1" {
+		ipStr = c.Request.Header.Get("X-Forwarded-For")
+	}
+
+	ret := services.DataPassIn{
+		SessionLineID: "SL-" + uuid.NewString(),
+		IPAddress:     ipStr,
+		TimeStarted:   time.Now(),
+		Logs:          []models.EventFinal{},
+		LogsMutex:     sync.Mutex{},
+	}
+
+	if serv, ok := fullService.Map[store]; ok {
+		ret.Logger = serv.Event
+	}
+
+	return &ret
+}
+
 func PostLogs(dpi *services.DataPassIn, tools *config.Tools) {
 	payload, err := dpi.MarshalLogs()
 	if err != nil {
