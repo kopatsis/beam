@@ -21,7 +21,7 @@ type CartService interface {
 	ClearCart(dpi *DataPassIn) (*models.CartRender, error)
 	AddGiftCard(dpi *DataPassIn, message string, cents int, discService DiscountService, tools *config.Tools) (*models.Cart, error)
 	DeleteGiftCard(dpi *DataPassIn, lineID int, prodServ ProductService) (*models.CartRender, error)
-	UpdateRender(name string, cart *models.CartRender, ps ProductService) error
+	UpdateRender(dpi *DataPassIn, name string, cart *models.CartRender, ps ProductService) error
 	SavesListToCart(dpi *DataPassIn, varid int, handle string, ps ProductService, ls ListService) (models.SavesListRender, *models.CartRender, error)
 
 	CartMiddleware(cartID, custID int, guestID string) (int, error)
@@ -35,7 +35,7 @@ type CartService interface {
 	CopyCartWithLines(dpi *DataPassIn) (int, error)
 	MoveCart(dpi *DataPassIn) error
 	DirectCartRetrieval(dpi *DataPassIn) (int, error, bool)
-	GetCartLineWithValidation(customerID int, cartID int, lineID int) (*models.CartLine, error)
+	GetCartLineWithValidation(dpi *DataPassIn, lineID int) (*models.CartLine, error)
 
 	CopyCartFromShare(dpi *DataPassIn, sharedCartID int) error
 }
@@ -48,12 +48,12 @@ func NewCartService(cartRepo repositories.CartRepository) CartService {
 	return &cartService{cartRepo: cartRepo}
 }
 
-func (s *cartService) GetCartLineWithValidation(customerID int, cartID int, lineID int) (*models.CartLine, error) {
-	return s.cartRepo.GetCartLineWithValidation(customerID, cartID, lineID)
+func (s *cartService) GetCartLineWithValidation(dpi *DataPassIn, lineID int) (*models.CartLine, error) {
+	return s.cartRepo.GetCartLineWithValidation(dpi.CustomerID, dpi.CartID, lineID)
 }
 
 func (s *cartService) AddToCart(dpi *DataPassIn, handle string, vid, quant int, prodServ ProductService) (*models.Cart, error) {
-	p, r, err := prodServ.GetFullProduct(dpi.Store, handle)
+	p, r, err := prodServ.GetFullProduct(dpi, dpi.Store, handle)
 	if err != nil {
 		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddToCart", "Error querying product", "", "", "", "", strconv.Itoa(vid), "", "", "", "", "", "", "", []error{err})
 		return nil, err
@@ -128,7 +128,7 @@ func (s *cartService) GetCart(dpi *DataPassIn, prodServ ProductService) (*models
 	}
 
 	ret.Cart = *cart
-	if err := s.UpdateRender(dpi.Store, &ret, prodServ); err != nil {
+	if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
 		return nil, err
 	}
 
@@ -166,7 +166,7 @@ func (s *cartService) AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodSer
 
 	if index == -1 {
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
-		if err := s.UpdateRender(dpi.Store, &ret, prodServ); err != nil {
+		if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
 			dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Line by given id was deleted, couldn't update render", "", "", "", "", "", "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
 			return nil, err
 		}
@@ -174,7 +174,7 @@ func (s *cartService) AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodSer
 		return &ret, nil
 	}
 
-	prod, redir, err := prodServ.GetProductByVariantID(dpi.Store, lines[index].VariantID)
+	prod, redir, err := prodServ.GetProductByVariantID(dpi, dpi.Store, lines[index].VariantID)
 	if err != nil {
 
 		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Unable to retrieve product by variant ID", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
@@ -188,7 +188,7 @@ func (s *cartService) AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodSer
 			return nil, err
 		}
 		ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
-		if err := s.UpdateRender(dpi.Store, &ret, prodServ); err != nil {
+		if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
 			dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Unable to update render after product was redirected", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
 			return nil, err
 		}
@@ -211,7 +211,7 @@ func (s *cartService) AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodSer
 			return nil, err
 		}
 		ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
-		if err := s.UpdateRender(dpi.Store, &ret, prodServ); err != nil {
+		if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
 			dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Variant not in product specified by line; couldn't update render", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
 			return nil, err
 		}
@@ -235,7 +235,7 @@ func (s *cartService) AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodSer
 	if err := s.cartRepo.SaveCartLineNew(&ret.CartLines[index].ActualLine); err != nil {
 		ret.CartLines[index].ActualLine.Quantity = oldQuant
 		ret.CartLines[index].ActualLine.Price = product.VolumeDiscPrice(prod.Variants[varIndex].Price, oldQuant, prod.VolumeDisc)
-		if err := s.UpdateRender(dpi.Store, &ret, prodServ); err != nil {
+		if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
 			dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Unable to update the render after save", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
 			return nil, err
 		}
@@ -244,7 +244,7 @@ func (s *cartService) AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodSer
 		return &ret, nil
 	}
 
-	if err := s.UpdateRender(dpi.Store, &ret, prodServ); err != nil {
+	if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
 		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Unable to update the render", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
 		return nil, err
 	}
@@ -353,7 +353,7 @@ func (s *cartService) DeleteGiftCard(dpi *DataPassIn, lineID int, prodServ Produ
 
 	if index == -1 {
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
-		if err := s.UpdateRender(dpi.Store, &ret, prodServ); err != nil {
+		if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
 			dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "DeleteGiftCard", "Line for gift card was deleted -> Unable to update render", "", "", "", "", "", "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
 			return nil, err
 		}
@@ -367,7 +367,7 @@ func (s *cartService) DeleteGiftCard(dpi *DataPassIn, lineID int, prodServ Produ
 	}
 	ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
 
-	if err := s.UpdateRender(dpi.Store, &ret, prodServ); err != nil {
+	if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
 		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "DeleteGiftCard", "Unable to update render after deleting line", "", "", "", "", "", "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", strconv.Itoa(lines[index].VariantID), []error{err})
 		return nil, err
 	}
@@ -400,7 +400,7 @@ func (s *cartService) SavesListToCart(dpi *DataPassIn, varid int, handle string,
 	return sl, cr, nil
 }
 
-func (s *cartService) UpdateRender(name string, cart *models.CartRender, ps ProductService) error {
+func (s *cartService) UpdateRender(dpi *DataPassIn, name string, cart *models.CartRender, ps ProductService) error {
 	carthelp.UpdateCartSub(cart)
 	vids := []int{}
 
@@ -410,7 +410,7 @@ func (s *cartService) UpdateRender(name string, cart *models.CartRender, ps Prod
 		}
 	}
 
-	lvs, err := ps.GetLimitedVariants(name, vids)
+	lvs, err := ps.GetLimitedVariants(dpi, name, vids)
 	if err != nil {
 		return err
 	} else if len(lvs) != len(vids) {

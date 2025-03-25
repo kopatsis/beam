@@ -23,20 +23,20 @@ type ProductService interface {
 	UpdateProduct(product models.Product) error
 	DeleteProduct(id int) error
 
-	GetFullProduct(store, handle string) (models.ProductRedis, string, error)
+	GetFullProduct(dpi *DataPassIn, store, handle string) (models.ProductRedis, string, error)
 
-	GetAllProductInfo(fromURL url.Values, Mutex *config.AllMutexes, name string) (models.CollectionRender, error)
-	GetProductAndProductRender(name, handle string, varid int) (models.ProductRedis, models.ProductRender, string, error)
+	GetAllProductInfo(dpi *DataPassIn, fromURL url.Values, Mutex *config.AllMutexes, name string) (models.CollectionRender, error)
+	GetProductAndProductRender(dpi *DataPassIn, name, handle string, varid int) (models.ProductRedis, models.ProductRender, string, error)
 
-	GetProductRender(name, handle string, varid int) (models.ProductRender, string, error)
-	GetLimitedVariants(name string, vids []int) ([]*models.LimitedVariantRedis, error)
-	GetProductByVariantID(name string, vid int) (models.ProductRedis, string, error)
-	GetProductsByVariantIDs(name string, vids []int) (map[int]*models.ProductRedis, error)
-	GetProductsMapFromCartLine(name string, cartLines []*models.CartLine) (map[int]*models.ProductRedis, error)
+	GetProductRender(dpi *DataPassIn, name, handle string, varid int) (models.ProductRender, string, error)
+	GetLimitedVariants(dpi *DataPassIn, name string, vids []int) ([]*models.LimitedVariantRedis, error)
+	GetProductByVariantID(dpi *DataPassIn, name string, vid int) (models.ProductRedis, string, error)
+	GetProductsByVariantIDs(dpi *DataPassIn, name string, vids []int) (map[int]*models.ProductRedis, error)
+	GetProductsMapFromCartLine(dpi *DataPassIn, name string, cartLines []*models.CartLine) (map[int]*models.ProductRedis, error)
 
 	UpdateRatings(dpi *DataPassIn, pid, newRate, oldRate, plusMinus int, tools *config.Tools)
 	ConfirmDraftOrderProducts(dpi *DataPassIn, vinv map[int]int, vids []int) (map[int]models.InvRetrieval, bool, error)
-	RenderComparables(name string, id int) ([]models.ComparablesRender, error)
+	RenderComparables(dpi *DataPassIn, name string, id int) ([]models.ComparablesRender, error)
 
 	SetInventoryFromOrder(dpi *DataPassIn, decrement map[int]int, handles []string, orderID string, tools *config.Tools) error
 }
@@ -49,7 +49,7 @@ func NewProductService(productRepo repositories.ProductRepository) ProductServic
 	return &productService{productRepo: productRepo}
 }
 
-func (s *productService) GetFullProduct(store, handle string) (models.ProductRedis, string, error) {
+func (s *productService) GetFullProduct(dpi *DataPassIn, store, handle string) (models.ProductRedis, string, error) {
 	return s.productRepo.GetFullProduct(store, handle)
 }
 
@@ -69,7 +69,7 @@ func (s *productService) DeleteProduct(id int) error {
 	return s.productRepo.Delete(id)
 }
 
-func (s *productService) GetAllProductInfo(fromURL url.Values, Mutex *config.AllMutexes, name string) (models.CollectionRender, error) {
+func (s *productService) GetAllProductInfo(dpi *DataPassIn, fromURL url.Values, Mutex *config.AllMutexes, name string) (models.CollectionRender, error) {
 	ret := models.CollectionRender{}
 
 	var query, page, sort string
@@ -136,7 +136,7 @@ func (s *productService) GetAllProductInfo(fromURL url.Values, Mutex *config.All
 
 }
 
-func (s *productService) GetProductAndProductRender(name, handle string, varid int) (models.ProductRedis, models.ProductRender, string, error) {
+func (s *productService) GetProductAndProductRender(dpi *DataPassIn, name, handle string, varid int) (models.ProductRedis, models.ProductRender, string, error) {
 
 	rprod, redir, err := s.productRepo.GetFullProduct(name, handle)
 	if err != nil {
@@ -189,16 +189,16 @@ func (s *productService) GetProductAndProductRender(name, handle string, varid i
 	return rprod, ret, "", nil
 }
 
-func (s *productService) GetProductRender(name, handle string, varid int) (models.ProductRender, string, error) {
-	_, rend, redir, err := s.GetProductAndProductRender(name, handle, varid)
+func (s *productService) GetProductRender(dpi *DataPassIn, name, handle string, varid int) (models.ProductRender, string, error) {
+	_, rend, redir, err := s.GetProductAndProductRender(dpi, name, handle, varid)
 	return rend, redir, err
 }
 
-func (s *productService) GetLimitedVariants(name string, vids []int) ([]*models.LimitedVariantRedis, error) {
+func (s *productService) GetLimitedVariants(dpi *DataPassIn, name string, vids []int) ([]*models.LimitedVariantRedis, error) {
 	return s.productRepo.GetLimVars(name, vids)
 }
 
-func (s *productService) GetProductByVariantID(name string, vid int) (models.ProductRedis, string, error) {
+func (s *productService) GetProductByVariantID(dpi *DataPassIn, name string, vid int) (models.ProductRedis, string, error) {
 	vs, err := s.productRepo.GetLimVars(name, []int{vid})
 	if err != nil {
 		return models.ProductRedis{}, "", err
@@ -209,7 +209,7 @@ func (s *productService) GetProductByVariantID(name string, vid int) (models.Pro
 	return s.productRepo.GetFullProduct(name, vs[0].Handle)
 }
 
-func (s *productService) GetProductsByVariantIDs(name string, vids []int) (map[int]*models.ProductRedis, error) {
+func (s *productService) GetProductsByVariantIDs(dpi *DataPassIn, name string, vids []int) (map[int]*models.ProductRedis, error) {
 	vs, err := s.productRepo.GetLimVars(name, vids)
 	if err != nil {
 		return nil, err
@@ -238,7 +238,7 @@ func (s *productService) GetProductsByVariantIDs(name string, vids []int) (map[i
 	return ret, nil
 }
 
-func (s *productService) GetProductsMapFromCartLine(name string, cartLines []*models.CartLine) (map[int]*models.ProductRedis, error) {
+func (s *productService) GetProductsMapFromCartLine(dpi *DataPassIn, name string, cartLines []*models.CartLine) (map[int]*models.ProductRedis, error) {
 	vids := []int{}
 
 	for _, cl := range cartLines {
@@ -247,7 +247,7 @@ func (s *productService) GetProductsMapFromCartLine(name string, cartLines []*mo
 		}
 	}
 
-	return s.GetProductsByVariantIDs(name, vids)
+	return s.GetProductsByVariantIDs(dpi, name, vids)
 }
 
 // Logistics error, DB error
@@ -343,7 +343,7 @@ func (s *productService) UpdateRatings(dpi *DataPassIn, pid, newRate, oldRate, p
 }
 
 func (s *productService) ConfirmDraftOrderProducts(dpi *DataPassIn, vinv map[int]int, vids []int) (map[int]models.InvRetrieval, bool, error) {
-	prods, err := s.GetProductsByVariantIDs(dpi.Store, vids)
+	prods, err := s.GetProductsByVariantIDs(dpi, dpi.Store, vids)
 	if err != nil {
 		return nil, false, err
 	}
@@ -398,7 +398,7 @@ func (s *productService) ConfirmDraftOrderProducts(dpi *DataPassIn, vinv map[int
 	return result, anyFalse, nil
 }
 
-func (s *productService) RenderComparables(name string, productID int) ([]models.ComparablesRender, error) {
+func (s *productService) RenderComparables(dpi *DataPassIn, name string, productID int) ([]models.ComparablesRender, error) {
 	comps, err := s.productRepo.ReadComparables(productID)
 	if err != nil {
 		return nil, err
@@ -464,7 +464,7 @@ func (s *productService) SetInventoryFromOrder(dpi *DataPassIn, decrement map[in
 		return err
 	}
 
-	prodMap, err := s.GetProductsByVariantIDs(dpi.Store, vids)
+	prodMap, err := s.GetProductsByVariantIDs(dpi, dpi.Store, vids)
 	if err != nil {
 		return err
 	}

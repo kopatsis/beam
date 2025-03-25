@@ -33,8 +33,8 @@ type ReviewService interface {
 	AddNewImage(dpi *DataPassIn, reviewID int, img models.IntermImage, tools *config.Tools) (*models.Review, error)
 	RemoveImage(dpi *DataPassIn, reviewID int, imgID string, tools *config.Tools) (*models.Review, error)
 
-	RetrieveDraftReviews() ([]models.Review, error)
-	SetReviewStatus(activeIDs, inactiveIDs []int) error
+	RetrieveDraftReviews(dpi *DataPassIn) ([]models.Review, error)
+	SetReviewStatus(dpi *DataPassIn, activeIDs, inactiveIDs []int) error
 }
 
 type reviewService struct {
@@ -393,10 +393,10 @@ func (s *reviewService) RemoveImage(dpi *DataPassIn, reviewID int, imgID string,
 	return r, s.reviewRepo.Update(r)
 }
 
-func (s *reviewService) RetrieveDraftReviews() ([]models.Review, error) {
+func (s *reviewService) RetrieveDraftReviews(dpi *DataPassIn) ([]models.Review, error) {
 	return s.reviewRepo.GetDraftReviews()
 }
 
-func (s *reviewService) SetReviewStatus(activeIDs []int, inactiveIDs []int) error {
+func (s *reviewService) SetReviewStatus(dpi *DataPassIn, activeIDs []int, inactiveIDs []int) error {
 	return s.reviewRepo.UpdateReviewStatus(activeIDs, inactiveIDs)
 }

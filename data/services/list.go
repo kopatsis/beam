@@ -71,7 +71,7 @@ func NewListService(listRepo repositories.ListRepository) ListService {
 }
 
 func (s *listService) AddFavesLine(dpi *DataPassIn, variantID int, ps ProductService) error {
-	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, []int{variantID})
 	if err != nil {
 		return err
 	} else if len(lvs) != 1 {
@@ -82,7 +82,7 @@ func (s *listService) AddFavesLine(dpi *DataPassIn, variantID int, ps ProductSer
 }
 
 func (s *listService) AddSavesList(dpi *DataPassIn, variantID int, ps ProductService) error {
-	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, []int{variantID})
 	if err != nil {
 		return err
 	} else if len(lvs) != 1 {
@@ -93,7 +93,7 @@ func (s *listService) AddSavesList(dpi *DataPassIn, variantID int, ps ProductSer
 }
 
 func (s *listService) DeleteFavesLine(dpi *DataPassIn, variantID int, ps ProductService) (string, *models.LimitedVariantRedis, error) {
-	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, []int{variantID})
 	if err != nil {
 		return "", nil, err
 	} else if len(lvs) != 1 {
@@ -111,7 +111,7 @@ func (s *listService) DeleteFavesLine(dpi *DataPassIn, variantID int, ps Product
 }
 
 func (s *listService) DeleteSavesList(dpi *DataPassIn, variantID int, ps ProductService) (string, *models.LimitedVariantRedis, error) {
-	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, []int{variantID})
 	if err != nil {
 		return "", nil, err
 	} else if len(lvs) != 1 {
@@ -199,7 +199,7 @@ func (s *listService) DeleteSavesListRender(dpi *DataPassIn, variantID int, page
 }
 
 func (s *listService) GetFavesLine(dpi *DataPassIn, variantID int, ps ProductService) (bool, error) {
-	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, []int{variantID})
 	if err != nil {
 		return false, err
 	} else if len(lvs) != 1 {
@@ -215,7 +215,7 @@ func (s *listService) GetFavesLine(dpi *DataPassIn, variantID int, ps ProductSer
 }
 
 func (s *listService) GetSavesList(dpi *DataPassIn, variantID int, ps ProductService) (bool, error) {
-	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, []int{variantID})
 	if err != nil {
 		return false, err
 	} else if len(lvs) != 1 {
@@ -231,7 +231,7 @@ func (s *listService) GetSavesList(dpi *DataPassIn, variantID int, ps ProductSer
 }
 
 func (s *listService) GetLastOrdersList(dpi *DataPassIn, variantID int, ps ProductService) (bool, *models.LastOrdersList, error) {
-	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, []int{variantID})
 	if err != nil {
 		return false, nil, err
 	} else if len(lvs) != 1 {
@@ -257,7 +257,7 @@ func (s *listService) GetLastOrdersListProd(dpi *DataPassIn, productID int, ps P
 		return false, nil, nil
 	}
 
-	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{v.ProductID})
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, []int{v.ProductID})
 	if err != nil {
 		return false, nil, err
 	} else if len(lvs) != 1 {
@@ -272,7 +272,7 @@ func (s *listService) UpdateLastOrdersList(dpi *DataPassIn, orderDate time.Time,
 		return nil
 	}
 
-	lvs, err := ps.GetLimitedVariants(dpi.Store, vids)
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, vids)
 	if err != nil {
 		return err
 	} else if len(lvs) != len(vids) {
@@ -315,7 +315,7 @@ func (s *listService) GetFavesListByPage(dpi *DataPassIn, page int, ps ProductSe
 		return ret, nil
 	}
 
-	lvs, err := ps.GetLimitedVariants(dpi.Store, vids)
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, vids)
 	if err != nil {
 		return ret, err
 	} else if len(lvs) != len(list) {
@@ -365,7 +365,7 @@ func (s *listService) GetSavesListByPage(dpi *DataPassIn, page int, ps ProductSe
 		return ret, nil
 	}
 
-	lvs, err := ps.GetLimitedVariants(dpi.Store, vids)
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, vids)
 	if err != nil {
 		return ret, err
 	} else if len(lvs) != len(list) {
@@ -415,7 +415,7 @@ func (s *listService) GetLastOrdersListByPage(dpi *DataPassIn, page int, ps Prod
 		return ret, nil
 	}
 
-	lvs, err := ps.GetLimitedVariants(dpi.Store, vids)
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, vids)
 	if err != nil {
 		return ret, err
 	} else if len(lvs) != len(list) {
@@ -465,7 +465,7 @@ func (s *listService) GetCustomListByPage(dpi *DataPassIn, page, listID int, ps 
 		return ret, nil
 	}
 
-	lvs, err := ps.GetLimitedVariants(dpi.Store, vids)
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, vids)
 	if err != nil {
 		return ret, err
 	} else if len(lvs) != len(list) {
@@ -499,7 +499,7 @@ func (s *listService) GetCustomListByPage(dpi *DataPassIn, page, listID int, ps 
 
 func (s *listService) CartToSavesList(dpi *DataPassIn, lineID int, ps ProductService, cs CartService) (models.SavesListRender, *models.CartRender, error) {
 
-	line, err := cs.GetCartLineWithValidation(dpi.CustomerID, dpi.CartID, lineID)
+	line, err := cs.GetCartLineWithValidation(dpi, lineID)
 	if err != nil {
 		return models.SavesListRender{}, nil, err
 	}
@@ -564,7 +564,7 @@ func (s *listService) ArchiveCustomList(dpi *DataPassIn, listID int) error {
 }
 
 func (s *listService) AddToCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) error {
-	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, []int{variantID})
 	if err != nil {
 		return err
 	} else if len(lvs) != 1 {
@@ -583,7 +583,7 @@ func (s *listService) AddToCustomList(dpi *DataPassIn, variantID int, listID int
 }
 
 func (s *listService) DeleteFromCustomList(dpi *DataPassIn, variantID int, listID int, ps ProductService) (string, *models.LimitedVariantRedis, error) {
-	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, []int{variantID})
 	if err != nil {
 		return "", nil, err
 	} else if len(lvs) != 1 {
@@ -670,7 +670,7 @@ func (s *listService) RetrieveAllCustomListsWithVar(dpi *DataPassIn, fromURL url
 		return list, models.LimitedVariantRedis{}, err
 	}
 
-	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, []int{variantID})
 	if err != nil {
 		return list, models.LimitedVariantRedis{}, err
 	} else if len(lvs) != 1 {
@@ -825,7 +825,7 @@ func (s *listService) UndoFavesDelete(dpi *DataPassIn, variantID int, dateSt str
 		realDate = cust.Created
 	}
 
-	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, []int{variantID})
 	if err != nil {
 		return models.FavesListRender{}, err
 	} else if len(lvs) != 1 {
@@ -854,7 +854,7 @@ func (s *listService) UndoSavesDelete(dpi *DataPassIn, variantID int, dateSt str
 		realDate = cust.Created
 	}
 
-	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, []int{variantID})
 	if err != nil {
 		return models.SavesListRender{}, err
 	} else if len(lvs) != 1 {
@@ -883,7 +883,7 @@ func (s *listService) UndoCustomDelete(dpi *DataPassIn, listID, variantID int, d
 		realDate = list.Created
 	}
 
-	lvs, err := ps.GetLimitedVariants(dpi.Store, []int{variantID})
+	lvs, err := ps.GetLimitedVariants(dpi, dpi.Store, []int{variantID})
 	if err != nil {
 		return models.CustomListRender{}, err
 	} else if len(lvs) != 1 {

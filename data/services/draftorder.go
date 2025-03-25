@@ -80,7 +80,7 @@ func (s *draftOrderService) CreateDraftOrder(dpi *DataPassIn, crs CartService, p
 
 	go func() {
 		defer wg.Done()
-		pMap, productErr = pds.GetProductsMapFromCartLine(dpi.Store, cartLines)
+		pMap, productErr = pds.GetProductsMapFromCartLine(dpi, dpi.Store, cartLines)
 	}()
 
 	wg.Wait()

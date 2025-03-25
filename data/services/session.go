@@ -17,7 +17,7 @@ type SessionService interface {
 	GetSessionByID(id string) (*models.Session, error)
 	UpdateSession(session *models.Session) error
 	DeleteSession(id string) error
-	AddToSession(session *models.Session, line *models.SessionLine)
+	AddToSession(dpi *DataPassIn, session *models.Session, line *models.SessionLine)
 	AddSessionLine(dpi *DataPassIn, c *gin.Context)
 
 	SessionMiddleware(cookie *models.SessionCookie, customerID int, guestID, store string, c *gin.Context, tools *config.Tools)
@@ -50,7 +50,7 @@ func (s *sessionService) DeleteSession(id string) error {
 	return s.sessionRepo.Delete(id)
 }
 
-func (s *sessionService) AddToSession(session *models.Session, line *models.SessionLine) {
+func (s *sessionService) AddToSession(dpi *DataPassIn, session *models.Session, line *models.SessionLine) {
 	s.sessionRepo.AddToBatch(session, line)
 }
 
@@ -73,7 +73,7 @@ func (s *sessionService) AddSessionLine(dpi *DataPassIn, c *gin.Context) {
 		Accessed:  dpi.TimeStarted,
 		Ended:     time.Now(),
 	}
-	s.AddToSession(nil, sl)
+	s.AddToSession(dpi, nil, sl)
 }
 
 func (s *sessionService) SessionMiddleware(cookie *models.SessionCookie, customerID int, guestID, store string, c *gin.Context, tools *config.Tools) {
@@ -97,7 +97,7 @@ func (s *sessionService) SessionMiddleware(cookie *models.SessionCookie, custome
 		}
 
 		sessionhelp.CreateSessionDetails(c, tools, session)
-		s.AddToSession(session, nil)
+		s.AddToSession(nil, session, nil)
 	}
 }
 
