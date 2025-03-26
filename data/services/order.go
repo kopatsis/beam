@@ -77,7 +77,7 @@ func (s *orderService) SubmitPayment(dpi *DataPassIn, draftID, newPaymentMethod 
 	if dpi.CustomerID > 0 && !draft.Guest {
 		wg1.Add(1)
 		go func() {
-			cust, custErr = cs.GetCustomerByID(dpi.CustomerID)
+			cust, custErr = cs.GetCustomerByID(dpi, dpi.CustomerID)
 		}()
 	}
 
@@ -227,7 +227,7 @@ func (s *orderService) SubmitOrder(dpi *DataPassIn, draftID, newPaymentMethod st
 
 	var cust *models.Customer
 	if dpi.CustomerID > 0 && !draft.Guest {
-		cust, err = cs.GetCustomerByID(dpi.CustomerID)
+		cust, err = cs.GetCustomerByID(dpi, dpi.CustomerID)
 		if err != nil {
 			return nil, err
 		}
@@ -601,7 +601,7 @@ func (s *orderService) RenderOrder(dpi *DataPassIn, orderID string, cs CustomerS
 	}
 
 	if o.Status == "Payment Failed" && !o.Guest {
-		cust, err := cs.GetCustomerByID(o.CustomerID)
+		cust, err := cs.GetCustomerByID(dpi, o.CustomerID)
 		if err != nil {
 			return o, false, false, err
 		}

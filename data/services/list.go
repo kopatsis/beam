@@ -816,7 +816,7 @@ func (s *listService) UndoFavesDelete(dpi *DataPassIn, variantID int, dateSt str
 		return models.FavesListRender{}, err
 	}
 
-	cust, err := cs.GetCustomerByID(dpi.CustomerID)
+	cust, err := cs.GetCustomerByID(dpi, dpi.CustomerID)
 	if err != nil {
 		return models.FavesListRender{}, err
 	}
@@ -845,7 +845,7 @@ func (s *listService) UndoSavesDelete(dpi *DataPassIn, variantID int, dateSt str
 		return models.SavesListRender{}, err
 	}
 
-	cust, err := cs.GetCustomerByID(dpi.CustomerID)
+	cust, err := cs.GetCustomerByID(dpi, dpi.CustomerID)
 	if err != nil {
 		return models.SavesListRender{}, err
 	}

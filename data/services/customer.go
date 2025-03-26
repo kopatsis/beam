@@ -21,7 +21,7 @@ import (
 )
 
 type CustomerService interface {
-	GetCustomerByID(id int) (*models.Customer, error)
+	GetCustomerByID(dpi *DataPassIn, id int) (*models.Customer, error)
 	GetCustomerAndContacts(dpi *DataPassIn) (*models.Customer, []*models.Contact, error)
 	GetPaymentMethodsCust(dpi *DataPassIn) ([]models.PaymentMethodStripe, error)
 	AddAddressToCustomer(dpi *DataPassIn, contact *models.Contact, mutex *config.AllMutexes) error
@@ -49,9 +49,9 @@ type CustomerService interface {
 	GetCookieCurrencies(mutex *config.AllMutexes) ([]models.CodeBlock, []models.CodeBlock)
 	SetCookieCurrency(c *models.ClientCookie, mutex *config.AllMutexes, choice string) error
 
-	GetContactsWithDefault(customerID int) ([]*models.Contact, error)
-	Update(cust *models.Customer) error
-	AddContactToCustomer(contact *models.Contact) error
+	GetContactsWithDefault(dpi *DataPassIn, customerID int) ([]*models.Contact, error)
+	Update(dpi *DataPassIn, cust *models.Customer) error
+	AddContactToCustomer(dpi *DataPassIn, contact *models.Contact) error
 
 	ToggleEmailVerified(dpi *DataPassIn, verified bool) error
 	ToggleEmailSubbed(dpi *DataPassIn, subbed bool) error
@@ -65,18 +65,18 @@ type CustomerService interface {
 	ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *models.SignInCodeCookie, sixdigits uint, post *models.CustomerPost, ors OrderService, storeSettings *config.SettingsMutex, tools *config.Tools) (*models.ClientCookie, error) // To cart/draft/order
 	ResendSignInCode(dpi *DataPassIn, siCookie models.SignInCodeCookie, tools *config.Tools) (models.SignInCodeCookie, error)
 
-	CreateTwoFACode(cust *models.Customer, store, ipStr string, tools *config.Tools) (*models.TwoFactorCookie, error)
+	CreateTwoFACode(dpi *DataPassIn, cust *models.Customer, store, ipStr string, tools *config.Tools) (*models.TwoFactorCookie, error)
 	ProcessTwoFactor(dpi *DataPassIn, twofactorcookie *models.TwoFactorCookie, sixdigits uint) (bool, error)
 	ResendTwoFactor(dpi *DataPassIn, twofactorcookie models.TwoFactorCookie, tools *config.Tools) (models.TwoFactorCookie, error)
 
 	ChangeCustomerEmail(dpi *DataPassIn, newEmail, password string, tools *config.Tools) error
 
-	ActualEmailVerification(store, param, ipStr string, customer *models.Customer, tools *config.Tools) error
-	DelayedEmailVerification(store, param, ipStr string, customerID int, wait time.Duration, tools *config.Tools) error
-	SendVerificationToEmail(store, param, ipStr string, customer *models.Customer, tools *config.Tools) error
+	ActualEmailVerification(dpi *DataPassIn, store, param, ipStr string, customer *models.Customer, tools *config.Tools) error
+	DelayedEmailVerification(dpi *DataPassIn, store, param, ipStr string, customerID int, wait time.Duration, tools *config.Tools) error
+	SendVerificationToEmail(dpi *DataPassIn, store, param, ipStr string, customer *models.Customer, tools *config.Tools) error
 
-	UnsubLinkForEmails(store string, customerID int) (string, string, string)
-	UnsubCustomerDirect(store, storeEncr, customerEncr, timestamp string) error
+	UnsubLinkForEmails(dpi *DataPassIn, store string, customerID int) (string, string, string)
+	UnsubCustomerDirect(dpi *DataPassIn, store, storeEncr, customerEncr, timestamp string) error
 
 	SendResetEmail(dpi *DataPassIn, email, ipStr string, tools *config.Tools) (string, error)
 	ProcessResetEmail(dpi *DataPassIn, param string) (*models.ResetEmailCookie, error)
@@ -102,7 +102,7 @@ func NewCustomerService(customerRepo repositories.CustomerRepository) CustomerSe
 	return &customerService{customerRepo: customerRepo}
 }
 
-func (s *customerService) GetCustomerByID(id int) (*models.Customer, error) {
+func (s *customerService) GetCustomerByID(dpi *DataPassIn, id int) (*models.Customer, error) {
 	return s.customerRepo.Read(id)
 }
 
@@ -328,7 +328,7 @@ func (s *customerService) CreateCustomer(dpi *DataPassIn, customer *models.Custo
 
 	var twofa *models.TwoFactorCookie
 	if customer.Uses2FA {
-		twofa, err = s.CreateTwoFACode(newCust, dpi.Store, dpi.IPAddress, tools)
+		twofa, err = s.CreateTwoFACode(dpi, newCust, dpi.Store, dpi.IPAddress, tools)
 		if err != nil {
 			return nil, nil, newCust, c, err
 		}
@@ -467,7 +467,7 @@ func (s *customerService) LoginCookie(dpi *DataPassIn, email, password string, a
 
 	var twofa *models.TwoFactorCookie
 	if customer.Uses2FA {
-		twofa, err = s.CreateTwoFACode(customer, dpi.Store, dpi.IPAddress, tools)
+		twofa, err = s.CreateTwoFACode(dpi, customer, dpi.Store, dpi.IPAddress, tools)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -684,15 +684,15 @@ func (s *customerService) SetCookieCurrency(c *models.ClientCookie, mutex *confi
 	return nil
 }
 
-func (s *customerService) GetContactsWithDefault(customerID int) ([]*models.Contact, error) {
+func (s *customerService) GetContactsWithDefault(dpi *DataPassIn, customerID int) ([]*models.Contact, error) {
 	return s.customerRepo.GetContactsWithDefault(customerID)
 }
 
-func (s *customerService) Update(cust *models.Customer) error {
+func (s *customerService) Update(dpi *DataPassIn, cust *models.Customer) error {
 	return s.customerRepo.Update(*cust)
 }
 
-func (s *customerService) AddContactToCustomer(contact *models.Contact) error {
+func (s *customerService) AddContactToCustomer(dpi *DataPassIn, contact *models.Contact) error {
 	return s.customerRepo.AddContactToCustomer(contact)
 }
 
@@ -813,7 +813,7 @@ func (s *customerService) SendVerificationEmail(dpi *DataPassIn, tools *config.T
 		return "", err
 	}
 
-	return id, s.SendVerificationToEmail(dpi.Store, id, dpi.IPAddress, cust, tools)
+	return id, s.SendVerificationToEmail(dpi, dpi.Store, id, dpi.IPAddress, cust, tools)
 }
 
 func (s *customerService) ProcessVerificationEmail(dpi *DataPassIn, param string) error {
@@ -997,7 +997,7 @@ func (s *customerService) ProcessSignInCodeEmail(dpi *DataPassIn, siCookie *mode
 	return client, nil
 }
 
-func (s *customerService) CreateTwoFACode(cust *models.Customer, store, ipStr string, tools *config.Tools) (*models.TwoFactorCookie, error) {
+func (s *customerService) CreateTwoFACode(dpi *DataPassIn, cust *models.Customer, store, ipStr string, tools *config.Tools) (*models.TwoFactorCookie, error) {
 
 	code := "TF-" + uuid.NewString()
 	sixdigit := uint(100000 + rand.Intn(900000))
@@ -1139,7 +1139,7 @@ func (s *customerService) ChangeCustomerEmail(dpi *DataPassIn, newEmail, passwor
 	return nil
 }
 
-func (s *customerService) ActualEmailVerification(store, param, ipStr string, customer *models.Customer, tools *config.Tools) error {
+func (s *customerService) ActualEmailVerification(dpi *DataPassIn, store, param, ipStr string, customer *models.Customer, tools *config.Tools) error {
 	if err := emails.VerificationEmail(store, customer.Email, param, ipStr, tools); err != nil {
 		return err
 	}
@@ -1154,7 +1154,7 @@ func (s *customerService) ActualEmailVerification(store, param, ipStr string, cu
 	return s.customerRepo.Update(*customer)
 }
 
-func (s *customerService) DelayedEmailVerification(store, param, ipStr string, customerID int, wait time.Duration, tools *config.Tools) error {
+func (s *customerService) DelayedEmailVerification(dpi *DataPassIn, store, param, ipStr string, customerID int, wait time.Duration, tools *config.Tools) error {
 	if wait > config.CONFIRM_EMAIL_WAIT*time.Second {
 		wait = config.CONFIRM_EMAIL_WAIT * time.Second
 	}
@@ -1170,10 +1170,10 @@ func (s *customerService) DelayedEmailVerification(store, param, ipStr string, c
 		return errors.New("archived customer")
 	}
 
-	return s.ActualEmailVerification(store, param, ipStr, cust, tools)
+	return s.ActualEmailVerification(dpi, store, param, ipStr, cust, tools)
 }
 
-func (s *customerService) SendVerificationToEmail(store, param, ipStr string, customer *models.Customer, tools *config.Tools) error {
+func (s *customerService) SendVerificationToEmail(dpi *DataPassIn, store, param, ipStr string, customer *models.Customer, tools *config.Tools) error {
 	if customer.ConfirmsSent > config.CONFIRM_EMAIL_MAX && time.Since(customer.LastConfirmSent) < config.CONFIRM_EMAIL_COOLDOWN*time.Hour {
 		return errors.New("too many confirms attempted within time period")
 	}
@@ -1190,7 +1190,7 @@ func (s *customerService) SendVerificationToEmail(store, param, ipStr string, cu
 
 		go func() {
 			duration := time.Until(customer.LastConfirmSent.Add(config.CONFIRM_EMAIL_WAIT * time.Second))
-			if err := s.DelayedEmailVerification(store, param, ipStr, customer.ID, duration, tools); err != nil {
+			if err := s.DelayedEmailVerification(dpi, store, param, ipStr, customer.ID, duration, tools); err != nil {
 				// Notify me that delay didn't work to send after wait period
 				log.Printf("unable to ")
 			}
@@ -1198,15 +1198,15 @@ func (s *customerService) SendVerificationToEmail(store, param, ipStr string, cu
 		return nil
 	}
 
-	return s.ActualEmailVerification(store, param, ipStr, customer, tools)
+	return s.ActualEmailVerification(dpi, store, param, ipStr, customer, tools)
 }
 
 // Customer ID encr, timestamp encr, store check encr
-func (s *customerService) UnsubLinkForEmails(store string, customerID int) (string, string, string) {
+func (s *customerService) UnsubLinkForEmails(dpi *DataPassIn, store string, customerID int) (string, string, string) {
 	return config.EncryptInt(customerID), config.EncodeTime(time.Now()), config.EncryptString(store)
 }
 
-func (s *customerService) UnsubCustomerDirect(store, storeEncr, customerEncr, timestamp string) error {
+func (s *customerService) UnsubCustomerDirect(dpi *DataPassIn, store, storeEncr, customerEncr, timestamp string) error {
 
 	storeCheck, err := config.DecryptString(storeEncr)
 	if err != nil {
@@ -1284,7 +1284,7 @@ func (s *customerService) SendResetEmail(dpi *DataPassIn, email, ipStr string, t
 		return "", err
 	}
 
-	if err := s.SendResetToEmail(dpi.Store, id, ipStr, cust, tools); err != nil {
+	if err := s.SendResetToEmail(dpi, dpi.Store, id, ipStr, cust, tools); err != nil {
 		return "", err
 	}
 
@@ -1766,7 +1766,7 @@ func (s *customerService) WelcomeDiscountEmail(dpi *DataPassIn, email string, cu
 	}
 }
 
-func (s *customerService) ActualEmailReset(store, param, ipStr string, customer *models.Customer, tools *config.Tools) error {
+func (s *customerService) ActualEmailReset(dpi *DataPassIn, store, param, ipStr string, customer *models.Customer, tools *config.Tools) error {
 	if err := emails.ResetEmail(store, customer.Email, param, ipStr, tools); err != nil {
 		return err
 	}
@@ -1781,7 +1781,7 @@ func (s *customerService) ActualEmailReset(store, param, ipStr string, customer 
 	return s.customerRepo.Update(*customer)
 }
 
-func (s *customerService) DelayedEmailReset(store, param, ipStr string, customerID int, wait time.Duration, tools *config.Tools) error {
+func (s *customerService) DelayedEmailReset(dpi *DataPassIn, store, param, ipStr string, customerID int, wait time.Duration, tools *config.Tools) error {
 	if wait > config.RESET_EMAIL_WAIT*time.Second {
 		wait = config.RESET_EMAIL_WAIT * time.Second
 	}
@@ -1797,10 +1797,10 @@ func (s *customerService) DelayedEmailReset(store, param, ipStr string, customer
 		return errors.New("archived customer")
 	}
 
-	return s.ActualEmailReset(store, param, ipStr, cust, tools)
+	return s.ActualEmailReset(dpi, store, param, ipStr, cust, tools)
 }
 
-func (s *customerService) SendResetToEmail(store, param, ipStr string, customer *models.Customer, tools *config.Tools) error {
+func (s *customerService) SendResetToEmail(dpi *DataPassIn, store, param, ipStr string, customer *models.Customer, tools *config.Tools) error {
 	if customer.ResetsSent > config.RESET_EMAIL_MAX && time.Since(customer.LastResetSent) < config.RESET_EMAIL_COOLDOWN*time.Hour {
 		return errors.New("too many resets attempted within time period")
 	}
@@ -1817,7 +1817,7 @@ func (s *customerService) SendResetToEmail(store, param, ipStr string, customer 
 
 		go func() {
 			duration := time.Until(customer.LastResetSent.Add(config.RESET_EMAIL_WAIT * time.Second))
-			if err := s.DelayedEmailReset(store, param, ipStr, customer.ID, duration, tools); err != nil {
+			if err := s.DelayedEmailReset(dpi, store, param, ipStr, customer.ID, duration, tools); err != nil {
 				// Notify me that delay didn't work to send after wait period
 				log.Printf("unable to ")
 			}
@@ -1825,7 +1825,7 @@ func (s *customerService) SendResetToEmail(store, param, ipStr string, customer 
 		return nil
 	}
 
-	return s.ActualEmailReset(store, param, ipStr, customer, tools)
+	return s.ActualEmailReset(dpi, store, param, ipStr, customer, tools)
 }
 
 func (s *customerService) CreateAuthParams(dpi *DataPassIn, returnRoute, draftID, orderID string, cartID int) (string, error) {

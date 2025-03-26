@@ -54,7 +54,7 @@ func (s *reviewService) AddReview(dpi *DataPassIn, productID int, store string, 
 	}
 
 	if useDefaultName {
-		cust, err := cs.GetCustomerByID(dpi.CustomerID)
+		cust, err := cs.GetCustomerByID(dpi, dpi.CustomerID)
 		if err == nil {
 			displayName = cust.FirstName
 		} else {
@@ -131,7 +131,7 @@ func (s *reviewService) UpdateReview(dpi *DataPassIn, productID int, store strin
 	}
 
 	if useDefaultName {
-		cust, err := cs.GetCustomerByID(dpi.CustomerID)
+		cust, err := cs.GetCustomerByID(dpi, dpi.CustomerID)
 		if err == nil {
 			displayName = cust.FirstName
 		} else {

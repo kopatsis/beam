@@ -70,12 +70,12 @@ func (s *draftOrderService) CreateDraftOrder(dpi *DataPassIn, crs CartService, p
 
 	go func() {
 		defer wg.Done()
-		cust, customerErr = cts.GetCustomerByID(dpi.CustomerID)
+		cust, customerErr = cts.GetCustomerByID(dpi, dpi.CustomerID)
 	}()
 
 	go func() {
 		defer wg.Done()
-		contacts, contactsErr = cts.GetContactsWithDefault(dpi.CustomerID)
+		contacts, contactsErr = cts.GetContactsWithDefault(dpi, dpi.CustomerID)
 	}()
 
 	go func() {
@@ -112,7 +112,7 @@ func (s *draftOrderService) CreateDraftOrder(dpi *DataPassIn, crs CartService, p
 	}
 
 	if custUpdate {
-		go cts.Update(cust)
+		go cts.Update(dpi, cust)
 	}
 
 	if err := s.draftOrderRepo.Create(draft); err != nil {
@@ -141,7 +141,7 @@ func (s *draftOrderService) GetDraftOrder(dpi *DataPassIn, draftID string, cts C
 	go func() {
 		defer wg.Done()
 		if dpi.CustomerID > 0 {
-			cust, customerErr = cts.GetCustomerByID(dpi.CustomerID)
+			cust, customerErr = cts.GetCustomerByID(dpi, dpi.CustomerID)
 		}
 
 	}()
@@ -149,7 +149,7 @@ func (s *draftOrderService) GetDraftOrder(dpi *DataPassIn, draftID string, cts C
 	go func() {
 		defer wg.Done()
 		if dpi.CustomerID > 0 {
-			contacts, contactErr = cts.GetContactsWithDefault(dpi.CustomerID)
+			contacts, contactErr = cts.GetContactsWithDefault(dpi, dpi.CustomerID)
 		}
 	}()
 
@@ -203,7 +203,7 @@ func (s *draftOrderService) PostRenderUpdate(dpi *DataPassIn, ip, draftID string
 
 	go func() {
 		defer wg.Done()
-		cust, customerErr = cts.GetCustomerByID(dpi.CustomerID)
+		cust, customerErr = cts.GetCustomerByID(dpi, dpi.CustomerID)
 	}()
 
 	paymentMethodErr, shipRateErr, taxRateErr, orderEstErr, paymentIntentErr := error(nil), error(nil), error(nil), error(nil), error(nil)
@@ -243,7 +243,7 @@ func (s *draftOrderService) PostRenderUpdate(dpi *DataPassIn, ip, draftID string
 		custUpd := false
 		_, custUpd, paymentIntentErr = draftorderhelp.ConfirmPaymentIntentDraft(draft, cust, dpi.GuestID)
 		if custUpd {
-			go cts.Update(cust)
+			go cts.Update(dpi, cust)
 		}
 	}()
 
@@ -313,7 +313,7 @@ func (s *draftOrderService) AddAddressToDraft(dpi *DataPassIn, draftID, ip strin
 
 	var custErr error = nil
 	if addToCust && dpi.CustomerID > 0 {
-		custErr = cts.AddContactToCustomer(contact)
+		custErr = cts.AddContactToCustomer(dpi, contact)
 	}
 
 	draft.ShippingContact = contact
@@ -396,7 +396,7 @@ func (s *draftOrderService) ChoosePaymentMethod(dpi *DataPassIn, draftID, paymen
 
 	go func() {
 		defer wg.Done()
-		cust, customerErr = cts.GetCustomerByID(dpi.CustomerID)
+		cust, customerErr = cts.GetCustomerByID(dpi, dpi.CustomerID)
 	}()
 
 	wg.Wait()
@@ -744,7 +744,7 @@ func (s *draftOrderService) MoveDraftToCustomer(dpi *DataPassIn, draftID string,
 		}
 	}
 
-	contacts, err := cms.GetContactsWithDefault(dpi.CustomerID)
+	contacts, err := cms.GetContactsWithDefault(dpi, dpi.CustomerID)
 	if err != nil {
 		return 0, err
 	}
@@ -757,7 +757,7 @@ func (s *draftOrderService) MoveDraftToCustomer(dpi *DataPassIn, draftID string,
 	}
 
 	if custUpdate {
-		go cms.Update(cust)
+		go cms.Update(dpi, cust)
 	}
 
 	return draft.CartID, s.SaveAndUpdatePtl(draft)
