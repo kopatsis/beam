@@ -37,7 +37,7 @@ func (d *DataPassIn) AddLog(modelName, funcName, errorDesc, extraNote string, er
 		CustomerID:      d.CustomerID,
 		GuestID:         d.GuestID,
 		ModelName:       modelName,
-		FunctionName:    funcName,
+		FunctionName:    modelName + "." + funcName,
 		HasError:        err != nil,
 		OptionalNote:    extraNote,
 		OrderID:         ids.OrderID,

@@ -8,7 +8,6 @@ import (
 	"beam/data/services/product"
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
 	"gorm.io/gorm"
@@ -55,10 +54,10 @@ func (s *cartService) GetCartLineWithValidation(dpi *DataPassIn, lineID int) (*m
 func (s *cartService) AddToCart(dpi *DataPassIn, handle string, vid, quant int, prodServ ProductService) (*models.Cart, error) {
 	p, r, err := prodServ.GetFullProduct(dpi, dpi.Store, handle)
 	if err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddToCart", "Error querying product", "", "", "", "", strconv.Itoa(vid), "", "", "", "", "", "", "", []error{err})
+		dpi.AddLog("Cart", "AddToCart", "Error querying product", "", err, models.EventPassInFinal{VariantID: vid, CartID: dpi.CartID})
 		return nil, err
 	} else if r != "" {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddToCart", "Queried product, but has redirection", "", "", "", "", strconv.Itoa(vid), "", "", "", "", "", "", "", []error{errors.New("product has a redirection")})
+		dpi.AddLog("Cart", "AddToCart", "Queried product, but has redirection", "", errors.New("product has a redirection"), models.EventPassInFinal{VariantID: vid, CartID: dpi.CartID})
 		return nil, errors.New("product has a redirection")
 	}
 
@@ -70,13 +69,13 @@ func (s *cartService) AddToCart(dpi *DataPassIn, handle string, vid, quant int, 
 	}
 
 	if index < 0 {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddToCart", "No matching variant ID as provided", "", "", "", strconv.Itoa(p.PK), strconv.Itoa(vid), "", "", "", "", "", "", "", []error{errors.New("no matching variant by id to provided handle")})
+		dpi.AddLog("Cart", "AddToCart", "No matching variant ID as provided", "", errors.New("no matching variant by id to provided handle"), models.EventPassInFinal{ProductID: p.PK, VariantID: vid, CartID: dpi.CartID})
 		return nil, errors.New("no matching variant by id to provided handle")
 	}
 
 	id, cart, lines, err := s.GetCartWithLinesAndVerify(dpi)
 	if err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddToCart", "Unable to retrieve cart and lines", "", "", "", strconv.Itoa(p.PK), strconv.Itoa(vid), "", "", "", "", "", "", "", []error{err})
+		dpi.AddLog("Cart", "AddToCart", "Unable to retrieve cart and lines", "", err, models.EventPassInFinal{ProductID: p.PK, VariantID: vid, CartID: dpi.CartID})
 		return nil, err
 	}
 	dpi.CartID = id
@@ -101,11 +100,11 @@ func (s *cartService) AddToCart(dpi *DataPassIn, handle string, vid, quant int, 
 	line.CartID = cart.ID
 
 	if err := s.cartRepo.SaveCartLineNew(line); err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddToCart", "Unable to save or add line for cart", "", "", "", strconv.Itoa(p.PK), strconv.Itoa(vid), "", "", "", strconv.Itoa(cart.ID), "", "", "", []error{err})
+		dpi.AddLog("Cart", "AddToCart", "Unable to save or add line for cart", "", err, models.EventPassInFinal{ProductID: p.PK, VariantID: vid, CartID: dpi.CartID})
 		return nil, err
 	}
 
-	dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddToCart", "Success", "", "", "", strconv.Itoa(p.PK), strconv.Itoa(vid), "", "", "", strconv.Itoa(cart.ID), "", "", "", nil)
+	dpi.AddLog("Cart", "AddToCart", "", "", nil, models.EventPassInFinal{ProductID: p.PK, VariantID: vid, CartID: dpi.CartID})
 	return cart, nil
 }
 
@@ -114,12 +113,14 @@ func (s *cartService) GetCart(dpi *DataPassIn, prodServ ProductService) (*models
 
 	id, cart, lines, err := s.GetCartWithLinesAndVerify(dpi)
 	if err != nil {
+		dpi.AddLog("Cart", "GetCart", "Unable to query and verify cart", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 		return nil, err
 	}
 	dpi.CartID = id
 
 	if len(lines) == 0 {
 		ret.Empty = true
+		dpi.AddLog("Cart", "GetCart", "", "Empty cart queried", nil, models.EventPassInFinal{CartID: dpi.CartID})
 		return &ret, nil
 	}
 
@@ -129,6 +130,7 @@ func (s *cartService) GetCart(dpi *DataPassIn, prodServ ProductService) (*models
 
 	ret.Cart = *cart
 	if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
+		dpi.AddLog("Cart", "GetCart", "Unable to update cart render", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 		return nil, err
 	}
 
@@ -140,7 +142,7 @@ func (s *cartService) AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodSer
 
 	id, cart, lines, err := s.GetCartWithLinesAndVerify(dpi)
 	if err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Unable to retrieve cart and lines", "", "", "", "", "", "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
+		dpi.AddLog("Cart", "AdjustQuantity", "Unable to retrieve cart and lines", "", err, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID})
 		return nil, err
 	}
 	dpi.CartID = id
@@ -148,7 +150,7 @@ func (s *cartService) AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodSer
 	if len(lines) == 0 {
 		ret.Empty = true
 		ret.CartError = "Cart has been checked out already or no longer exists"
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Cart is empty", "", "", "", "", "", "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
+		dpi.AddLog("Cart", "AdjustQuantity", "", "Cart is empty", nil, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID})
 		return &ret, nil
 	}
 
@@ -167,33 +169,32 @@ func (s *cartService) AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodSer
 	if index == -1 {
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
 		if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
-			dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Line by given id was deleted, couldn't update render", "", "", "", "", "", "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
+			dpi.AddLog("Cart", "AdjustQuantity", "Couldn't update render", "Line by given id was deleted", err, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID})
 			return nil, err
 		}
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Unable to convert cart ID to int", "", "", "", "", "", "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{errors.New("index == -1")})
+		dpi.AddLog("Cart", "AdjustQuantity", "", "Line by given id was deleted", nil, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID})
 		return &ret, nil
 	}
 
 	prod, redir, err := prodServ.GetProductByVariantID(dpi, dpi.Store, lines[index].VariantID)
 	if err != nil {
-
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Unable to retrieve product by variant ID", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
+		dpi.AddLog("Cart", "AdjustQuantity", "Unable to retrieve product by variant ID", "", err, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID, ProductID: lines[index].ProductID, VariantID: lines[index].VariantID})
 		return nil, err
 	}
 
 	if redir != "" {
 		err := s.cartRepo.DeleteCartLine(*lines[index])
 		if err != nil {
-			dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Unable to delete cart line after product was redirected", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
+			dpi.AddLog("Cart", "AdjustQuantity", "Unable to delete cart line", "Variant for line has redirect, to be deleted", err, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID, ProductID: lines[index].ProductID, VariantID: lines[index].VariantID})
 			return nil, err
 		}
 		ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
 		if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
-			dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Unable to update render after product was redirected", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
+			dpi.AddLog("Cart", "AdjustQuantity", "Unable to update render", "Variant for line has redirect, to be deleted", err, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID, ProductID: lines[index].ProductID, VariantID: lines[index].VariantID})
 			return nil, err
 		}
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Deleted line and updated render for redirected product", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", nil)
+		dpi.AddLog("Cart", "AdjustQuantity", "", "Variant for line has redirect, to be deleted", nil, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID, ProductID: lines[index].ProductID, VariantID: lines[index].VariantID})
 		return &ret, nil
 	}
 
@@ -207,16 +208,18 @@ func (s *cartService) AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodSer
 	if varIndex == -1 {
 		err := s.cartRepo.DeleteCartLine(*lines[index])
 		if err != nil {
-			dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Variant not in product specified by line; couldn't delete line", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
+			dpi.AddLog("Cart", "AdjustQuantity", "Unable to delete cart line", "Variant not in product specified by line", err, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID, ProductID: lines[index].ProductID, VariantID: lines[index].VariantID})
 			return nil, err
 		}
+
 		ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
 		if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
-			dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Variant not in product specified by line; couldn't update render", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
+			dpi.AddLog("Cart", "AdjustQuantity", "Unable to update render", "Variant not in product specified by line", err, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID, ProductID: lines[index].ProductID, VariantID: lines[index].VariantID})
 			return nil, err
 		}
+
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Variant not in product specified by line", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", nil)
+		dpi.AddLog("Cart", "AdjustQuantity", "", "Variant not in product specified by line", nil, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID, ProductID: lines[index].ProductID, VariantID: lines[index].VariantID})
 		return &ret, nil
 	}
 
@@ -235,21 +238,24 @@ func (s *cartService) AdjustQuantity(dpi *DataPassIn, lineID, quant int, prodSer
 	if err := s.cartRepo.SaveCartLineNew(&ret.CartLines[index].ActualLine); err != nil {
 		ret.CartLines[index].ActualLine.Quantity = oldQuant
 		ret.CartLines[index].ActualLine.Price = product.VolumeDiscPrice(prod.Variants[varIndex].Price, oldQuant, prod.VolumeDisc)
+
+		dpi.AddLog("Cart", "AdjustQuantity", "Unable to save cart line", "", err, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID, ProductID: lines[index].ProductID, VariantID: lines[index].VariantID})
+
 		if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
-			dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Unable to update the render after save", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
+			dpi.AddLog("Cart", "AdjustQuantity", "Unable to update render after save cart line failure", "", err, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID, ProductID: lines[index].ProductID, VariantID: lines[index].VariantID})
 			return nil, err
 		}
+
 		ret.CartError = "Unable to update cart :/ Please refresh and try again"
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Unable to update the cart after save", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
 		return &ret, nil
 	}
 
 	if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Unable to update the render", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
+		dpi.AddLog("Cart", "AdjustQuantity", "Unable to update render", "", err, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID, ProductID: lines[index].ProductID, VariantID: lines[index].VariantID})
 		return nil, err
 	}
 
-	dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AdjustQuantity", "Success", "", "", "", strconv.Itoa(lines[index].ProductID), strconv.Itoa(lines[index].VariantID), "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", nil)
+	dpi.AddLog("Cart", "AdjustQuantity", "", "", nil, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID, ProductID: lines[index].ProductID, VariantID: lines[index].VariantID})
 	return &ret, nil
 }
 
@@ -258,14 +264,14 @@ func (s *cartService) ClearCart(dpi *DataPassIn) (*models.CartRender, error) {
 
 	id, cart, lines, err := s.GetCartWithLinesAndVerify(dpi)
 	if err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "ClearCart", "Unable to query cart + lines", "", "", "", "", "", "", "", "", "", "", "", "", []error{err})
+		dpi.AddLog("Cart", "ClearCart", "Unable to query cart + lines", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 		return nil, err
 	}
 	dpi.CartID = id
 
 	if len(lines) == 0 {
 		ret.Empty = true
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "ClearCart", "Cart does not exist to clear", "", "", "", "", "", "", "", "", "", "", "", "", nil)
+		dpi.AddLog("Cart", "ClearCart", "", "Cart does not exist to clear", nil, models.EventPassInFinal{CartID: dpi.CartID})
 		return &ret, nil
 	}
 
@@ -277,27 +283,27 @@ func (s *cartService) ClearCart(dpi *DataPassIn) (*models.CartRender, error) {
 		ret.Cart = *cart
 		carthelp.UpdateCartSub(&ret)
 
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "ClearCart", "Could not clear cart", "", "", "", "", "", "", "", "", strconv.Itoa(cart.ID), "", "", "", []error{errors.New("failed to clear cart")})
+		dpi.AddLog("Cart", "ClearCart", "Could not clear cart", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 		return &ret, errors.New("failed to clear cart")
 	}
 
 	ret.Empty = true
 
-	dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "ClearCart", "Success", "", "", "", "", "", "", "", "", strconv.Itoa(cart.ID), "", "", "", nil)
+	dpi.AddLog("Cart", "ClearCart", "", "", nil, models.EventPassInFinal{CartID: dpi.CartID})
 	return &ret, nil
 }
 
 func (s *cartService) AddGiftCard(dpi *DataPassIn, message string, cents int, discService DiscountService, tools *config.Tools) (*models.Cart, error) {
 	id, cart, err := s.GetCartAndVerify(dpi)
 	if err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddGiftCard", "Unable to query cart + lines", "", "", "", "", "", "", "", "", "", "", "", "", []error{err})
+		dpi.AddLog("Cart", "AddGiftCard", "Unable to query cart + lines", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 		return nil, err
 	}
 	dpi.CartID = id
 
 	idDB, _, gccode, err := discService.CreateGiftCard(dpi, cents, message, dpi.Store, tools)
 	if err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddGiftCard", "Unable to create gift card to add to cart", "", "", "", "", "", "", "", "", strconv.Itoa(cart.ID), "", "", "", []error{err})
+		dpi.AddLog("Cart", "AddGiftCard", "Unable to create gift card to add to cart", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 		return nil, err
 	}
 
@@ -312,13 +318,13 @@ func (s *cartService) AddGiftCard(dpi *DataPassIn, message string, cents int, di
 		Quantity:        1,
 	}
 
-	line, err = s.cartRepo.AddCartLine(line)
-	if err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddGiftCard", "Unable to save line for created gift card", "", "", "", "", "", "", "", "", strconv.Itoa(cart.ID), "", "", strconv.Itoa(idDB), []error{err})
+	// Was previously add line
+	if err := s.cartRepo.SaveCartLineNew(&line); err != nil {
+		dpi.AddLog("Cart", "AddGiftCard", "Unable to save line for created gift card", "", err, models.EventPassInFinal{CartID: dpi.CartID, GiftCardID: idDB, GiftCardCode: gccode})
 		return nil, err
 	}
 
-	dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "AddGiftCard", "Success", "", "", "", "", "", "", "", "", strconv.Itoa(cart.ID), strconv.Itoa(line.ID), "", strconv.Itoa(idDB), nil)
+	dpi.AddLog("Cart", "AddGiftCard", "", "", nil, models.EventPassInFinal{CartID: dpi.CartID, GiftCardID: idDB, GiftCardCode: gccode})
 	return cart, nil
 }
 
@@ -327,7 +333,7 @@ func (s *cartService) DeleteGiftCard(dpi *DataPassIn, lineID int, prodServ Produ
 
 	id, cart, lines, err := s.GetCartWithLinesAndVerify(dpi)
 	if err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "DeleteGiftCard", "Unable to query cart + lines", "", "", "", "", "", "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
+		dpi.AddLog("Cart", "DeleteGiftCard", "Unable to query cart + lines", "", err, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID})
 		return nil, err
 	}
 	dpi.CartID = id
@@ -335,7 +341,7 @@ func (s *cartService) DeleteGiftCard(dpi *DataPassIn, lineID int, prodServ Produ
 	if len(lines) == 0 {
 		ret.Empty = true
 		ret.CartError = "Cart has been checked out already or no longer exists"
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "DeleteGiftCard", "Cart has been checked out already or no longer exists", "", "", "", "", "", "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", nil)
+		dpi.AddLog("Cart", "DeleteGiftCard", "", "Cart has been checked out already or no longer exists", err, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID})
 		return &ret, nil
 	}
 
@@ -353,26 +359,27 @@ func (s *cartService) DeleteGiftCard(dpi *DataPassIn, lineID int, prodServ Produ
 
 	if index == -1 {
 		ret.LineError = "That line was deleted. Cart refreshed to latest data."
+		dpi.AddLog("Cart", "DeleteGiftCard", "", "Line for gift card was deleted", nil, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID})
+
 		if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
-			dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "DeleteGiftCard", "Line for gift card was deleted -> Unable to update render", "", "", "", "", "", "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", []error{err})
+			dpi.AddLog("Cart", "DeleteGiftCard", "Unable to update render", "Line for gift card was deleted", err, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID})
 			return nil, err
 		}
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "DeleteGiftCard", "Line for gift card was deleted", "", "", "", "", "", "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", "", nil)
 		return &ret, nil
 	}
 
 	if err := s.cartRepo.DeleteCartLine(*lines[index]); err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "DeleteGiftCard", "Unable to delete cart line for gift card", "", "", "", "", "", "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", strconv.Itoa(lines[index].VariantID), []error{err})
+		dpi.AddLog("Cart", "DeleteGiftCard", "Unable to delete cart line for gift card", "", err, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID})
 		return nil, err
 	}
 	ret.CartLines = append(ret.CartLines[:index], ret.CartLines[index+1:]...)
 
 	if err := s.UpdateRender(dpi, dpi.Store, &ret, prodServ); err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "DeleteGiftCard", "Unable to update render after deleting line", "", "", "", "", "", "", "", "", strconv.Itoa(dpi.CartID), strconv.Itoa(lineID), "", strconv.Itoa(lines[index].VariantID), []error{err})
+		dpi.AddLog("Cart", "DeleteGiftCard", "Unable to update render after deleting line", "", err, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID})
 		return nil, err
 	}
 
-	dpi.Logger.SaveEvent(dpi.CustomerID, dpi.GuestID, "Cart", "DeleteGiftCard", "Success", "", "", "", "", "", "", "", "", strconv.Itoa(cart.ID), strconv.Itoa(lines[index].ID), "", strconv.Itoa(lines[index].VariantID), nil)
+	dpi.AddLog("Cart", "DeleteGiftCard", "", "", nil, models.EventPassInFinal{CartID: dpi.CartID, CartLineID: lineID})
 	return &ret, nil
 }
 
@@ -380,23 +387,23 @@ func (s *cartService) SavesListToCart(dpi *DataPassIn, varid int, handle string,
 
 	sl, err := ls.DeleteSavesListRender(dpi, varid, 1, ps)
 	if err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, "", "Cart", "SavesListToCart", "Unable to delete off of saves list", "", "", "", "", strconv.Itoa(varid), "", "", "", "", "", "", "", []error{err})
+		dpi.AddLog("Cart", "SavesListToCart", "Unable to delete off of saves list", "", err, models.EventPassInFinal{CartID: dpi.CartID, VariantID: varid})
 		return models.SavesListRender{}, nil, err
 	}
 
 	_, err = s.AddToCart(dpi, handle, varid, 1, ps)
 	if err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, "", "Cart", "SavesListToCart", "Unable to add to cart after delete off of saves list", "", "", "", "", strconv.Itoa(varid), "", "", "", "", "", "", "", []error{err})
+		dpi.AddLog("Cart", "SavesListToCart", "Unable to add to cart after delete off of saves list", "", err, models.EventPassInFinal{CartID: dpi.CartID, VariantID: varid})
 		return models.SavesListRender{}, nil, err
 	}
 
 	cr, err := s.GetCart(dpi, ps)
 	if err != nil {
-		dpi.Logger.SaveEvent(dpi.CustomerID, "", "Cart", "SavesListToCart", "Unable to add to retrieve cart after adding from saves list", "", "", "", "", strconv.Itoa(varid), "", "", "", "", "", "", "", []error{err})
+		dpi.AddLog("Cart", "SavesListToCart", "Unable to add to retrieve cart after adding from saves list", "", err, models.EventPassInFinal{CartID: dpi.CartID, VariantID: varid})
 		return models.SavesListRender{}, nil, err
 	}
 
-	dpi.Logger.SaveEvent(dpi.CustomerID, "", "Cart", "SavesListToCart", "Success", "", "", "", "", strconv.Itoa(varid), "", "", "", strconv.Itoa(cr.Cart.ID), "", "", "", nil)
+	dpi.AddLog("Cart", "SavesListToCart", "", "", nil, models.EventPassInFinal{CartID: dpi.CartID, VariantID: varid})
 	return sl, cr, nil
 }
 
@@ -578,11 +585,15 @@ func (s *cartService) GetCartWithLinesAndVerify(dpi *DataPassIn) (int, *models.C
 func (s *cartService) CartCountCheck(dpi *DataPassIn) (int, int, error) {
 	id, cart, err := s.GetCartAndVerify(dpi)
 	if err != nil {
+		dpi.AddLog("Cart", "CartCountCheck", "Unable to get cart and verify", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 		return dpi.CustomerID, 0, err
 	}
 
 	count, err := s.cartRepo.TotalQuantity(cart.ID)
-	dpi.Logger.SaveEventNew("Cart", "CartCountCheck", "Success", "", models.EventIDPassIn{CartID: dpi.CartID, CustomerID: dpi.CustomerID, GuestID: dpi.GuestID}, nil)
+	if err != nil {
+		dpi.AddLog("Cart", "CartCountCheck", "Unable to obtain count from cart", "", err, models.EventPassInFinal{CartID: dpi.CartID})
+	}
+	dpi.AddLog("Cart", "CartCountCheck", "", "", nil, models.EventPassInFinal{CartID: dpi.CartID})
 	return id, count, err
 }
 
@@ -628,25 +639,43 @@ func (s *cartService) OrderSuccessCart(dpi *DataPassIn, orderLines []models.Orde
 }
 
 func (s *cartService) CopyCartWithLines(dpi *DataPassIn) (int, error) {
-	return s.cartRepo.CopyCartWithLines(dpi.CartID, dpi.CustomerID, dpi.GuestID)
+	if id, err := s.cartRepo.CopyCartWithLines(dpi.CartID, dpi.CustomerID, dpi.GuestID); err != nil {
+		dpi.AddLog("Cart", "CopyCartWithLines", "Unable to copy cart with lines with cart repo", "", err, models.EventPassInFinal{CartID: dpi.CartID})
+		return id, err
+	} else {
+		dpi.AddLog("Cart", "CopyCartWithLines", "", "", nil, models.EventPassInFinal{CartID: dpi.CartID})
+		return id, err
+	}
 }
 
 func (s *cartService) MoveCart(dpi *DataPassIn) error {
-	return s.cartRepo.MoveCart(dpi.CartID, dpi.CustomerID)
+	if err := s.cartRepo.MoveCart(dpi.CartID, dpi.CustomerID); err != nil {
+		dpi.AddLog("Cart", "MoveCart", "Unable to move cart with cart repo", "", err, models.EventPassInFinal{CartID: dpi.CartID})
+		return err
+	} else {
+		dpi.AddLog("Cart", "MoveCart", "", "", nil, models.EventPassInFinal{CartID: dpi.CartID})
+		return nil
+	}
 }
 
 func (s *cartService) DirectCartRetrieval(dpi *DataPassIn) (int, error, bool) {
-	return s.cartRepo.DirectCartRetrieval(dpi.CartID, dpi.CustomerID, dpi.GuestID)
+	if id, err, rdr := s.cartRepo.DirectCartRetrieval(dpi.CartID, dpi.CustomerID, dpi.GuestID); err != nil {
+		dpi.AddLog("Cart", "DirectCartRetrieval", "Unable to directly retrieve cart", "", err, models.EventPassInFinal{CartID: dpi.CartID})
+		return id, err, rdr
+	} else {
+		dpi.AddLog("Cart", "DirectCartRetrieval", "", "", nil, models.EventPassInFinal{CartID: dpi.CartID})
+		return id, err, rdr
+	}
 }
 
 func (s *cartService) CopyCartFromShare(dpi *DataPassIn, sharedCartID int) error {
 	newID, err := s.cartRepo.CopyCartWithLines(sharedCartID, dpi.CustomerID, dpi.GuestID)
 	if err != nil {
-		dpi.AddLog("Cart", "Cart.CopyCartFromShare", "Unable to copy cart with lines with cart repo", "", err, models.EventPassInFinal{CartID: sharedCartID})
+		dpi.AddLog("Cart", "CopyCartFromShare", "Unable to copy cart with lines with cart repo", "", err, models.EventPassInFinal{CartID: sharedCartID})
 		return err
 	}
 
 	dpi.CartID = newID
-	dpi.AddLog("Cart", "Cart.CopyCartFromShare", "", "", nil, models.EventPassInFinal{CartID: newID})
+	dpi.AddLog("Cart", "CopyCartFromShare", "", "", nil, models.EventPassInFinal{CartID: newID})
 	return nil
 }
