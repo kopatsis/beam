@@ -608,12 +608,15 @@ func (s *cartService) OrderSuccessCart(dpi *DataPassIn, orderLines []models.Orde
 	} else if dpi.GuestID != "" {
 		cart, lines, exists, err = s.cartRepo.GetCartWithLinesByIDAndGuestID(dpi.CartID, dpi.GuestID)
 	} else {
+		dpi.AddLog("Cart", "OrderSuccessCart", "No user id", "", errors.New("no user id of either type provided"), models.EventPassInFinal{CartID: dpi.CartID})
 		return errors.New("no user id of either type provided")
 	}
 
 	if !exists {
+		dpi.AddLog("Cart", "OrderSuccessCart", "", "Cart does not exist", nil, models.EventPassInFinal{CartID: dpi.CartID})
 		return nil
 	} else if err != nil {
+		dpi.AddLog("Cart", "OrderSuccessCart", "Unable to query cart + lines", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 		return err
 	}
 
@@ -633,9 +636,17 @@ func (s *cartService) OrderSuccessCart(dpi *DataPassIn, orderLines []models.Orde
 	}
 
 	if len(newLines) == 0 {
-		return s.cartRepo.ArchiveCart(cart.ID)
+		if err := s.cartRepo.ArchiveCart(cart.ID); err != nil {
+			dpi.AddLog("Cart", "OrderSuccessCart", "Unable to archive full cart", "", err, models.EventPassInFinal{CartID: dpi.CartID})
+		}
 	}
-	return s.cartRepo.ReactivateCartWithLines(cart.ID, newLines)
+
+	if err := s.cartRepo.ReactivateCartWithLines(cart.ID, newLines); err != nil {
+		dpi.AddLog("Cart", "OrderSuccessCart", "Unable to reactivate cart with filtered lines", "", err, models.EventPassInFinal{CartID: dpi.CartID})
+	}
+
+	dpi.AddLog("Cart", "OrderSuccessCart", "", "", nil, models.EventPassInFinal{CartID: dpi.CartID})
+	return nil
 }
 
 func (s *cartService) CopyCartWithLines(dpi *DataPassIn) (int, error) {
