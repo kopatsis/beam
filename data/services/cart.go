@@ -419,8 +419,10 @@ func (s *cartService) UpdateRender(dpi *DataPassIn, name string, cart *models.Ca
 
 	lvs, err := ps.GetLimitedVariants(dpi, name, vids)
 	if err != nil {
+		dpi.AddLog("Cart", "UpdateRender", "Unable to get limited variants", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 		return err
 	} else if len(lvs) != len(vids) {
+		dpi.AddLog("Cart", "UpdateRender", "Variants returned incorrect length equal to variant IDs", "", errors.New("variants returned incorrect length equal to variant IDs"), models.EventPassInFinal{CartID: dpi.CartID})
 		return errors.New("variants returned incorrect length equal to variant IDs")
 	}
 
@@ -436,11 +438,13 @@ func (s *cartService) UpdateRender(dpi *DataPassIn, name string, cart *models.Ca
 				}
 			}
 			if !found {
+				dpi.AddLog("Cart", "UpdateRender", "Unable to find specific limited variant", "", fmt.Errorf("could not find single lim var for id: %d", cl.ActualLine.VariantID), models.EventPassInFinal{CartID: dpi.CartID})
 				return fmt.Errorf("could not find single lim var for id: %d", cl.ActualLine.VariantID)
 			}
 		}
 	}
 
+	dpi.AddLog("Cart", "UpdateRender", "", "", nil, models.EventPassInFinal{CartID: dpi.CartID})
 	return nil
 }
 
@@ -489,29 +493,37 @@ func (s *cartService) GetCartMain(dpi *DataPassIn) (*models.Cart, error, bool) {
 	cart, err := s.cartRepo.Read(dpi.CartID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
+			dpi.AddLog("Cart", "GetCartMain", "Unable to get card by id (no record found)", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 			return nil, err, true
 		}
+		dpi.AddLog("Cart", "GetCartMain", "Unable to get card by id", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 		return nil, err, false
 	}
 
 	if cart.Status != "Active" {
+		dpi.AddLog("Cart", "GetCartMain", "Inactive cart by cart id", "", errors.New("inactive cart"), models.EventPassInFinal{CartID: dpi.CartID})
 		return nil, errors.New("inactive cart"), true
 	} else if cart.ID != dpi.CartID {
+		dpi.AddLog("Cart", "GetCartMain", "Incorrect cart queried by id", "", errors.New("queried the incorrect cart by id"), models.EventPassInFinal{CartID: dpi.CartID})
 		return nil, errors.New("queried the incorrect cart by id"), true
 	}
 
 	if dpi.CartID > 0 {
 		if cart.CustomerID != dpi.CustomerID {
+			dpi.AddLog("Cart", "GetCartMain", "Customer cart doesn't belong to customer", "", errors.New("customer cart doesn't belong to customer"), models.EventPassInFinal{CartID: dpi.CartID})
 			return nil, errors.New("customer cart doesn't belong to customer"), true
 		}
 	} else if dpi.GuestID != "" {
 		if cart.GuestID != dpi.GuestID {
+			dpi.AddLog("Cart", "GetCartMain", "Guest cart doesn't belong to guest", "", errors.New("guest cart doesn't belong to guest"), models.EventPassInFinal{CartID: dpi.CartID})
 			return nil, errors.New("guest cart doesn't belong to guest"), true
 		}
 	} else {
+		dpi.AddLog("Cart", "GetCartMain", "No customer id or guest id provided", "", errors.New("no one logged in"), models.EventPassInFinal{CartID: dpi.CartID})
 		return nil, errors.New("no one logged in"), true
 	}
 
+	dpi.AddLog("Cart", "GetCartMain", "", "", nil, models.EventPassInFinal{CartID: dpi.CartID})
 	return cart, nil, false
 }
 
@@ -521,13 +533,21 @@ func (s *cartService) GetCartAndVerify(dpi *DataPassIn) (int, *models.Cart, erro
 		if retry {
 			newID, err := s.CartMiddleware(dpi.CartID, dpi.CustomerID, dpi.GuestID)
 			if err != nil {
+				dpi.AddLog("Cart", "GetCartAndVerify", "Unable to create or get cart", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 				return dpi.CartID, nil, err
 			}
 			cart, err, _ = s.GetCartMain(dpi)
-			return newID, cart, err
+			if err != nil {
+				dpi.AddLog("Cart", "GetCartAndVerify", "Unable to get cart by dpi", "", err, models.EventPassInFinal{CartID: dpi.CartID})
+				return newID, cart, err
+			}
+			dpi.AddLog("Cart", "GetCartAndVerify", "", "Had to attempt retry to get cart", nil, models.EventPassInFinal{CartID: dpi.CartID})
+			return newID, cart, nil
 		}
+		dpi.AddLog("Cart", "GetCartAndVerify", "Unable to get cart by GetCartMain", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 		return dpi.CartID, nil, err
 	}
+	dpi.AddLog("Cart", "GetCartAndVerify", "", "", nil, models.EventPassInFinal{CartID: dpi.CartID})
 	return cart.ID, cart, nil
 }
 
@@ -536,32 +556,41 @@ func (s *cartService) GetCartMainWithLines(dpi *DataPassIn) (*models.Cart, []*mo
 	cart, err := s.cartRepo.ReadWithPreload(dpi.CartID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
+			dpi.AddLog("Cart", "GetCartMainWithLines", "Unable to read cart and preload lines (no record found)", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 			return nil, nil, err, true
 		}
+		dpi.AddLog("Cart", "GetCartMainWithLines", "Unable to read cart and preload lines", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 		return nil, nil, err, false
 	} else if cart.Status != "Active" {
+		dpi.AddLog("Cart", "GetCartMainWithLines", "Inactive cart", "", errors.New("inactive cart"), models.EventPassInFinal{CartID: dpi.CartID})
 		return nil, nil, errors.New("inactive cart"), true
 	} else if cart.ID != dpi.CartID {
+		dpi.AddLog("Cart", "GetCartMainWithLines", "Queried incorrect cart by id", "", errors.New("queried the incorrect cart by id"), models.EventPassInFinal{CartID: dpi.CartID})
 		return nil, nil, errors.New("queried the incorrect cart by id"), true
 	}
 
 	if dpi.CartID > 0 {
 		if cart.CustomerID != dpi.CartID {
+			dpi.AddLog("Cart", "GetCartMainWithLines", "Customer cart doesn't belong to customer", "", errors.New("customer cart doesn't belong to customer"), models.EventPassInFinal{CartID: dpi.CartID})
 			return nil, nil, errors.New("customer cart doesn't belong to customer"), true
 		}
 	} else if dpi.GuestID != "" {
 		if cart.GuestID != dpi.GuestID {
+			dpi.AddLog("Cart", "GetCartMainWithLines", "Guest cart doesn't belong to guest", "", errors.New("guest cart doesn't belong to guest"), models.EventPassInFinal{CartID: dpi.CartID})
 			return nil, nil, errors.New("guest cart doesn't belong to guest"), true
 		}
 	} else {
+		dpi.AddLog("Cart", "GetCartMainWithLines", "No customer id or guest id provided", "", errors.New("no one logged in"), models.EventPassInFinal{CartID: dpi.CartID})
 		return nil, nil, errors.New("no one logged in"), true
 	}
 
 	cartLines, err := s.cartRepo.CartLinesRetrieval(cart.ID)
 	if err != nil {
+		dpi.AddLog("Cart", "GetCartMainWithLines", "Unable to read cart lines", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 		return nil, nil, err, false
 	}
 
+	dpi.AddLog("Cart", "GetCartMainWithLines", "", "", nil, models.EventPassInFinal{CartID: dpi.CartID})
 	return cart, cartLines, nil, false
 }
 
@@ -571,13 +600,25 @@ func (s *cartService) GetCartWithLinesAndVerify(dpi *DataPassIn) (int, *models.C
 		if retry {
 			newID, err := s.CartMiddleware(dpi.CartID, dpi.CustomerID, dpi.GuestID)
 			if err != nil {
+				dpi.AddLog("Cart", "GetCartWithLinesAndVerify", "Unable to create or get cart", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 				return dpi.CartID, nil, nil, err
 			}
+
 			cart, lines, err, _ = s.GetCartMainWithLines(dpi)
-			return newID, cart, lines, err
+			if err != nil {
+				dpi.AddLog("Cart", "GetCartWithLinesAndVerify", "Unable to get cart by dpi", "", err, models.EventPassInFinal{CartID: dpi.CartID})
+				return newID, cart, lines, err
+			}
+
+			dpi.AddLog("Cart", "GetCartWithLinesAndVerify", "", "Had to attempt retry to get cart", nil, models.EventPassInFinal{CartID: dpi.CartID})
+			return newID, cart, lines, nil
 		}
+
+		dpi.AddLog("Cart", "GetCartWithLinesAndVerify", "Unable to get cart by GetCartMainWithLines", "", err, models.EventPassInFinal{CartID: dpi.CartID})
 		return dpi.CartID, nil, nil, err
 	}
+
+	dpi.AddLog("Cart", "GetCartWithLinesAndVerify", "", "", nil, models.EventPassInFinal{CartID: dpi.CartID})
 	return cart.ID, cart, lines, nil
 }
 
