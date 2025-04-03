@@ -73,9 +73,11 @@ func (s *reviewService) AddReview(dpi *DataPassIn, productID int, store string, 
 
 	existingReview, err := s.reviewRepo.GetSingle(dpi.CustomerID, productID, true)
 	if err != nil {
+		dpi.AddLog("Review", "AddReview", "Error querying existing review not related to review found", "", err, models.EventPassInFinal{ProductID: productID})
 		return nil, err
 	}
 	if existingReview != nil {
+		dpi.AddLog("Review", "AddReview", "", "Review already exists for combination, no issue", nil, models.EventPassInFinal{ProductID: productID})
 		return nil, fmt.Errorf("review already exists for customerID %d and productID %d", dpi.CustomerID, productID)
 	}
 
@@ -114,11 +116,13 @@ func (s *reviewService) AddReview(dpi *DataPassIn, productID int, store string, 
 	}
 
 	if err := s.reviewRepo.Create(review); err != nil {
+		dpi.AddLog("Review", "AddReview", "Error creating review", "", err, models.EventPassInFinal{ProductID: productID})
 		return nil, err
 	}
 
 	go ps.UpdateRatings(dpi, productID, stars, 0, 1, tools)
 
+	dpi.AddLog("Review", "AddReview", "", "", nil, models.EventPassInFinal{ProductID: productID, ReviewID: review.PK})
 	return review, nil
 }
 
@@ -150,9 +154,11 @@ func (s *reviewService) UpdateReview(dpi *DataPassIn, productID int, store strin
 
 	existingReview, err := s.reviewRepo.GetSingle(dpi.CustomerID, productID, true)
 	if err != nil {
+		dpi.AddLog("Review", "UpdateReview", "Unable to retrieve review unrelated to does not exist", "", err, models.EventPassInFinal{ProductID: productID})
 		return nil, err
 	}
 	if existingReview == nil {
+		dpi.AddLog("Review", "UpdateReview", "Review doesn't exist", "", fmt.Errorf("review does not exist for customerID %d and productID %d", dpi.CustomerID, productID), models.EventPassInFinal{ProductID: productID})
 		return nil, fmt.Errorf("review does not exist for customerID %d and productID %d", dpi.CustomerID, productID)
 	}
 
@@ -173,11 +179,13 @@ func (s *reviewService) UpdateReview(dpi *DataPassIn, productID int, store strin
 	existingReview.Status = "Draft"
 
 	if err := s.reviewRepo.Update(existingReview); err != nil {
+		dpi.AddLog("Review", "UpdateReview", "Unable to update review", "", err, models.EventPassInFinal{ProductID: productID, ReviewID: existingReview.PK})
 		return nil, err
 	}
 
 	go ps.UpdateRatings(dpi, productID, stars, oldStars, 0, tools)
 
+	dpi.AddLog("Review", "UpdateReview", "", "", nil, models.EventPassInFinal{ProductID: productID, ReviewID: existingReview.PK})
 	return existingReview, nil
 }
 
@@ -185,9 +193,11 @@ func (s *reviewService) DeleteReview(dpi *DataPassIn, productID int, store strin
 
 	existingReview, err := s.reviewRepo.GetSingle(dpi.CustomerID, productID, true)
 	if err != nil {
+		dpi.AddLog("Review", "DeleteReview", "Unable to retrieve review unrelated to does not exist", "", err, models.EventPassInFinal{ProductID: productID})
 		return nil, err
 	}
 	if existingReview == nil {
+		dpi.AddLog("Review", "DeleteReview", "Review doesn't exist", "", fmt.Errorf("review does not exist for customerID %d and productID %d", dpi.CustomerID, productID), models.EventPassInFinal{ProductID: productID})
 		return nil, fmt.Errorf("review does not exist for customerID %d and productID %d", dpi.CustomerID, productID)
 	}
 
@@ -201,16 +211,24 @@ func (s *reviewService) DeleteReview(dpi *DataPassIn, productID int, store strin
 	stars := existingReview.Stars
 
 	if err := s.reviewRepo.Delete(existingReview.PK); err != nil {
+		dpi.AddLog("Review", "DeleteReview", "Unable to delete review", "", err, models.EventPassInFinal{ProductID: productID})
 		return nil, err
 	}
 
 	go ps.UpdateRatings(dpi, productID, stars, 0, -1, tools)
 
+	dpi.AddLog("Review", "DeleteReview", "", "", nil, models.EventPassInFinal{ProductID: productID})
 	return existingReview, nil
 }
 
 func (s *reviewService) GetReview(dpi *DataPassIn, productID int) (*models.Review, error) {
-	return s.reviewRepo.GetSingle(dpi.CustomerID, productID, true)
+	if r, err := s.reviewRepo.GetSingle(dpi.CustomerID, productID, true); err != nil {
+		dpi.AddLog("Review", "GetReview", "Error getting review", "", err, models.EventPassInFinal{ProductID: productID})
+		return r, err
+	} else {
+		dpi.AddLog("Review", "GetReview", "", "", nil, models.EventPassInFinal{ProductID: productID})
+		return r, err
+	}
 }
 
 // First 3 featured, customer review, error for featured, error for customer
@@ -222,6 +240,18 @@ func (s *reviewService) FirstThreeForProduct(dpi *DataPassIn, productID int) (fi
 		firstThree, multiErr = s.reviewRepo.GetReviewsByProduct(productID, 0, 3, "stars", true, existingReview.CustomerID, false)
 	} else {
 		firstThree, multiErr = s.reviewRepo.GetReviewsByProduct(productID, 0, 3, "stars", true, 0, false)
+	}
+
+	if singleErr != nil {
+		dpi.AddLog("Review", "FirstThreeForProduct", "Error getting single review", "", singleErr, models.EventPassInFinal{ProductID: productID})
+	}
+
+	if multiErr != nil {
+		dpi.AddLog("Review", "FirstThreeForProduct", "Error getting first 3 reviews", "", multiErr, models.EventPassInFinal{ProductID: productID})
+	}
+
+	if multiErr == nil && singleErr == nil {
+		dpi.AddLog("Review", "FirstThreeForProduct", "", "", nil, models.EventPassInFinal{ProductID: productID})
 	}
 
 	return firstThree, existingReview, multiErr, singleErr
@@ -256,6 +286,18 @@ func (s *reviewService) ReviewsByProduct(dpi *DataPassIn, productID int, fromURL
 	ret.SortColumn = sort
 	ret.Descending = desc
 
+	if singleErr != nil {
+		dpi.AddLog("Review", "ReviewsByProduct", "Error getting single review", "", singleErr, models.EventPassInFinal{ProductID: productID})
+	}
+
+	if multiErr != nil {
+		dpi.AddLog("Review", "ReviewsByProduct", "Error getting multiple reviews", "", multiErr, models.EventPassInFinal{ProductID: productID})
+	}
+
+	if multiErr == nil && singleErr == nil {
+		dpi.AddLog("Review", "ReviewsByProduct", "", "", nil, models.EventPassInFinal{ProductID: productID})
+	}
+
 	return ret, multiErr, singleErr
 }
 
@@ -284,24 +326,40 @@ func (s *reviewService) ReviewsByCustomer(dpi *DataPassIn, fromURL url.Values) (
 	ret.SortColumn = sort
 	ret.Descending = desc
 
+	if err != nil {
+		dpi.AddLog("Review", "ReviewsByCustomer", "Error getting reviews", "", err, models.EventPassInFinal{})
+	} else {
+		dpi.AddLog("Review", "ReviewsByCustomer", "", "", nil, models.EventPassInFinal{})
+	}
+
 	return ret, err
 }
 
 func (s *reviewService) GetReviewIDOnly(dpi *DataPassIn, ID int) (*models.Review, error) {
 	r, err := s.reviewRepo.GetSingleByID(ID, true)
 	if err != nil {
+		dpi.AddLog("Review", "GetReviewIDOnly", "Unable to retrieve review unrelated to does not exist", "", err, models.EventPassInFinal{ReviewID: ID})
 		return nil, err
 	} else if r == nil {
+		dpi.AddLog("Review", "GetReviewIDOnly", "Review doesn't exist", "", errors.New("empty review"), models.EventPassInFinal{ReviewID: ID})
 		return nil, errors.New("empty review")
 	}
 
 	if r.CustomerID != dpi.CustomerID && (!r.Public || r.Status != "Active") {
+		dpi.AddLog("Review", "GetReviewIDOnly", "Review not accessible to requesting party", "", fmt.Errorf("review doesn't belong to customer: %d", dpi.CustomerID), models.EventPassInFinal{ReviewID: ID})
 		return nil, fmt.Errorf("review doesn't belong to customer: %d", dpi.CustomerID)
 	}
+
+	dpi.AddLog("Review", "GetReviewIDOnly", "", "", nil, models.EventPassInFinal{ReviewID: ID})
 	return r, nil
 }
 
 func (s *reviewService) GetReviewsForOrder(dpi *DataPassIn, order *models.Order) (map[int]*models.Review, error) {
+	if order == nil {
+		dpi.AddLog("Review", "GetReviewsForOrder", "No order to get reviews for", "", errors.New("nil order"), models.EventPassInFinal{})
+		return nil, errors.New("nil order")
+	}
+
 	pids := map[int]struct{}{}
 	for _, l := range order.Lines {
 		pids[l.ProductID] = struct{}{}
@@ -312,7 +370,13 @@ func (s *reviewService) GetReviewsForOrder(dpi *DataPassIn, order *models.Order)
 		list = append(list, id)
 	}
 
-	return s.reviewRepo.GetReviewsMultiProduct(list, order.CustomerID, true)
+	if rs, err := s.reviewRepo.GetReviewsMultiProduct(list, order.CustomerID, true); err != nil {
+		dpi.AddLog("Review", "GetReviewsForOrder", "Unable to get review map", "", err, models.EventPassInFinal{OrderID: order.ID.Hex()})
+		return rs, err
+	} else {
+		dpi.AddLog("Review", "GetReviewsForOrder", "", "", nil, models.EventPassInFinal{OrderID: order.ID.Hex()})
+		return rs, err
+	}
 }
 
 func (s *reviewService) RateReviewHelpful(dpi *DataPassIn, reviewID int) (*models.Review, error) {

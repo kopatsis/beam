@@ -114,6 +114,7 @@ type EventFinal struct {
 	DiscountCode     string    `json:"discount_code,omitempty"`
 	GiftCardID       int       `json:"gift_card_id,omitempty"`
 	GiftCardCode     string    `json:"gift_card_code,omitempty"`
+	ReviewID         int       `json:"review,omitempty"`
 }
 
 type EventPassInFinal struct {
@@ -131,6 +132,7 @@ type EventPassInFinal struct {
 	DiscountCode    string
 	GiftCardID      int
 	GiftCardCode    string
+	ReviewID        int
 	SessionID       string
 }
 

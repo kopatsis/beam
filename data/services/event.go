@@ -54,6 +54,7 @@ func (d *DataPassIn) AddLog(modelName, funcName, errorDesc, extraNote string, er
 		DiscountCode:    ids.DiscountCode,
 		GiftCardID:      ids.GiftCardID,
 		GiftCardCode:    ids.GiftCardCode,
+		ReviewID:        ids.ReviewID,
 	}
 
 	if err != nil {
