@@ -30,4 +30,4 @@ This is a long-term project with development measured in months and years. Progr
 
 ## Contact
 
-For questions, ideas, or collaboration, please reach out via the [Contact Me form](https://kopatsis.com).
+For questions, ideas, or collaboration, please reach out via the [Contact Me form](https://kopatsis.com/#contact).
