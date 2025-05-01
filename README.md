@@ -14,12 +14,13 @@ Beam is a modern, extensible e-commerce platform designed to host multiple store
 - **Global Cart Settings**: Smart conflict resolution for collaborative cart editing within the same account.
 - **Stripe Integration**: Fast and reliable webhook handling with remediation for failed payments.
 - **Filterable URLs with HTMX**: Product filtering modifies the URL directly, enabling shareable/filter-persistent links without full reloads.
+- **Detailed Product Search**: Search algorithm uses a weighted ranking of approximate matches to titles, SKUs, and other identifying product info.
 - **Detailed User Interaction Logging**: Logs user interaction down to the function level for superior debugging and analytics.
 
 ## Tech Stack
 
 - **Backend**: Go (Gin), Redis, Postgres, MongoDB
-- **Frontend** (in progress): Alpine.js, HTMX, Bootstrap
+- **Frontend** (in progress): Alpine.js, HTMX, Tailwind
 - **Hosting**: Monolithic architecture capable of supporting scale and modular growth
 
 ## Roadmap

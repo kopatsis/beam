@@ -1,3 +1,6 @@
 .env
 node_modules
 static/geo/*
+/*.text
+/static/ref/*
+entry.xlsx
